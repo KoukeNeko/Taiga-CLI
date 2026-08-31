@@ -1,0 +1,205 @@
+package cli
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/KoukeNeko/taiga-cli/internal/config"
+	"github.com/KoukeNeko/taiga-cli/internal/credential"
+)
+
+type fakeCredentials struct {
+	values map[string]credential.Tokens
+}
+
+func (f *fakeCredentials) Get(account string) (credential.Tokens, error) {
+	value, ok := f.values[account]
+	if !ok {
+		return credential.Tokens{}, credential.ErrNotFound
+	}
+	return value, nil
+}
+
+func (f *fakeCredentials) Set(account string, tokens credential.Tokens) error {
+	f.values[account] = tokens
+	return nil
+}
+
+func (f *fakeCredentials) Delete(account string) error {
+	delete(f.values, account)
+	return nil
+}
+
+func testApp(t *testing.T, server *httptest.Server) (*App, *bytes.Buffer, *bytes.Buffer, *fakeCredentials) {
+	t.Helper()
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+	apiURL := "https://example.invalid/api/v1/"
+	client := http.DefaultClient
+	if server != nil {
+		apiURL = server.URL + "/api/v1/"
+		client = server.Client()
+	}
+	store := config.NewStore(configPath)
+	if err := store.Save(config.File{CurrentProfile: "test", Profiles: map[string]config.Profile{"test": {APIURL: apiURL, Project: "demo"}}}); err != nil {
+		t.Fatal(err)
+	}
+	out, stderr := &bytes.Buffer{}, &bytes.Buffer{}
+	credentials := &fakeCredentials{values: map[string]credential.Tokens{credential.Account("test", apiURL): {AuthToken: "test-token"}}}
+	app := &App{
+		In:          strings.NewReader(""),
+		Out:         out,
+		Err:         stderr,
+		HTTPClient:  client,
+		Config:      store,
+		GitLocal:    config.NewGitLocal(dir),
+		Credentials: credentials,
+		Getenv:      func(string) string { return "" },
+		Cwd:         dir,
+	}
+	return app, out, stderr, credentials
+}
+
+func TestSchemaMachineContract(t *testing.T) {
+	app, out, stderr, _ := testApp(t, nil)
+	if code := app.Execute(context.Background(), []string{"schema", "issue", "view", "--json"}); code != 0 {
+		t.Fatalf("exit = %d, stderr = %s", code, stderr.String())
+	}
+	var envelope map[string]any
+	if err := json.Unmarshal(out.Bytes(), &envelope); err != nil {
+		t.Fatal(err)
+	}
+	data := envelope["data"].(map[string]any)
+	if data["command"] != "issue view" || data["input_schema"] == nil {
+		t.Fatalf("envelope = %#v", envelope)
+	}
+}
+
+func TestJSONErrorUsesStderrAndStableExit(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/projects/by_slug" {
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = io.WriteString(w, `{"detail":"project missing"}`)
+			return
+		}
+		t.Fatalf("unexpected request %s", r.URL.Path)
+	}))
+	defer server.Close()
+	app, out, stderr, _ := testApp(t, server)
+	code := app.Execute(context.Background(), []string{"--json", "issue", "view", "1"})
+	if code != ExitNotFound {
+		t.Fatalf("exit = %d, stderr = %s", code, stderr.String())
+	}
+	if out.Len() != 0 {
+		t.Fatalf("stdout = %q", out.String())
+	}
+	var envelope map[string]any
+	if err := json.Unmarshal(stderr.Bytes(), &envelope); err != nil {
+		t.Fatalf("stderr is not JSON: %v: %s", err, stderr.String())
+	}
+	errorBody := envelope["error"].(map[string]any)
+	if errorBody["code"] != "not_found" {
+		t.Fatalf("error = %#v", errorBody)
+	}
+}
+
+func TestDryRunPerformsNoMutation(t *testing.T) {
+	patches := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "Bearer test-token" {
+			t.Fatalf("Authorization = %q", got)
+		}
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/projects/by_slug":
+			_, _ = io.WriteString(w, `{"id":1,"name":"Demo","slug":"demo"}`)
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/issues/by_ref":
+			_, _ = io.WriteString(w, `{"id":2,"ref":3,"project":1,"subject":"Old","version":7,"status_extra_info":{"name":"New"},"priority_extra_info":{"name":"Normal"},"severity_extra_info":{"name":"Normal"},"type_extra_info":{"name":"Bug"}}`)
+		case r.Method == http.MethodPatch:
+			patches++
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	app, out, stderr, _ := testApp(t, server)
+	code := app.Execute(context.Background(), []string{"--json", "issue", "edit", "3", "--subject", "New", "--dry-run"})
+	if code != 0 {
+		t.Fatalf("exit = %d, stderr = %s", code, stderr.String())
+	}
+	if patches != 0 {
+		t.Fatalf("PATCH requests = %d", patches)
+	}
+	var envelope map[string]any
+	if err := json.Unmarshal(out.Bytes(), &envelope); err != nil {
+		t.Fatal(err)
+	}
+	plan := envelope["plan"].(map[string]any)
+	if plan["performed"] != false || plan["would_write"] != true {
+		t.Fatalf("plan = %#v", plan)
+	}
+}
+
+func TestTokenLoginSavesKeyringEntry(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/users/me" || r.Header.Get("Authorization") != "Bearer supplied-token" {
+			t.Fatalf("unexpected request %s auth=%q", r.URL.Path, r.Header.Get("Authorization"))
+		}
+		_, _ = io.WriteString(w, `{"id":4,"username":"smoke","full_name_display":"Smoke"}`)
+	}))
+	defer server.Close()
+	app, out, stderr, credentials := testApp(t, server)
+	app.In = strings.NewReader("supplied-token\n")
+	code := app.Execute(context.Background(), []string{"--profile", "saved", "--api-url", server.URL + "/api/v1/", "--json", "auth", "login", "--with-token"})
+	if code != 0 {
+		t.Fatalf("exit = %d, stderr = %s", code, stderr.String())
+	}
+	account := credential.Account("saved", server.URL+"/api/v1/")
+	if credentials.values[account].AuthToken != "supplied-token" {
+		t.Fatalf("credential missing: %#v, stdout=%s", credentials.values, out.String())
+	}
+}
+
+func TestGitLocalSettingsOverrideProfile(t *testing.T) {
+	app, _, _, _ := testApp(t, nil)
+	cmd := exec.Command("git", "init", "-q", app.Cwd)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v: %s", err, output)
+	}
+	if err := app.GitLocal.Set(context.Background(), "profile", "local"); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.GitLocal.Set(context.Background(), "project", "local-project"); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := app.Config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Profiles["local"] = config.Profile{APIURL: "https://local.example/api/v1/"}
+	if err := app.Config.Save(cfg); err != nil {
+		t.Fatal(err)
+	}
+	settings, _, err := app.resolveSettings(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if settings.Profile != "local" || settings.Project != "local-project" || settings.APIURL != "https://local.example/api/v1/" {
+		t.Fatalf("settings = %#v", settings)
+	}
+}
+
+func TestFieldsWithoutJSONIsUsageError(t *testing.T) {
+	app, _, stderr, _ := testApp(t, nil)
+	if code := app.Execute(context.Background(), []string{"--fields", "id", "schema", "issue", "view"}); code != ExitUsage {
+		t.Fatalf("exit = %d, stderr=%s", code, stderr.String())
+	}
+}
