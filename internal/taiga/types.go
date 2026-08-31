@@ -123,6 +123,40 @@ type UpdateRoleRequest struct {
 	Order       *int      `json:"order,omitempty"`
 }
 
+type Webhook struct {
+	ID          int64  `json:"id"`
+	Project     int64  `json:"project"`
+	Name        string `json:"name"`
+	URL         string `json:"url"`
+	Key         string `json:"key,omitempty"`
+	LogsCounter int    `json:"logs_counter"`
+}
+
+type CreateWebhookRequest struct {
+	Project int64  `json:"project"`
+	Name    string `json:"name"`
+	URL     string `json:"url"`
+	Key     string `json:"key"`
+}
+
+type UpdateWebhookRequest struct {
+	Name *string `json:"name,omitempty"`
+	URL  *string `json:"url,omitempty"`
+	Key  *string `json:"key,omitempty"`
+}
+
+type WebhookLog struct {
+	ID              int64          `json:"id"`
+	Webhook         int64          `json:"webhook"`
+	URL             string         `json:"url"`
+	Status          int            `json:"status"`
+	RequestData     map[string]any `json:"request_data,omitempty"`
+	ResponseData    string         `json:"response_data,omitempty"`
+	ResponseHeaders map[string]any `json:"response_headers,omitempty"`
+	Duration        float64        `json:"duration"`
+	Created         string         `json:"created,omitempty"`
+}
+
 type ExtraInfo struct {
 	ID       int64  `json:"id"`
 	Name     string `json:"name,omitempty"`

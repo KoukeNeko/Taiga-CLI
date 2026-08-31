@@ -550,6 +550,25 @@ func TestProjectArchiveReportsUnsupportedCapability(t *testing.T) {
 	}
 }
 
+func TestWebhookOutputDoesNotLeakSecret(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/projects/by_slug":
+			_, _ = io.WriteString(w, `{"id":1,"name":"Demo","slug":"demo"}`)
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/webhooks":
+			_, _ = io.WriteString(w, `{"id":3,"project":1,"name":"CI","url":"https://example.test/hook","key":"must-not-leak"}`)
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	app, out, stderr, _ := testApp(t, server)
+	code := app.Execute(context.Background(), []string{"--json", "webhook", "create", "--name", "CI", "--url", "https://example.test/hook", "--secret", "must-not-leak"})
+	if code != ExitSuccess || strings.Contains(out.String()+stderr.String(), "must-not-leak") {
+		t.Fatalf("exit=%d stdout=%s stderr=%s", code, out.String(), stderr.String())
+	}
+}
+
 func TestSprintCreateRejectsInvalidDateRange(t *testing.T) {
 	app, out, stderr, _ := testApp(t, nil)
 	code := app.Execute(context.Background(), []string{"--json", "sprint", "create", "--name", "Bad Sprint", "--start", "2026-09-10", "--finish", "2026-09-01"})

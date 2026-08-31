@@ -114,6 +114,34 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 	if deletedRole.Data["deleted"] != true {
 		t.Fatalf("role deletion=%#v", deletedRole.Data)
 	}
+	webhookSecret := "E2E-webhook-secret-must-not-leak"
+	webhook := runner.jsonOK("webhook", "create", "--name", "E2E Hook", "--url", "http://webhook.invalid/taiga", "--secret", webhookSecret)
+	webhookID := int64(webhook.Data["id"].(float64))
+	webhookJSON, _ := json.Marshal(webhook)
+	if bytes.Contains(webhookJSON, []byte(webhookSecret)) {
+		t.Fatalf("webhook secret leaked: %s", webhookJSON)
+	}
+	webhooks := runner.jsonOK("webhook", "list", "--fields", "id,name,url,logs_counter")
+	if !containsID(webhooks.Items, webhookID) {
+		t.Fatalf("webhook missing from list: %#v", webhooks.Items)
+	}
+	runner.jsonOK("webhook", "view", strconv.FormatInt(webhookID, 10), "--fields", "id,name,url,logs_counter")
+	webhookEdited := runner.jsonOK("webhook", "edit", strconv.FormatInt(webhookID, 10), "--name", "E2E Hook Updated")
+	if webhookEdited.Data["name"] != "E2E Hook Updated" {
+		t.Fatalf("webhook edit=%#v", webhookEdited.Data)
+	}
+	webhookTest := runner.jsonOK("webhook", "test", strconv.FormatInt(webhookID, 10), "--fields", "id,webhook,status,duration,response_data")
+	if webhookTest.Data["webhook"] != float64(webhookID) {
+		t.Fatalf("webhook test=%#v", webhookTest.Data)
+	}
+	stdout, stderr, code = runner.run("--json", "--no-input", "webhook", "delete", strconv.FormatInt(webhookID, 10))
+	if code != 10 || strings.TrimSpace(stdout) != "" {
+		t.Fatalf("unconfirmed webhook deletion exit=%d stdout=%s stderr=%s", code, stdout, stderr)
+	}
+	deletedWebhook := runner.jsonOK("webhook", "delete", strconv.FormatInt(webhookID, 10), "--yes")
+	if deletedWebhook.Data["deleted"] != true {
+		t.Fatalf("webhook deletion=%#v", deletedWebhook.Data)
+	}
 
 	created := runner.jsonOK("issue", "create", "--subject", "E2E issue", "--description", "created by integration test")
 	ref := int(created.Data["ref"].(float64))

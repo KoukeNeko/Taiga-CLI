@@ -11,6 +11,7 @@
 - 多 profile、profile 預設 project 與 Git-local project mapping。
 - Project list、view、use、create、edit、delete。
 - Project member/invitation 與 Role/permission 管理。
+- Webhook list、view、create、edit、test、delete，secret 永不回顯。
 - Epic list、view、create、edit、close、跨專案 Story link/unlink、watch 與 history。
 - Issue list、view、create、edit、close、assign、comment。
 - User Story list、view、create、edit、close、move、assign、comment。
@@ -106,6 +107,18 @@ taiga role delete reviewer --move-to ux --yes
 ```
 
 `member add` 可加入既有 username/email，或為未知 email 建立 invitation。Taiga 會保護 owner 與最後一位 active admin；CLI 不會繞過這些限制。刪除仍有 members 的 Role 必須明確提供 `--move-to`。
+
+管理 Webhook：
+
+```sh
+taiga webhook create --name CI --url https://ci.example.com/taiga --secret "$WEBHOOK_SECRET"
+taiga webhook list
+taiga webhook test CI
+taiga webhook edit CI --url https://ci.example.com/hooks/taiga
+taiga webhook delete CI --yes
+```
+
+Webhook signing secret 只會送往 Taiga API，不會出現在成功輸出或 dry-run。`webhook test` 要求 Taiga server 自己發送測試事件，CLI 不會直接連第三方 URL。
 
 操作 User Story：
 
