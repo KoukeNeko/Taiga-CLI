@@ -41,7 +41,8 @@ func (a *App) taskCommand() *cobra.Command {
 	command := &cobra.Command{Use: "task", Short: "Work with Taiga tasks"}
 	command.AddCommand(
 		a.taskListCommand(), a.taskViewCommand(), a.taskCreateCommand(),
-		a.taskEditCommand(), a.taskDoneCommand(), a.taskAssignCommand(), a.taskCommentCommand(),
+		a.taskEditCommand(), a.taskDoneCommand(), a.taskReopenCommand(),
+		a.taskAssignCommand(), a.taskUnassignCommand(), a.taskMoveCommand(), a.taskCommentCommand(),
 	)
 	return command
 }
@@ -223,7 +224,8 @@ func (a *App) taskEditCommand() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				request.UserStory = &parent.ID
+				storyID := &parent.ID
+				request.UserStory = &storyID
 			}
 			if cmd.Flags().Changed("status") {
 				selected, err := a.resolveTaskStatus(cmd.Context(), target.Client, target.Project.ID, options.Status, false)
@@ -237,7 +239,8 @@ func (a *App) taskEditCommand() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				request.AssignedTo = &userID
+				assignedTo := &userID
+				request.AssignedTo = &assignedTo
 			}
 			if options.DryRun {
 				return a.renderDryRun("edit task", fmt.Sprintf("%s#%d", target.Project.Slug, target.Task.Ref), map[string]any{"base_version": request.Version, "subject": request.Subject, "description": request.Description, "story": options.Story, "status": options.Status, "assignee": options.Assignee})
@@ -297,6 +300,44 @@ func (a *App) taskDoneCommand() *cobra.Command {
 	return command
 }
 
+func (a *App) taskReopenCommand() *cobra.Command {
+	var status string
+	var baseVersion int
+	var dryRun bool
+	command := &cobra.Command{
+		Use: "reopen <ref|project#ref|url>", Short: "Move a task to an open status", Args: exactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if baseVersion < 0 {
+				return usageError("--base-version cannot be negative")
+			}
+			target, err := a.loadTaskTarget(cmd.Context(), args[0])
+			if err != nil {
+				return err
+			}
+			selected, err := a.resolveTaskOpenStatus(cmd.Context(), target.Client, target.Project.ID, status)
+			if err != nil {
+				return err
+			}
+			version := target.Task.Version
+			if baseVersion > 0 {
+				version = baseVersion
+			}
+			if dryRun {
+				return a.renderDryRun("reopen task", fmt.Sprintf("%s#%d", target.Project.Slug, target.Task.Ref), map[string]any{"status": selected.Name, "base_version": version})
+			}
+			updated, err := target.Client.UpdateTask(cmd.Context(), target.Task.ID, taiga.UpdateTaskRequest{Version: version, Status: &selected.ID})
+			if err != nil {
+				return err
+			}
+			return a.renderTaskMutation("Reopened", makeTaskView(updated, target.Project.Slug))
+		},
+	}
+	command.Flags().StringVar(&status, "status", "", "open status name when the project has multiple open statuses")
+	command.Flags().IntVar(&baseVersion, "base-version", 0, "explicit Taiga base version")
+	command.Flags().BoolVar(&dryRun, "dry-run", false, "resolve and display the mutation without writing")
+	return command
+}
+
 func (a *App) taskAssignCommand() *cobra.Command {
 	var assignee string
 	var baseVersion int
@@ -325,7 +366,8 @@ func (a *App) taskAssignCommand() *cobra.Command {
 			if dryRun {
 				return a.renderDryRun("assign task", fmt.Sprintf("%s#%d", target.Project.Slug, target.Task.Ref), map[string]any{"assignee": assignee, "assigned_user_id": userID, "base_version": version})
 			}
-			updated, err := target.Client.UpdateTask(cmd.Context(), target.Task.ID, taiga.UpdateTaskRequest{Version: version, AssignedTo: &userID})
+			assignedTo := &userID
+			updated, err := target.Client.UpdateTask(cmd.Context(), target.Task.ID, taiga.UpdateTaskRequest{Version: version, AssignedTo: &assignedTo})
 			if err != nil {
 				return err
 			}
@@ -333,6 +375,103 @@ func (a *App) taskAssignCommand() *cobra.Command {
 		},
 	}
 	command.Flags().StringVar(&assignee, "to", "", "assignee username or full name")
+	command.Flags().IntVar(&baseVersion, "base-version", 0, "explicit Taiga base version")
+	command.Flags().BoolVar(&dryRun, "dry-run", false, "resolve and display the mutation without writing")
+	return command
+}
+
+func (a *App) taskUnassignCommand() *cobra.Command {
+	var baseVersion int
+	var dryRun bool
+	command := &cobra.Command{
+		Use: "unassign <ref|project#ref|url>", Short: "Remove a task assignee", Args: exactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if baseVersion < 0 {
+				return usageError("--base-version cannot be negative")
+			}
+			target, err := a.loadTaskTarget(cmd.Context(), args[0])
+			if err != nil {
+				return err
+			}
+			version := target.Task.Version
+			if baseVersion > 0 {
+				version = baseVersion
+			}
+			if dryRun {
+				return a.renderDryRun("unassign task", fmt.Sprintf("%s#%d", target.Project.Slug, target.Task.Ref), map[string]any{"assigned_to": nil, "base_version": version})
+			}
+			var assignedTo *int64
+			updated, err := target.Client.UpdateTask(cmd.Context(), target.Task.ID, taiga.UpdateTaskRequest{Version: version, AssignedTo: &assignedTo})
+			if err != nil {
+				return err
+			}
+			return a.renderTaskMutation("Unassigned", makeTaskView(updated, target.Project.Slug))
+		},
+	}
+	command.Flags().IntVar(&baseVersion, "base-version", 0, "explicit Taiga base version")
+	command.Flags().BoolVar(&dryRun, "dry-run", false, "resolve and display the mutation without writing")
+	return command
+}
+
+func (a *App) taskMoveCommand() *cobra.Command {
+	var story, sprint string
+	var baseVersion int
+	var dryRun bool
+	command := &cobra.Command{
+		Use: "move <ref|project#ref|url>", Short: "Move a task to a Story, Sprint, or backlog", Args: exactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if baseVersion < 0 {
+				return usageError("--base-version cannot be negative")
+			}
+			if (story == "") == (sprint == "") {
+				return usageError("exactly one of --story or --sprint is required")
+			}
+			target, err := a.loadTaskTarget(cmd.Context(), args[0])
+			if err != nil {
+				return err
+			}
+			version := target.Task.Version
+			if baseVersion > 0 {
+				version = baseVersion
+			}
+			request := taiga.UpdateTaskRequest{Version: version}
+			changes := map[string]any{"base_version": version}
+			if story != "" {
+				parent, err := a.resolveParentStory(cmd.Context(), target.Client, target.Project.Slug, story)
+				if err != nil {
+					return err
+				}
+				storyID := &parent.ID
+				request.UserStory = &storyID
+				changes["story"] = story
+				changes["story_id"] = parent.ID
+			} else {
+				var storyID *int64
+				request.UserStory = &storyID
+				var milestoneID *int64
+				if !strings.EqualFold(strings.TrimSpace(sprint), "backlog") {
+					selected, err := a.resolveMilestone(cmd.Context(), target.Client, target.Project.ID, sprint)
+					if err != nil {
+						return err
+					}
+					milestoneID = &selected.ID
+					changes["sprint_id"] = selected.ID
+				}
+				request.Milestone = &milestoneID
+				changes["sprint"] = sprint
+			}
+			if dryRun {
+				return a.renderDryRun("move task", fmt.Sprintf("%s#%d", target.Project.Slug, target.Task.Ref), changes)
+			}
+			updated, err := target.Client.UpdateTask(cmd.Context(), target.Task.ID, request)
+			if err != nil {
+				return err
+			}
+			return a.renderTaskMutation("Moved", makeTaskView(updated, target.Project.Slug))
+		},
+	}
+	command.Flags().StringVar(&story, "story", "", "parent Story ref")
+	command.Flags().StringVar(&sprint, "sprint", "", "standalone Sprint name/slug, or backlog")
 	command.Flags().IntVar(&baseVersion, "base-version", 0, "explicit Taiga base version")
 	command.Flags().BoolVar(&dryRun, "dry-run", false, "resolve and display the mutation without writing")
 	return command
@@ -483,6 +622,61 @@ func (a *App) resolveTaskCloseStatus(ctx context.Context, client *taiga.Client, 
 		return taiga.TaskStatus{}, err
 	}
 	return a.resolveTaskStatus(ctx, client, projectID, selected, true)
+}
+
+func (a *App) resolveTaskOpenStatus(ctx context.Context, client *taiga.Client, projectID int64, name string) (taiga.TaskStatus, error) {
+	if name != "" {
+		values, err := client.TaskStatuses(ctx, projectID)
+		if err != nil {
+			return taiga.TaskStatus{}, err
+		}
+		matches := []taiga.TaskStatus{}
+		for _, value := range values {
+			if strings.EqualFold(strings.TrimSpace(value.Name), strings.TrimSpace(name)) && !value.IsClosed {
+				matches = append(matches, value)
+			}
+		}
+		if len(matches) == 1 {
+			return matches[0], nil
+		}
+		if len(matches) == 0 {
+			return taiga.TaskStatus{}, validationError("unknown_status", fmt.Sprintf("open task status %q was not found", name))
+		}
+		return taiga.TaskStatus{}, validationError("ambiguous_status", fmt.Sprintf("open task status %q matches multiple values", name))
+	}
+	values, err := client.TaskStatuses(ctx, projectID)
+	if err != nil {
+		return taiga.TaskStatus{}, err
+	}
+	open := []taiga.TaskStatus{}
+	for _, value := range values {
+		if !value.IsClosed {
+			open = append(open, value)
+		}
+	}
+	sort.Slice(open, func(i, j int) bool { return open[i].Order < open[j].Order })
+	if len(open) == 1 {
+		return open[0], nil
+	}
+	if len(open) == 0 {
+		return taiga.TaskStatus{}, validationError("missing_open_status", "project has no open task status")
+	}
+	if a.global.NoInput || !a.stdinTTY() {
+		names := make([]string, 0, len(open))
+		for _, value := range open {
+			names = append(names, value.Name)
+		}
+		return taiga.TaskStatus{}, validationError("ambiguous_status", "multiple open statuses are available; pass --status: "+strings.Join(names, ", "))
+	}
+	_, _ = fmt.Fprintln(a.Err, "Open statuses:")
+	for _, value := range open {
+		_, _ = fmt.Fprintf(a.Err, "  %s\n", value.Name)
+	}
+	selected, err := a.readLine("Status: ")
+	if err != nil {
+		return taiga.TaskStatus{}, err
+	}
+	return a.resolveTaskOpenStatus(ctx, client, projectID, selected)
 }
 
 func validateTaskOrderBy(value string) error {

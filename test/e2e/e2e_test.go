@@ -231,9 +231,41 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 	if doneTask.Data["is_closed"] != true {
 		t.Fatalf("task not done: %#v", doneTask.Data)
 	}
+	taskVersion = int(doneTask.Data["version"].(float64))
 	completedParent := runner.jsonOK("story", "view", strconv.Itoa(storyWithTaskRef), "--fields", "status,is_closed")
 	if completedParent.Data["status"] != closedStoryStatus || completedParent.Data["is_closed"] != true {
 		t.Fatalf("parent Story did not close after final task: %#v", completedParent.Data)
+	}
+	openTaskStatus := firstOpenTaskStatus(t, baseURL, token, projectID)
+	reopenedTask := runner.jsonOK("task", "reopen", taskTarget, "--status", openTaskStatus, "--base-version", strconv.Itoa(taskVersion))
+	if reopenedTask.Data["is_closed"] != false {
+		t.Fatalf("task not reopened: %#v", reopenedTask.Data)
+	}
+	taskVersion = int(reopenedTask.Data["version"].(float64))
+	unassignedTask := runner.jsonOK("task", "unassign", taskTarget, "--base-version", strconv.Itoa(taskVersion))
+	if value, ok := unassignedTask.Data["assignee"]; ok && value != "" {
+		t.Fatalf("task not unassigned: %#v", unassignedTask.Data)
+	}
+	taskVersion = int(unassignedTask.Data["version"].(float64))
+	standaloneSprintTask := runner.jsonOK("task", "move", taskTarget, "--sprint", milestoneSlug, "--base-version", strconv.Itoa(taskVersion))
+	if value, ok := standaloneSprintTask.Data["story_ref"]; ok && value != float64(0) {
+		t.Fatalf("task still has parent Story: %#v", standaloneSprintTask.Data)
+	}
+	if standaloneSprintTask.Data["sprint_slug"] != milestoneSlug {
+		t.Fatalf("standalone task missing sprint: %#v", standaloneSprintTask.Data)
+	}
+	taskVersion = int(standaloneSprintTask.Data["version"].(float64))
+	parentedTask := runner.jsonOK("task", "move", taskTarget, "--story", strconv.Itoa(storyWithTaskRef), "--base-version", strconv.Itoa(taskVersion))
+	if parentedTask.Data["story_ref"] != float64(storyWithTaskRef) || parentedTask.Data["sprint_slug"] != milestoneSlug {
+		t.Fatalf("task did not rejoin parent Story: %#v", parentedTask.Data)
+	}
+	taskVersion = int(parentedTask.Data["version"].(float64))
+	backlogTask := runner.jsonOK("task", "move", taskTarget, "--sprint", "backlog", "--base-version", strconv.Itoa(taskVersion))
+	if value, ok := backlogTask.Data["story_ref"]; ok && value != float64(0) {
+		t.Fatalf("backlog task still has parent Story: %#v", backlogTask.Data)
+	}
+	if value, ok := backlogTask.Data["sprint_slug"]; ok && value != "" {
+		t.Fatalf("backlog task still has sprint: %#v", backlogTask.Data)
 	}
 
 	editedSprint := runner.jsonOK("sprint", "edit", milestoneSlug, "--finish", "2026-09-08")
@@ -369,6 +401,19 @@ func firstClosedTaskStatus(t *testing.T, baseURL, token string, projectID int64)
 		}
 	}
 	t.Fatal("project has no closed task status")
+	return ""
+}
+
+func firstOpenTaskStatus(t *testing.T, baseURL, token string, projectID int64) string {
+	t.Helper()
+	var statuses []map[string]any
+	apiRequest(t, http.MethodGet, baseURL+"task-statuses?project="+strconv.FormatInt(projectID, 10), token, nil, &statuses)
+	for _, status := range statuses {
+		if status["is_closed"] == false {
+			return status["name"].(string)
+		}
+	}
+	t.Fatal("project has no open task status")
 	return ""
 }
 

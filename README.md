@@ -100,11 +100,16 @@ taiga task view 72
 taiga task create --story 51 --subject "Add API tests"
 taiga task edit 72 --status "In progress"
 taiga task assign 72 --to alice
+taiga task unassign 72
 taiga task comment 72 --body "Tests added"
 taiga task done 72 --status Closed
+taiga task reopen 72 --status New
+taiga task move 72 --story 51
+taiga task move 72 --sprint sprint-27
+taiga task move 72 --sprint backlog
 ```
 
-Task 可以不屬於 Story；若指定 `--story`，Task 會自動繼承該 Story 的 Sprint。
+Task 可以不屬於 Story；若指定 `--story`，Task 會自動繼承該 Story 的 Sprint。`--sprint backlog` 會同時解除 parent Story 與 Sprint。
 
 管理 Sprint：
 

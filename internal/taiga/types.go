@@ -226,8 +226,9 @@ type UpdateTaskRequest struct {
 	Version     int     `json:"version"`
 	Subject     *string `json:"subject,omitempty"`
 	Description *string `json:"description,omitempty"`
-	UserStory   *int64  `json:"user_story,omitempty"`
+	UserStory   **int64 `json:"user_story,omitempty"`
+	Milestone   **int64 `json:"milestone,omitempty"`
 	Status      *int64  `json:"status,omitempty"`
-	AssignedTo  *int64  `json:"assigned_to,omitempty"`
+	AssignedTo  **int64 `json:"assigned_to,omitempty"`
 	Comment     *string `json:"comment,omitempty"`
 }
