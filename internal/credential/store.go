@@ -23,14 +23,38 @@ type Store interface {
 	Delete(account string) error
 }
 
-type KeyringStore struct{}
+type backend interface {
+	Get(service, account string) (string, error)
+	Set(service, account, value string) error
+	Delete(service, account string) error
+}
 
-func NewKeyringStore() *KeyringStore { return &KeyringStore{} }
+type osBackend struct{}
+
+func (osBackend) Get(service, account string) (string, error) {
+	return keyring.Get(service, account)
+}
+
+func (osBackend) Set(service, account, value string) error {
+	return keyring.Set(service, account, value)
+}
+
+func (osBackend) Delete(service, account string) error {
+	return keyring.Delete(service, account)
+}
+
+type KeyringStore struct {
+	backend backend
+}
+
+func NewKeyringStore() *KeyringStore { return &KeyringStore{backend: osBackend{}} }
+
+func newKeyringStore(backend backend) *KeyringStore { return &KeyringStore{backend: backend} }
 
 func Account(profile, apiURL string) string { return profile + "|" + apiURL }
 
 func (s *KeyringStore) Get(account string) (Tokens, error) {
-	value, err := keyring.Get(serviceName, account)
+	value, err := s.backend.Get(serviceName, account)
 	if errors.Is(err, keyring.ErrNotFound) {
 		return Tokens{}, ErrNotFound
 	}
@@ -49,14 +73,14 @@ func (s *KeyringStore) Set(account string, tokens Tokens) error {
 	if err != nil {
 		return fmt.Errorf("encode credential: %w", err)
 	}
-	if err := keyring.Set(serviceName, account, string(data)); err != nil {
+	if err := s.backend.Set(serviceName, account, string(data)); err != nil {
 		return fmt.Errorf("write OS keyring: %w", err)
 	}
 	return nil
 }
 
 func (s *KeyringStore) Delete(account string) error {
-	err := keyring.Delete(serviceName, account)
+	err := s.backend.Delete(serviceName, account)
 	if errors.Is(err, keyring.ErrNotFound) {
 		return nil
 	}
