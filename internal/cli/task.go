@@ -24,6 +24,7 @@ type taskView struct {
 	SprintSlug   string `json:"sprint_slug,omitempty"`
 	Assignee     string `json:"assignee,omitempty"`
 	IsClosed     bool   `json:"is_closed"`
+	IsWatcher    bool   `json:"is_watcher"`
 	IsBlocked    bool   `json:"is_blocked"`
 	CreatedDate  string `json:"created_date,omitempty"`
 	ModifiedDate string `json:"modified_date,omitempty"`
@@ -43,6 +44,7 @@ func (a *App) taskCommand() *cobra.Command {
 		a.taskListCommand(), a.taskViewCommand(), a.taskCreateCommand(),
 		a.taskEditCommand(), a.taskDoneCommand(), a.taskReopenCommand(),
 		a.taskAssignCommand(), a.taskUnassignCommand(), a.taskMoveCommand(), a.taskCommentCommand(),
+		a.watchCommand("task", true), a.watchCommand("task", false), a.historyCommand("task"),
 	)
 	return command
 }
@@ -575,7 +577,7 @@ func (a *App) resolveParentStory(ctx context.Context, client *taiga.Client, proj
 }
 
 func makeTaskView(task taiga.Task, projectSlug string) taskView {
-	view := taskView{ID: task.ID, Ref: task.Ref, Project: projectSlug, Subject: task.Subject, Description: task.Description, Version: task.Version, Status: task.StatusExtraInfo.Name, SprintSlug: task.MilestoneSlug, IsClosed: task.IsClosed, IsBlocked: task.IsBlocked, CreatedDate: task.CreatedDate, ModifiedDate: task.ModifiedDate, FinishedDate: task.FinishedDate}
+	view := taskView{ID: task.ID, Ref: task.Ref, Project: projectSlug, Subject: task.Subject, Description: task.Description, Version: task.Version, Status: task.StatusExtraInfo.Name, SprintSlug: task.MilestoneSlug, IsClosed: task.IsClosed, IsWatcher: task.IsWatcher, IsBlocked: task.IsBlocked, CreatedDate: task.CreatedDate, ModifiedDate: task.ModifiedDate, FinishedDate: task.FinishedDate}
 	if task.UserStoryExtraInfo != nil {
 		view.StoryRef = task.UserStoryExtraInfo.Ref
 		view.StorySubject = task.UserStoryExtraInfo.Subject

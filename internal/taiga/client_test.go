@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -262,5 +263,41 @@ func TestCreateAttachmentStreamsMultipart(t *testing.T) {
 	}
 	if attachment.ID != 3 || attachment.Name != "note.txt" || attachment.Size != 5 {
 		t.Fatalf("attachment = %#v", attachment)
+	}
+}
+
+func TestWatchAndHistoryEndpoints(t *testing.T) {
+	watching := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/issues/7/watch":
+			watching = true
+			w.WriteHeader(http.StatusOK)
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/issues/7":
+			_, _ = io.WriteString(w, fmt.Sprintf(`{"is_watcher":%t}`, watching))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/history/issue/7":
+			if r.URL.Query().Get("type") != "comment" || r.URL.Query().Get("page") != "2" || r.URL.Query().Get("page_size") != "10" {
+				t.Fatalf("history query = %s", r.URL.RawQuery)
+			}
+			w.Header().Set("X-Pagination-Current", "2")
+			w.Header().Set("X-Paginated-By", "10")
+			w.Header().Set("X-Pagination-Count", "11")
+			_, _ = io.WriteString(w, `[{"id":"entry-1","type":1,"created_at":"2026-08-31T00:00:00Z","user":{"pk":1,"username":"demo","name":"Demo"},"comment":"note"}]`)
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+	client, _ := NewClient(server.URL + "/api/v1/")
+	verified, err := client.SetWatching(context.Background(), "issue", 7, true)
+	if err != nil || !verified {
+		t.Fatalf("verified=%t err=%v", verified, err)
+	}
+	entries, page, err := client.History(context.Background(), "issue", 7, "comment", 2, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 || entries[0].ID != "entry-1" || entries[0].User.Username != "demo" || page.Number != 2 || page.Total != 11 {
+		t.Fatalf("entries=%#v page=%#v", entries, page)
 	}
 }

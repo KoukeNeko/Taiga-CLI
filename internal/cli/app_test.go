@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -243,6 +244,9 @@ func TestStoryAndTaskCommandReadAndDryRunContracts(t *testing.T) {
 			_, _ = io.WriteString(w, `[{"id":13,"project":1,"object_id":2,"name":"note.txt","size":5}]`)
 		case "/api/v1/issues/attachments/13":
 			_, _ = io.WriteString(w, `{"id":13,"project":1,"object_id":2,"name":"note.txt","size":5}`)
+		case "/api/v1/history/issue/2", "/api/v1/history/userstory/2", "/api/v1/history/task/9":
+			w.Header().Set("X-Pagination-Count", "1")
+			_, _ = io.WriteString(w, `[{"id":"entry-1","created_at":"2026-08-31T00:00:00Z","type":1,"user":{"pk":8,"username":"demo","name":"Demo User"},"comment":"note"}]`)
 		default:
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
 		}
@@ -281,6 +285,15 @@ func TestStoryAndTaskCommandReadAndDryRunContracts(t *testing.T) {
 		{"--json", "attachment", "add", "issue", "3", "-", "--name", "note.txt", "--dry-run"},
 		{"--json", "attachment", "edit", "issue", "13", "--description", "updated", "--dry-run"},
 		{"--json", "attachment", "delete", "issue", "13", "--dry-run"},
+		{"--json", "issue", "watch", "3", "--dry-run"},
+		{"--json", "issue", "unwatch", "3", "--dry-run"},
+		{"--json", "issue", "history", "3", "--type", "comment"},
+		{"--json", "story", "watch", "3", "--dry-run"},
+		{"--json", "story", "unwatch", "3", "--dry-run"},
+		{"--json", "story", "history", "3", "--type", "activity"},
+		{"--json", "task", "watch", "10", "--dry-run"},
+		{"--json", "task", "unwatch", "10", "--dry-run"},
+		{"--json", "task", "history", "10"},
 	}
 	for _, args := range commands {
 		app, out, stderr, _ := testApp(t, server)
@@ -293,6 +306,56 @@ func TestStoryAndTaskCommandReadAndDryRunContracts(t *testing.T) {
 	}
 	if mutations != 0 {
 		t.Fatalf("dry-run/read commands sent %d mutation requests", mutations)
+	}
+}
+
+func TestWatchCommandsVerifyServerState(t *testing.T) {
+	watching := false
+	posts := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/projects/by_slug":
+			_, _ = io.WriteString(w, `{"id":1,"name":"Demo","slug":"demo"}`)
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/issues/by_ref":
+			_, _ = fmt.Fprintf(w, `{"id":2,"ref":3,"project":1,"subject":"Issue","version":1,"is_watcher":%t}`, watching)
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/issues/2/watch":
+			posts++
+			watching = true
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/issues/2/unwatch":
+			posts++
+			watching = false
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/issues/2":
+			_, _ = fmt.Fprintf(w, `{"is_watcher":%t}`, watching)
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	for _, test := range []struct {
+		command  string
+		expected bool
+	}{
+		{command: "watch", expected: true},
+		{command: "unwatch", expected: false},
+	} {
+		app, out, stderr, _ := testApp(t, server)
+		code := app.Execute(context.Background(), []string{"--json", "issue", test.command, "3"})
+		if code != ExitSuccess {
+			t.Fatalf("%s exit=%d stderr=%s", test.command, code, stderr.String())
+		}
+		var envelope struct {
+			Data watchView `json:"data"`
+		}
+		if err := json.Unmarshal(out.Bytes(), &envelope); err != nil {
+			t.Fatal(err)
+		}
+		if envelope.Data.Watching != test.expected || !envelope.Data.Verified {
+			t.Fatalf("%s data=%#v", test.command, envelope.Data)
+		}
+	}
+	if posts != 2 {
+		t.Fatalf("posts=%d", posts)
 	}
 }
 

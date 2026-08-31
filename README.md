@@ -2,7 +2,7 @@
 
 以 Go 實作的 [Taiga 6](https://taiga.io/) 命令列工具。它提供適合人類閱讀的終端介面，以及給 Shell、CI 與 LLM／Agent 使用的穩定 JSON contract。
 
-目前狀態：**Phase 1 與 User Story 垂直切片已實作，尚未發布正式版本。**
+目前狀態：**Phase 1 與 Phase 2 核心敏捷流程已實作，尚未發布正式版本。**
 
 ## 功能
 
@@ -14,6 +14,8 @@
 - User Story list、view、create、edit、close、move、assign、comment。
 - Task list、view、create、edit、done、assign、comment。
 - Sprint list、view、create、edit、close、reopen。
+- Issue、Story、Task 的 watch、unwatch、activity/comment history。
+- Issue、Story、Task 的附件 streaming upload、list、view、edit、delete。
 - Taiga optimistic concurrency control（OCC）與 `--base-version`。
 - Human output、versioned JSON、`--fields`、structured error 與固定 exit code。
 - `--dry-run`、`--no-input`、redacted verbose logging。
@@ -146,6 +148,20 @@ taiga attachment delete issue 17 --yes
 ```
 
 Attachment 支援 issue、story、task。非互動刪除必須明確提供 `--yes`；upload 採 streaming，不會先把整個檔案載入記憶體。
+
+關注工作項目與查看歷史：
+
+```sh
+taiga issue watch 42
+taiga issue history 42
+taiga issue history 42 --type comment
+taiga issue unwatch 42
+
+taiga story history 51 --type activity
+taiga task history 72 --page 2 --limit 20
+```
+
+Watch/unwatch 支援 issue、story、task，命令會在 mutation 後回讀 `is_watcher` 確認狀態。History 的 `--type` 可用 `all`、`activity`、`comment`。
 
 Issue identifier 可以是裸 ref、`project#ref` 或 Taiga URL：
 

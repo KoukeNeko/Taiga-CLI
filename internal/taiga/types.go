@@ -57,6 +57,7 @@ type Issue struct {
 	AssignedTo          *int64     `json:"assigned_to"`
 	AssignedToExtraInfo *ExtraInfo `json:"assigned_to_extra_info,omitempty"`
 	IsClosed            bool       `json:"is_closed"`
+	IsWatcher           bool       `json:"is_watcher"`
 	CreatedDate         string     `json:"created_date,omitempty"`
 	ModifiedDate        string     `json:"modified_date,omitempty"`
 }
@@ -114,6 +115,7 @@ type UserStory struct {
 	TotalPoints     *float64         `json:"total_points,omitempty"`
 	Points          map[string]int64 `json:"points,omitempty"`
 	IsClosed        bool             `json:"is_closed"`
+	IsWatcher       bool             `json:"is_watcher"`
 	IsBlocked       bool             `json:"is_blocked"`
 	BlockedNote     string           `json:"blocked_note,omitempty"`
 	BacklogOrder    int64            `json:"backlog_order"`
@@ -199,6 +201,7 @@ type Task struct {
 	AssignedTo          *int64         `json:"assigned_to"`
 	AssignedToExtraInfo *ExtraInfo     `json:"assigned_to_extra_info,omitempty"`
 	IsClosed            bool           `json:"is_closed"`
+	IsWatcher           bool           `json:"is_watcher"`
 	IsBlocked           bool           `json:"is_blocked"`
 	BlockedNote         string         `json:"blocked_note,omitempty"`
 	CreatedDate         string         `json:"created_date,omitempty"`
@@ -275,4 +278,24 @@ type Attachment struct {
 type UpdateAttachmentRequest struct {
 	Description  *string `json:"description,omitempty"`
 	IsDeprecated *bool   `json:"is_deprecated,omitempty"`
+}
+
+type HistoryUser struct {
+	ID       *int64 `json:"pk"`
+	Username string `json:"username,omitempty"`
+	Name     string `json:"name,omitempty"`
+}
+
+type HistoryEntry struct {
+	ID                string         `json:"id"`
+	User              HistoryUser    `json:"user"`
+	CreatedAt         string         `json:"created_at"`
+	Type              int            `json:"type"`
+	Diff              map[string]any `json:"diff,omitempty"`
+	ValuesDiff        map[string]any `json:"values_diff,omitempty"`
+	Comment           string         `json:"comment,omitempty"`
+	DeleteCommentDate string         `json:"delete_comment_date,omitempty"`
+	EditCommentDate   string         `json:"edit_comment_date,omitempty"`
+	IsHidden          bool           `json:"is_hidden"`
+	IsSnapshot        bool           `json:"is_snapshot"`
 }

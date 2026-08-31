@@ -96,6 +96,22 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 	version = int(assigned.Data["version"].(float64))
 	commented := runner.jsonOK("issue", "comment", target, "--body", "integration comment", "--base-version", strconv.Itoa(version))
 	version = int(commented.Data["version"].(float64))
+	watchedIssue := runner.jsonOK("issue", "watch", target)
+	if watchedIssue.Data["watching"] != true || watchedIssue.Data["verified"] != true {
+		t.Fatalf("issue watch was not verified: %#v", watchedIssue.Data)
+	}
+	issueView := runner.jsonOK("issue", "view", target, "--fields", "ref,is_watcher")
+	if issueView.Data["is_watcher"] != true {
+		t.Fatalf("issue view did not confirm watch state: %#v", issueView.Data)
+	}
+	issueHistory := runner.jsonOK("issue", "history", target, "--type", "comment", "--fields", "id,kind,author,comment")
+	if !containsComment(issueHistory.Items, "integration comment") {
+		t.Fatalf("issue comment missing from CLI history: %#v", issueHistory.Items)
+	}
+	unwatchedIssue := runner.jsonOK("issue", "unwatch", target)
+	if unwatchedIssue.Data["watching"] != false || unwatchedIssue.Data["verified"] != true {
+		t.Fatalf("issue unwatch was not verified: %#v", unwatchedIssue.Data)
+	}
 	closedStatus := firstClosedStatus(t, baseURL, token, projectID)
 	closed := runner.jsonOK("issue", "close", target, "--status", closedStatus, "--base-version", strconv.Itoa(version))
 	if closed.Data["is_closed"] != true {
@@ -198,11 +214,17 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 	}
 	storyComment := runner.jsonOK("story", "comment", storyTarget, "--body", "story integration comment", "--base-version", strconv.Itoa(storyVersion))
 	storyVersion = int(storyComment.Data["version"].(float64))
-	var history []map[string]any
-	apiRequest(t, http.MethodGet, baseURL+"history/userstory/"+strconv.FormatInt(storyID, 10), token, nil, &history)
-	historyJSON, _ := json.Marshal(history)
-	if !bytes.Contains(historyJSON, []byte("story integration comment")) {
-		t.Fatalf("story comment missing from history: %s", historyJSON)
+	watchedStory := runner.jsonOK("story", "watch", storyTarget)
+	if watchedStory.Data["watching"] != true || watchedStory.Data["verified"] != true {
+		t.Fatalf("story watch was not verified: %#v", watchedStory.Data)
+	}
+	storyHistory := runner.jsonOK("story", "history", storyTarget, "--type", "comment", "--fields", "id,kind,author,comment")
+	if !containsComment(storyHistory.Items, "story integration comment") {
+		t.Fatalf("story comment missing from CLI history: %#v", storyHistory.Items)
+	}
+	unwatchedStory := runner.jsonOK("story", "unwatch", storyTarget)
+	if unwatchedStory.Data["watching"] != false || unwatchedStory.Data["verified"] != true {
+		t.Fatalf("story unwatch was not verified: %#v", unwatchedStory.Data)
 	}
 	closedStoryStatus := firstClosedStoryStatus(t, baseURL, token, projectID)
 	closedStory := runner.jsonOK("story", "close", storyTarget, "--status", closedStoryStatus, "--base-version", strconv.Itoa(storyVersion))
@@ -214,7 +236,6 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 	storyWithTaskRef := int(storyWithTask.Data["ref"].(float64))
 	storyWithTaskVersion := int(storyWithTask.Data["version"].(float64))
 	task := runner.jsonOK("task", "create", "--story", strconv.Itoa(storyWithTaskRef), "--subject", "E2E task")
-	taskID := int64(task.Data["id"].(float64))
 	taskRef := int(task.Data["ref"].(float64))
 	taskVersion := int(task.Data["version"].(float64))
 	taskTarget := strconv.Itoa(taskRef)
@@ -239,11 +260,17 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 	}
 	taskComment := runner.jsonOK("task", "comment", taskTarget, "--body", "task integration comment", "--base-version", strconv.Itoa(taskVersion))
 	taskVersion = int(taskComment.Data["version"].(float64))
-	var taskHistory []map[string]any
-	apiRequest(t, http.MethodGet, baseURL+"history/task/"+strconv.FormatInt(taskID, 10), token, nil, &taskHistory)
-	taskHistoryJSON, _ := json.Marshal(taskHistory)
-	if !bytes.Contains(taskHistoryJSON, []byte("task integration comment")) {
-		t.Fatalf("task comment missing from history: %s", taskHistoryJSON)
+	watchedTask := runner.jsonOK("task", "watch", taskTarget)
+	if watchedTask.Data["watching"] != true || watchedTask.Data["verified"] != true {
+		t.Fatalf("task watch was not verified: %#v", watchedTask.Data)
+	}
+	taskHistory := runner.jsonOK("task", "history", taskTarget, "--type", "comment", "--fields", "id,kind,author,comment")
+	if !containsComment(taskHistory.Items, "task integration comment") {
+		t.Fatalf("task comment missing from CLI history: %#v", taskHistory.Items)
+	}
+	unwatchedTask := runner.jsonOK("task", "unwatch", taskTarget)
+	if unwatchedTask.Data["watching"] != false || unwatchedTask.Data["verified"] != true {
+		t.Fatalf("task unwatch was not verified: %#v", unwatchedTask.Data)
 	}
 	stdout, stderr, code = runner.run("story", "close", strconv.Itoa(storyWithTaskRef), "--status", closedStoryStatus, "--base-version", strconv.Itoa(storyWithTaskVersion))
 	if code != 0 || !strings.Contains(stderr, "open tasks keep this story active") {
@@ -511,6 +538,15 @@ func containsSlug(items []map[string]any, slug string) bool {
 func containsKind(items []map[string]any, kind string) bool {
 	for _, item := range items {
 		if item["kind"] == kind {
+			return true
+		}
+	}
+	return false
+}
+
+func containsComment(items []map[string]any, comment string) bool {
+	for _, item := range items {
+		if item["comment"] == comment {
 			return true
 		}
 	}

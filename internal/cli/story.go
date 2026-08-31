@@ -27,6 +27,7 @@ type storyView struct {
 	TotalPoints   *float64         `json:"total_points,omitempty"`
 	Points        map[string]int64 `json:"points,omitempty"`
 	IsClosed      bool             `json:"is_closed"`
+	IsWatcher     bool             `json:"is_watcher"`
 	IsBlocked     bool             `json:"is_blocked"`
 	CreatedDate   string           `json:"created_date,omitempty"`
 	ModifiedDate  string           `json:"modified_date,omitempty"`
@@ -50,6 +51,9 @@ func (a *App) storyCommand() *cobra.Command {
 		a.storyMoveCommand(),
 		a.storyAssignCommand(),
 		a.storyCommentCommand(),
+		a.watchCommand("story", true),
+		a.watchCommand("story", false),
+		a.historyCommand("story"),
 	)
 	return command
 }
@@ -507,7 +511,7 @@ func makeStoryView(story taiga.UserStory, projectSlug string) storyView {
 		Description: story.Description, Version: story.Version, Status: story.StatusExtraInfo.Name,
 		Sprint: story.MilestoneName, SprintSlug: story.MilestoneSlug, AssignedUsers: story.AssignedUsers,
 		TotalPoints: story.TotalPoints, Points: story.Points, IsClosed: story.IsClosed,
-		IsBlocked: story.IsBlocked, CreatedDate: story.CreatedDate, ModifiedDate: story.ModifiedDate,
+		IsBlocked: story.IsBlocked, IsWatcher: story.IsWatcher, CreatedDate: story.CreatedDate, ModifiedDate: story.ModifiedDate,
 	}
 }
 

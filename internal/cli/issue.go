@@ -26,6 +26,7 @@ type issueView struct {
 	Type         string `json:"type"`
 	Assignee     string `json:"assignee,omitempty"`
 	IsClosed     bool   `json:"is_closed"`
+	IsWatcher    bool   `json:"is_watcher"`
 	CreatedDate  string `json:"created_date,omitempty"`
 	ModifiedDate string `json:"modified_date,omitempty"`
 }
@@ -47,6 +48,9 @@ func (a *App) issueCommand() *cobra.Command {
 		a.issueCloseCommand(),
 		a.issueAssignCommand(),
 		a.issueCommentCommand(),
+		a.watchCommand("issue", true),
+		a.watchCommand("issue", false),
+		a.historyCommand("issue"),
 	)
 	return command
 }
@@ -501,7 +505,7 @@ func makeIssueView(issue taiga.Issue, projectSlug string) issueView {
 	if issue.AssignedToExtraInfo != nil {
 		assignee = firstNonEmpty(issue.AssignedToExtraInfo.Username, issue.AssignedToExtraInfo.FullName)
 	}
-	return issueView{ID: issue.ID, Ref: issue.Ref, Project: projectSlug, Subject: issue.Subject, Description: issue.Description, Version: issue.Version, Status: issue.StatusExtraInfo.Name, Priority: issue.PriorityExtraInfo.Name, Severity: issue.SeverityExtraInfo.Name, Type: issue.TypeExtraInfo.Name, Assignee: assignee, IsClosed: issue.IsClosed, CreatedDate: issue.CreatedDate, ModifiedDate: issue.ModifiedDate}
+	return issueView{ID: issue.ID, Ref: issue.Ref, Project: projectSlug, Subject: issue.Subject, Description: issue.Description, Version: issue.Version, Status: issue.StatusExtraInfo.Name, Priority: issue.PriorityExtraInfo.Name, Severity: issue.SeverityExtraInfo.Name, Type: issue.TypeExtraInfo.Name, Assignee: assignee, IsClosed: issue.IsClosed, IsWatcher: issue.IsWatcher, CreatedDate: issue.CreatedDate, ModifiedDate: issue.ModifiedDate}
 }
 
 func (a *App) resolveIssueStatus(ctx context.Context, client *taiga.Client, projectID int64, name string, requireClosed bool) (taiga.IssueStatus, error) {
