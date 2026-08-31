@@ -1,0 +1,6 @@
+/bin/
+/dist/
+/taiga
+/coverage.out
+*.test
+.omx/
