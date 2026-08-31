@@ -51,6 +51,26 @@ func TestUnknownFieldOnEmptyTypedList(t *testing.T) {
 	}
 }
 
+func TestOptionalOmittedFieldCanBeSelected(t *testing.T) {
+	var out bytes.Buffer
+	type item struct {
+		ID       int    `json:"id"`
+		Optional string `json:"optional,omitempty"`
+	}
+	err := (Renderer{Out: &out, Fields: []string{"id,optional"}}).Data(item{ID: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var result map[string]any
+	if err := json.Unmarshal(out.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	data := result["data"].(map[string]any)
+	if _, ok := data["optional"]; !ok {
+		t.Fatalf("optional field missing from filtered output: %#v", data)
+	}
+}
+
 func TestJSONFailureWritesOnlyStderr(t *testing.T) {
 	var out, stderr bytes.Buffer
 	renderer := Renderer{Out: &out, Err: &stderr, JSON: true}

@@ -104,7 +104,7 @@ func filterList(value any, fields []string) (any, error) {
 	}
 	available := reflectedJSONFields(value)
 	if len(items) > 0 {
-		available = sortedKeys(items[0])
+		available = mergeFields(available, sortedKeys(items[0]))
 	}
 	if err := validateFields(fields, available); err != nil {
 		return nil, err
@@ -131,7 +131,7 @@ func filterValue(value any, fields []string) (any, error) {
 	if err := json.Unmarshal(data, &item); err != nil {
 		return nil, fmt.Errorf("filter fields: %w", err)
 	}
-	available := sortedKeys(item)
+	available := mergeFields(reflectedJSONFields(value), sortedKeys(item))
 	if err := validateFields(fields, available); err != nil {
 		return nil, err
 	}
@@ -209,6 +209,21 @@ func reflectedJSONFields(value any) []string {
 			name = field.Name
 		}
 		fields = append(fields, name)
+	}
+	sort.Strings(fields)
+	return fields
+}
+
+func mergeFields(groups ...[]string) []string {
+	seen := map[string]struct{}{}
+	for _, group := range groups {
+		for _, field := range group {
+			seen[field] = struct{}{}
+		}
+	}
+	fields := make([]string, 0, len(seen))
+	for field := range seen {
+		fields = append(fields, field)
 	}
 	sort.Strings(fields)
 	return fields
