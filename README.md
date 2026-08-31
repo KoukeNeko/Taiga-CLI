@@ -9,7 +9,7 @@
 - 自動從 Taiga frontend `conf.json` 發現 API，包括 `/taiga/` 子路徑部署。
 - 互動式帳密登入、stdin token 登入、OS keyring 與 `TAIGA_TOKEN`。
 - 多 profile、profile 預設 project 與 Git-local project mapping。
-- Project list、view、use。
+- Project list、view、use、create、edit、delete。
 - Epic list、view、create、edit、close、跨專案 Story link/unlink、watch 與 history。
 - Issue list、view、create、edit、close、assign、comment。
 - User Story list、view、create、edit、close、move、assign、comment。
@@ -81,6 +81,16 @@ taiga issue assign 42 --to alice
 taiga issue comment 42 --body "Ready for verification"
 taiga issue close 42 --status Closed
 ```
+
+管理 Project：
+
+```sh
+taiga project create --name "Mobile App" --template scrum
+taiga project edit mobile-app --description "Product delivery" --kanban=true
+taiga project delete mobile-app --yes
+```
+
+Project 預設建立為 private；使用 `--public` 明確建立公開專案。永久刪除由 Taiga 非同步執行且不可還原，非互動模式必須提供 `--yes`。目前 Taiga 6 REST API 將 `archived_code` 設為唯讀且沒有 archive action，因此 `project archive|unarchive` 會清楚回報 `unsupported_capability`，需由站台管理者處理。
 
 操作 User Story：
 

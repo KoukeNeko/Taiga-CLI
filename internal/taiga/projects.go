@@ -38,3 +38,25 @@ func (c *Client) ListProjectUsers(ctx context.Context, projectID int64) ([]User,
 	_, err := c.Get(ctx, "users", query, &users)
 	return users, err
 }
+
+func (c *Client) ListProjectTemplates(ctx context.Context) ([]ProjectTemplate, error) {
+	var templates []ProjectTemplate
+	_, err := c.Get(ctx, "project-templates", nil, &templates)
+	return templates, err
+}
+
+func (c *Client) CreateProject(ctx context.Context, request CreateProjectRequest) (Project, error) {
+	var project Project
+	_, err := c.Post(ctx, "projects", request, &project)
+	return project, err
+}
+
+func (c *Client) UpdateProject(ctx context.Context, id int64, request UpdateProjectRequest) (Project, error) {
+	var project Project
+	_, err := c.Patch(ctx, fmt.Sprintf("projects/%d", id), request, &project)
+	return project, err
+}
+
+func (c *Client) DeleteProject(ctx context.Context, id int64) error {
+	return c.Delete(ctx, fmt.Sprintf("projects/%d", id))
+}

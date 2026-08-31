@@ -24,12 +24,47 @@ type AuthResponse struct {
 }
 
 type Project struct {
+	ID                 int64  `json:"id"`
+	Name               string `json:"name"`
+	Slug               string `json:"slug"`
+	Description        string `json:"description,omitempty"`
+	CreationTemplate   *int64 `json:"creation_template,omitempty"`
+	IsPrivate          bool   `json:"is_private"`
+	IsArchived         bool   `json:"is_archived,omitempty"`
+	ArchivedCode       string `json:"archived_code,omitempty"`
+	IsEpicsActivated   bool   `json:"is_epics_activated"`
+	IsBacklogActivated bool   `json:"is_backlog_activated"`
+	IsKanbanActivated  bool   `json:"is_kanban_activated"`
+	IsWikiActivated    bool   `json:"is_wiki_activated"`
+	IsIssuesActivated  bool   `json:"is_issues_activated"`
+	CreatedDate        string `json:"created_date,omitempty"`
+	ModifiedDate       string `json:"modified_date,omitempty"`
+}
+
+type ProjectTemplate struct {
 	ID          int64  `json:"id"`
 	Name        string `json:"name"`
 	Slug        string `json:"slug"`
 	Description string `json:"description,omitempty"`
-	IsPrivate   bool   `json:"is_private"`
-	IsArchived  bool   `json:"is_archived,omitempty"`
+	Order       int    `json:"order"`
+}
+
+type CreateProjectRequest struct {
+	Name             string `json:"name"`
+	Description      string `json:"description,omitempty"`
+	CreationTemplate int64  `json:"creation_template"`
+	IsPrivate        bool   `json:"is_private"`
+}
+
+type UpdateProjectRequest struct {
+	Name               *string `json:"name,omitempty"`
+	Description        *string `json:"description,omitempty"`
+	IsPrivate          *bool   `json:"is_private,omitempty"`
+	IsEpicsActivated   *bool   `json:"is_epics_activated,omitempty"`
+	IsBacklogActivated *bool   `json:"is_backlog_activated,omitempty"`
+	IsKanbanActivated  *bool   `json:"is_kanban_activated,omitempty"`
+	IsWikiActivated    *bool   `json:"is_wiki_activated,omitempty"`
+	IsIssuesActivated  *bool   `json:"is_issues_activated,omitempty"`
 }
 
 type ExtraInfo struct {

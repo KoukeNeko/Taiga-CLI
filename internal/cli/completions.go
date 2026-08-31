@@ -98,6 +98,24 @@ func (a *App) completeProjects(cmd *cobra.Command, _ []string, toComplete string
 	})
 }
 
+func (a *App) completeProjectTemplates(cmd *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return a.completeCached(cmd, "project-templates", false, toComplete, func(ctx context.Context) ([]string, error) {
+		client, _, err := a.client(ctx, true)
+		if err != nil {
+			return nil, err
+		}
+		templates, err := client.ListProjectTemplates(ctx)
+		if err != nil {
+			return nil, err
+		}
+		values := make([]string, 0, len(templates))
+		for _, template := range templates {
+			values = append(values, fmt.Sprintf("%s\t%s", template.Slug, template.Name))
+		}
+		return values, nil
+	})
+}
+
 func (a *App) completionProject(ctx context.Context) (*taiga.Client, taiga.Project, error) {
 	client, settings, err := a.client(ctx, true)
 	if err != nil {

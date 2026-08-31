@@ -514,6 +514,42 @@ func TestWikiDeleteRequiresConfirmation(t *testing.T) {
 	}
 }
 
+func TestProjectDeleteRequiresConfirmation(t *testing.T) {
+	deletes := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/projects/by_slug":
+			_, _ = io.WriteString(w, `{"id":1,"name":"Demo","slug":"demo","is_private":true}`)
+		case r.Method == http.MethodDelete:
+			deletes++
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	app, out, stderr, _ := testApp(t, server)
+	code := app.Execute(context.Background(), []string{"--json", "--no-input", "project", "delete", "demo"})
+	if code != ExitConfirmationRequired || out.Len() != 0 || deletes != 0 || !strings.Contains(stderr.String(), "confirmation_required") {
+		t.Fatalf("exit=%d stdout=%s stderr=%s deletes=%d", code, out.String(), stderr.String(), deletes)
+	}
+}
+
+func TestProjectArchiveReportsUnsupportedCapability(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/projects/by_slug" {
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		_, _ = io.WriteString(w, `{"id":1,"name":"Demo","slug":"demo"}`)
+	}))
+	defer server.Close()
+	app, out, stderr, _ := testApp(t, server)
+	code := app.Execute(context.Background(), []string{"--json", "project", "archive", "demo"})
+	if code != ExitValidation || out.Len() != 0 || !strings.Contains(stderr.String(), "unsupported_capability") {
+		t.Fatalf("exit=%d stdout=%s stderr=%s", code, out.String(), stderr.String())
+	}
+}
+
 func TestSprintCreateRejectsInvalidDateRange(t *testing.T) {
 	app, out, stderr, _ := testApp(t, nil)
 	code := app.Execute(context.Background(), []string{"--json", "sprint", "create", "--name", "Bad Sprint", "--start", "2026-09-10", "--finish", "2026-09-01"})

@@ -56,6 +56,29 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 	runner.jsonOK("project", "view", projectSlug)
 	runner.jsonOK("project", "use", projectSlug)
 	runner.jsonOK("schema", "issue", "view")
+	projectTemplate := firstProjectTemplate(t, baseURL, token)
+	managedProject := runner.jsonOK("project", "create", "--name", "Managed "+username, "--description", "created by CLI E2E", "--template", projectTemplate)
+	managedProjectSlug := managedProject.Data["slug"].(string)
+	managedProjectDryRun := runner.jsonOK("project", "edit", managedProjectSlug, "--description", "must not persist", "--dry-run")
+	if managedProjectDryRun.Plan["performed"] != false || managedProjectDryRun.Plan["would_write"] != true {
+		t.Fatalf("project dry-run plan=%#v", managedProjectDryRun.Plan)
+	}
+	managedProjectEdited := runner.jsonOK("project", "edit", managedProjectSlug, "--description", "updated by CLI E2E", "--wiki=false")
+	if managedProjectEdited.Data["description"] != "updated by CLI E2E" || managedProjectEdited.Data["is_wiki_activated"] != false {
+		t.Fatalf("project edit=%#v", managedProjectEdited.Data)
+	}
+	stdout, stderr, code := runner.run("--json", "project", "archive", managedProjectSlug)
+	if code != 7 || strings.TrimSpace(stdout) != "" || !strings.Contains(stderr, "unsupported_capability") {
+		t.Fatalf("project archive capability exit=%d stdout=%s stderr=%s", code, stdout, stderr)
+	}
+	stdout, stderr, code = runner.run("--json", "--no-input", "project", "delete", managedProjectSlug)
+	if code != 10 || strings.TrimSpace(stdout) != "" {
+		t.Fatalf("unconfirmed project delete exit=%d stdout=%s stderr=%s", code, stdout, stderr)
+	}
+	deletedProject := runner.jsonOK("project", "delete", managedProjectSlug, "--yes")
+	if deletedProject.Data["deletion_requested"] != true || deletedProject.Data["asynchronous"] != true {
+		t.Fatalf("project deletion request=%#v", deletedProject.Data)
+	}
 
 	created := runner.jsonOK("issue", "create", "--subject", "E2E issue", "--description", "created by integration test")
 	ref := int(created.Data["ref"].(float64))
@@ -83,7 +106,7 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 	var externalUpdate map[string]any
 	apiRequest(t, http.MethodPatch, baseURL+"issues/"+strconv.FormatInt(issueID, 10), token, map[string]any{"subject": "external concurrent edit", "version": version}, &externalUpdate)
 	externalVersion := int(externalUpdate["version"].(float64))
-	stdout, stderr, code := runner.run("--json", "issue", "edit", target, "--subject", "must conflict", "--base-version", strconv.Itoa(version))
+	stdout, stderr, code = runner.run("--json", "issue", "edit", target, "--subject", "must conflict", "--base-version", strconv.Itoa(version))
 	if code != 6 || strings.TrimSpace(stdout) != "" {
 		t.Fatalf("stale OCC edit exit=%d stdout=%s stderr=%s", code, stdout, stderr)
 	}
@@ -567,6 +590,19 @@ func createProject(t *testing.T, baseURL, token string) map[string]any {
 	var project map[string]any
 	apiRequest(t, http.MethodPost, baseURL+"projects", token, body, &project)
 	return project
+}
+
+func firstProjectTemplate(t *testing.T, baseURL, token string) string {
+	t.Helper()
+	var templates []map[string]any
+	apiRequest(t, http.MethodGet, baseURL+"project-templates", token, nil, &templates)
+	if len(templates) == 0 {
+		t.Fatal("Taiga has no project template")
+	}
+	if slug, _ := templates[0]["slug"].(string); slug != "" {
+		return slug
+	}
+	return strconv.FormatInt(int64(templates[0]["id"].(float64)), 10)
 }
 
 func firstClosedStatus(t *testing.T, baseURL, token string, projectID int64) string {
