@@ -131,13 +131,31 @@ type UserStoryStatus struct {
 }
 
 type Milestone struct {
-	ID              int64  `json:"id"`
-	Name            string `json:"name"`
-	Slug            string `json:"slug"`
+	ID              int64   `json:"id"`
+	Name            string  `json:"name"`
+	Slug            string  `json:"slug"`
+	Project         int64   `json:"project"`
+	Closed          bool    `json:"closed"`
+	EstimatedStart  string  `json:"estimated_start,omitempty"`
+	EstimatedFinish string  `json:"estimated_finish,omitempty"`
+	CreatedDate     string  `json:"created_date,omitempty"`
+	ModifiedDate    string  `json:"modified_date,omitempty"`
+	Order           int     `json:"order"`
+	Disponibility   float64 `json:"disponibility"`
+}
+
+type CreateMilestoneRequest struct {
 	Project         int64  `json:"project"`
-	Closed          bool   `json:"closed"`
-	EstimatedStart  string `json:"estimated_start,omitempty"`
-	EstimatedFinish string `json:"estimated_finish,omitempty"`
+	Name            string `json:"name"`
+	EstimatedStart  string `json:"estimated_start"`
+	EstimatedFinish string `json:"estimated_finish"`
+}
+
+type UpdateMilestoneRequest struct {
+	Name            *string `json:"name,omitempty"`
+	EstimatedStart  *string `json:"estimated_start,omitempty"`
+	EstimatedFinish *string `json:"estimated_finish,omitempty"`
+	Closed          *bool   `json:"closed,omitempty"`
 }
 
 type CreateUserStoryRequest struct {

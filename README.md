@@ -13,6 +13,7 @@
 - Issue list、view、create、edit、close、assign、comment。
 - User Story list、view、create、edit、close、move、assign、comment。
 - Task list、view、create、edit、done、assign、comment。
+- Sprint list、view、create、edit、close、reopen。
 - Taiga optimistic concurrency control（OCC）與 `--base-version`。
 - Human output、versioned JSON、`--fields`、structured error 與固定 exit code。
 - `--dry-run`、`--no-input`、redacted verbose logging。
@@ -104,6 +105,19 @@ taiga task done 72 --status Closed
 ```
 
 Task 可以不屬於 Story；若指定 `--story`，Task 會自動繼承該 Story 的 Sprint。
+
+管理 Sprint：
+
+```sh
+taiga sprint list --state open
+taiga sprint view sprint-27
+taiga sprint create --name "Sprint 27" --start 2026-09-01 --finish 2026-09-14
+taiga sprint edit sprint-27 --finish 2026-09-16
+taiga sprint close sprint-27
+taiga sprint reopen sprint-27
+```
+
+Sprint 日期使用 `YYYY-MM-DD`；`sprint` 也可寫成 `milestone`。
 
 Issue identifier 可以是裸 ref、`project#ref` 或 Taiga URL：
 

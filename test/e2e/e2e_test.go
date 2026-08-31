@@ -102,8 +102,17 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 		t.Fatalf("issue not closed: %#v", closed.Data)
 	}
 
-	milestone := createMilestone(t, baseURL, token, projectID)
-	milestoneSlug := milestone["slug"].(string)
+	sprint := runner.jsonOK("sprint", "create", "--name", "E2E Sprint", "--start", "2026-08-31", "--finish", "2026-09-07")
+	milestoneSlug := sprint.Data["slug"].(string)
+	runner.jsonOK("sprint", "view", milestoneSlug, "--fields", "name,slug,start,finish,closed")
+	openSprints := runner.jsonOK("sprint", "list", "--state", "open", "--fields", "name,slug,start,finish,closed")
+	if !containsSlug(openSprints.Items, milestoneSlug) {
+		t.Fatalf("created sprint %q missing from open list", milestoneSlug)
+	}
+	sprintDryRun := runner.jsonOK("sprint", "edit", milestoneSlug, "--finish", "2026-09-08", "--dry-run")
+	if sprintDryRun.Plan["performed"] != false || sprintDryRun.Plan["would_write"] != true {
+		t.Fatalf("sprint dry-run plan = %#v", sprintDryRun.Plan)
+	}
 	story := runner.jsonOK("story", "create", "--subject", "E2E story", "--description", "created by integration test")
 	storyRef := int(story.Data["ref"].(float64))
 	storyID := int64(story.Data["id"].(float64))
@@ -227,6 +236,23 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 		t.Fatalf("parent Story did not close after final task: %#v", completedParent.Data)
 	}
 
+	editedSprint := runner.jsonOK("sprint", "edit", milestoneSlug, "--finish", "2026-09-08")
+	if editedSprint.Data["finish"] != "2026-09-08" {
+		t.Fatalf("sprint finish was not updated: %#v", editedSprint.Data)
+	}
+	closedSprint := runner.jsonOK("sprint", "close", milestoneSlug)
+	if closedSprint.Data["closed"] != true {
+		t.Fatalf("sprint not closed: %#v", closedSprint.Data)
+	}
+	closedSprints := runner.jsonOK("sprint", "list", "--state", "closed", "--fields", "slug,closed")
+	if !containsSlug(closedSprints.Items, milestoneSlug) {
+		t.Fatalf("closed sprint %q missing from closed list", milestoneSlug)
+	}
+	reopenedSprint := runner.jsonOK("sprint", "reopen", milestoneSlug)
+	if reopenedSprint.Data["closed"] != false {
+		t.Fatalf("sprint not reopened: %#v", reopenedSprint.Data)
+	}
+
 	invalidRunner := runner
 	invalidRunner.env = replaceEnv(runner.env, "TAIGA_TOKEN", "token-that-must-never-appear")
 	stdout, stderr, code = invalidRunner.run("--verbose", "auth", "status")
@@ -305,17 +331,6 @@ func createProject(t *testing.T, baseURL, token string) map[string]any {
 	var project map[string]any
 	apiRequest(t, http.MethodPost, baseURL+"projects", token, body, &project)
 	return project
-}
-
-func createMilestone(t *testing.T, baseURL, token string, projectID int64) map[string]any {
-	t.Helper()
-	body := map[string]any{
-		"name": "E2E Sprint", "project": projectID,
-		"estimated_start": "2026-08-31", "estimated_finish": "2026-09-07",
-	}
-	var milestone map[string]any
-	apiRequest(t, http.MethodPost, baseURL+"milestones", token, body, &milestone)
-	return milestone
 }
 
 func firstClosedStatus(t *testing.T, baseURL, token string, projectID int64) string {
@@ -397,6 +412,15 @@ func apiRequest(t *testing.T, method, url, token string, body, output any) {
 func containsRef(items []map[string]any, ref int) bool {
 	for _, item := range items {
 		if int(item["ref"].(float64)) == ref {
+			return true
+		}
+	}
+	return false
+}
+
+func containsSlug(items []map[string]any, slug string) bool {
+	for _, item := range items {
+		if item["slug"] == slug {
 			return true
 		}
 	}

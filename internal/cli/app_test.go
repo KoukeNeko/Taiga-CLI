@@ -223,7 +223,9 @@ func TestStoryAndTaskCommandReadAndDryRunContracts(t *testing.T) {
 		case "/api/v1/userstory-statuses":
 			_, _ = io.WriteString(w, `[{"id":4,"name":"New","is_closed":false,"order":1},{"id":5,"name":"Closed","is_closed":true,"order":2}]`)
 		case "/api/v1/milestones":
-			_, _ = io.WriteString(w, `[{"id":6,"name":"Sprint 1","slug":"sprint-1","project":1,"closed":false}]`)
+			_, _ = io.WriteString(w, `[{"id":6,"name":"Sprint 1","slug":"sprint-1","project":1,"estimated_start":"2026-08-31","estimated_finish":"2026-09-07","closed":false}]`)
+		case "/api/v1/milestones/6":
+			_, _ = io.WriteString(w, `{"id":6,"name":"Sprint 1","slug":"sprint-1","project":1,"estimated_start":"2026-08-31","estimated_finish":"2026-09-07","closed":false}`)
 		case "/api/v1/users":
 			_, _ = io.WriteString(w, `[{"id":8,"username":"demo","full_name_display":"Demo User"}]`)
 		case "/api/v1/tasks/by_ref":
@@ -255,6 +257,12 @@ func TestStoryAndTaskCommandReadAndDryRunContracts(t *testing.T) {
 		{"--json", "task", "done", "10", "--status", "Closed", "--dry-run"},
 		{"--json", "task", "assign", "10", "--to", "demo", "--dry-run"},
 		{"--json", "task", "comment", "10", "--body", "note", "--dry-run"},
+		{"--json", "sprint", "list"},
+		{"--json", "sprint", "view", "sprint-1"},
+		{"--json", "sprint", "create", "--name", "Sprint 2", "--start", "2026-09-08", "--finish", "2026-09-14", "--dry-run"},
+		{"--json", "sprint", "edit", "sprint-1", "--finish", "2026-09-08", "--dry-run"},
+		{"--json", "sprint", "close", "sprint-1", "--dry-run"},
+		{"--json", "sprint", "reopen", "sprint-1", "--dry-run"},
 	}
 	for _, args := range commands {
 		app, out, stderr, _ := testApp(t, server)
@@ -267,6 +275,14 @@ func TestStoryAndTaskCommandReadAndDryRunContracts(t *testing.T) {
 	}
 	if mutations != 0 {
 		t.Fatalf("dry-run/read commands sent %d mutation requests", mutations)
+	}
+}
+
+func TestSprintCreateRejectsInvalidDateRange(t *testing.T) {
+	app, out, stderr, _ := testApp(t, nil)
+	code := app.Execute(context.Background(), []string{"--json", "sprint", "create", "--name", "Bad Sprint", "--start", "2026-09-10", "--finish", "2026-09-01"})
+	if code != ExitValidation || out.Len() != 0 || !strings.Contains(stderr.String(), "invalid_date_range") {
+		t.Fatalf("exit=%d stdout=%s stderr=%s", code, out.String(), stderr.String())
 	}
 }
 
