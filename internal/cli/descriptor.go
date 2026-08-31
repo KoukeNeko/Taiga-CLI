@@ -81,6 +81,7 @@ func descriptors() map[string]Descriptor {
 		"sprint edit":   {Command: "sprint edit", Description: "Edit a sprint", Safety: SafetyWrite, Idempotency: NonIdempotent, Input: objectSchema(map[string]any{"sprint": stringProperty, "name": stringProperty, "start": stringProperty, "finish": stringProperty, "dry_run": booleanProperty}, "sprint"), Output: commonOutput},
 		"sprint close":  {Command: "sprint close", Description: "Close a sprint", Safety: SafetyWrite, Idempotency: Idempotent, Input: objectSchema(map[string]any{"sprint": stringProperty, "dry_run": booleanProperty}, "sprint"), Output: commonOutput},
 		"sprint reopen": {Command: "sprint reopen", Description: "Reopen a sprint", Safety: SafetyWrite, Idempotency: Idempotent, Input: objectSchema(map[string]any{"sprint": stringProperty, "dry_run": booleanProperty}, "sprint"), Output: commonOutput},
+		"search":        {Command: "search", Description: "Search work items in a project", Safety: SafetyRead, Idempotency: Idempotent, Input: objectSchema(map[string]any{"text": stringProperty, "type": stringProperty, "limit": integerProperty}, "text"), Output: listOutput},
 	}
 }
 

@@ -124,6 +124,16 @@ taiga sprint reopen sprint-27
 
 Sprint 日期使用 `YYYY-MM-DD`；`sprint` 也可寫成 `milestone`。
 
+搜尋目前專案：
+
+```sh
+taiga search "token refresh"
+taiga search "login" --type issue
+taiga search "API tests" --type task --json --fields kind,ref,subject
+```
+
+Search 支援 epic、story、task、issue、wiki；Taiga server 每次最多回傳 150 筆。
+
 Issue identifier 可以是裸 ref、`project#ref` 或 Taiga URL：
 
 ```text

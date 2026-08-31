@@ -232,3 +232,24 @@ type UpdateTaskRequest struct {
 	AssignedTo  **int64 `json:"assigned_to,omitempty"`
 	Comment     *string `json:"comment,omitempty"`
 }
+
+type SearchItem struct {
+	ID            int64    `json:"id"`
+	Ref           int      `json:"ref,omitempty"`
+	Slug          string   `json:"slug,omitempty"`
+	Subject       string   `json:"subject,omitempty"`
+	Status        *int64   `json:"status,omitempty"`
+	AssignedTo    *int64   `json:"assigned_to,omitempty"`
+	TotalPoints   *float64 `json:"total_points,omitempty"`
+	MilestoneName string   `json:"milestone_name,omitempty"`
+	MilestoneSlug string   `json:"milestone_slug,omitempty"`
+}
+
+type SearchResponse struct {
+	Epics       []SearchItem `json:"epics,omitempty"`
+	UserStories []SearchItem `json:"userstories,omitempty"`
+	Tasks       []SearchItem `json:"tasks,omitempty"`
+	Issues      []SearchItem `json:"issues,omitempty"`
+	WikiPages   []SearchItem `json:"wikipages,omitempty"`
+	Count       int          `json:"count"`
+}

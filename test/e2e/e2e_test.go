@@ -285,6 +285,15 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 		t.Fatalf("sprint not reopened: %#v", reopenedSprint.Data)
 	}
 
+	searchResults := runner.jsonOK("search", "external", "--fields", "kind,ref,subject")
+	if !containsKind(searchResults.Items, "issue") || !containsKind(searchResults.Items, "story") {
+		t.Fatalf("search did not return issue and story results: %#v", searchResults.Items)
+	}
+	taskSearch := runner.jsonOK("search", "task", "--type", "task", "--fields", "kind,ref,subject")
+	if len(taskSearch.Items) == 0 || !containsKind(taskSearch.Items, "task") {
+		t.Fatalf("task search returned no tasks: %#v", taskSearch.Items)
+	}
+
 	invalidRunner := runner
 	invalidRunner.env = replaceEnv(runner.env, "TAIGA_TOKEN", "token-that-must-never-appear")
 	stdout, stderr, code = invalidRunner.run("--verbose", "auth", "status")
@@ -466,6 +475,15 @@ func containsRef(items []map[string]any, ref int) bool {
 func containsSlug(items []map[string]any, slug string) bool {
 	for _, item := range items {
 		if item["slug"] == slug {
+			return true
+		}
+	}
+	return false
+}
+
+func containsKind(items []map[string]any, kind string) bool {
+	for _, item := range items {
+		if item["kind"] == kind {
 			return true
 		}
 	}

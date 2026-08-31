@@ -14,6 +14,7 @@ import (
 
 	"github.com/KoukeNeko/taiga-cli/internal/config"
 	"github.com/KoukeNeko/taiga-cli/internal/credential"
+	"github.com/KoukeNeko/taiga-cli/internal/taiga"
 	"github.com/spf13/cobra"
 )
 
@@ -306,6 +307,23 @@ func TestDynamicProjectCompletion(t *testing.T) {
 	values, directive := app.completeProjects(command, nil, "de")
 	if directive != cobra.ShellCompDirectiveNoFileComp || len(values) != 1 || values[0] != "demo\tDemo Project" {
 		t.Fatalf("values=%#v directive=%v", values, directive)
+	}
+}
+
+func TestFlattenSearchFiltersAndLimits(t *testing.T) {
+	response := taiga.SearchResponse{
+		UserStories: []taiga.SearchItem{{ID: 1, Ref: 2, Subject: "Story"}},
+		Tasks:       []taiga.SearchItem{{ID: 3, Ref: 4, Subject: "Task"}},
+		Issues:      []taiga.SearchItem{{ID: 5, Ref: 6, Subject: "Issue"}},
+		Count:       3,
+	}
+	items := flattenSearch(response, "all", 2)
+	if len(items) != 2 || items[0].Kind != "story" || items[1].Kind != "task" {
+		t.Fatalf("items = %#v", items)
+	}
+	issues := flattenSearch(response, "issue", 10)
+	if len(issues) != 1 || issues[0].Subject != "Issue" {
+		t.Fatalf("issues = %#v", issues)
 	}
 }
 
