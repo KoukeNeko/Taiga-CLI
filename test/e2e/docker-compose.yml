@@ -1,0 +1,141 @@
+x-back-environment: &back-environment
+  POSTGRES_DB: taiga
+  POSTGRES_USER: taiga
+  POSTGRES_PASSWORD: taiga-e2e-db
+  POSTGRES_HOST: taiga-db
+  TAIGA_SECRET_KEY: taiga-cli-e2e-secret-key-not-for-production
+  TAIGA_SITES_SCHEME: http
+  TAIGA_SITES_DOMAIN: localhost:19000
+  TAIGA_SUBPATH: /taiga
+  EMAIL_BACKEND: django.core.mail.backends.console.EmailBackend
+  DEFAULT_FROM_EMAIL: taiga-e2e@localhost.invalid
+  RABBITMQ_USER: taiga
+  RABBITMQ_PASS: taiga-e2e-rabbit
+  ENABLE_TELEMETRY: "False"
+  PUBLIC_REGISTER_ENABLED: "True"
+  SESSION_COOKIE_SECURE: "False"
+  CSRF_COOKIE_SECURE: "False"
+
+x-back-volumes: &back-volumes
+  - taiga-static-data:/taiga-back/static
+  - taiga-media-data:/taiga-back/media
+
+services:
+  taiga-db:
+    image: postgres@sha256:a06e6e6e519b7a329c419f8221edec66cfc45511e8b80e262c12103ba745cf19
+    environment:
+      POSTGRES_DB: taiga
+      POSTGRES_USER: taiga
+      POSTGRES_PASSWORD: taiga-e2e-db
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taiga"]
+      interval: 2s
+      timeout: 15s
+      retries: 10
+      start_period: 3s
+    volumes:
+      - taiga-db-data:/var/lib/postgresql/data
+    networks: [taiga]
+
+  taiga-events-rabbitmq:
+    image: rabbitmq@sha256:c3e526769bfd885c898d1132e1008b216800e8543619c30d5959b220285564ef
+    environment:
+      RABBITMQ_ERLANG_COOKIE: taiga-e2e-events-cookie
+      RABBITMQ_DEFAULT_USER: taiga
+      RABBITMQ_DEFAULT_PASS: taiga-e2e-rabbit
+      RABBITMQ_DEFAULT_VHOST: taiga
+    hostname: taiga-events-rabbitmq
+    networks: [taiga]
+
+  taiga-async-rabbitmq:
+    image: rabbitmq@sha256:c3e526769bfd885c898d1132e1008b216800e8543619c30d5959b220285564ef
+    environment:
+      RABBITMQ_ERLANG_COOKIE: taiga-e2e-async-cookie
+      RABBITMQ_DEFAULT_USER: taiga
+      RABBITMQ_DEFAULT_PASS: taiga-e2e-rabbit
+      RABBITMQ_DEFAULT_VHOST: taiga
+    hostname: taiga-async-rabbitmq
+    networks: [taiga]
+
+  taiga-back:
+    image: taigaio/taiga-back@sha256:4beed8f62c9ffbbcea824aa01c48fa72a2c2f713be6732e2ee37d2e777843f51
+    platform: linux/amd64
+    environment: *back-environment
+    volumes: *back-volumes
+    depends_on:
+      taiga-db:
+        condition: service_healthy
+      taiga-events-rabbitmq:
+        condition: service_started
+      taiga-async-rabbitmq:
+        condition: service_started
+    networks: [taiga]
+
+  taiga-async:
+    image: taigaio/taiga-back@sha256:4beed8f62c9ffbbcea824aa01c48fa72a2c2f713be6732e2ee37d2e777843f51
+    platform: linux/amd64
+    entrypoint: ["/taiga-back/docker/async_entrypoint.sh"]
+    environment: *back-environment
+    volumes: *back-volumes
+    depends_on:
+      taiga-db:
+        condition: service_healthy
+      taiga-events-rabbitmq:
+        condition: service_started
+      taiga-async-rabbitmq:
+        condition: service_started
+    networks: [taiga]
+
+  taiga-front:
+    image: taigaio/taiga-front@sha256:570c8792ce802ff803a2275967e1d593cdd7c748e2d63163c4dab35fe2d2d646
+    platform: linux/amd64
+    environment:
+      TAIGA_URL: http://localhost:19000
+      TAIGA_WEBSOCKETS_URL: ws://localhost:19000
+      TAIGA_SUBPATH: /taiga
+      PUBLIC_REGISTER_ENABLED: "true"
+    networks: [taiga]
+
+  taiga-events:
+    image: taigaio/taiga-events@sha256:92fc0822564f891700d74d23fa44951adf2845cf50c9e56bfd0ef29abdc1ab40
+    platform: linux/amd64
+    environment:
+      RABBITMQ_USER: taiga
+      RABBITMQ_PASS: taiga-e2e-rabbit
+      TAIGA_SECRET_KEY: taiga-cli-e2e-secret-key-not-for-production
+    depends_on:
+      taiga-events-rabbitmq:
+        condition: service_started
+    networks: [taiga]
+
+  taiga-protected:
+    image: taigaio/taiga-protected@sha256:fd4568a97a59225db90f422594cf0e05010be50c9a2a383c01477c5ee521d393
+    platform: linux/amd64
+    environment:
+      MAX_AGE: "360"
+      SECRET_KEY: taiga-cli-e2e-secret-key-not-for-production
+    networks: [taiga]
+
+  taiga-gateway:
+    image: nginx@sha256:07ab71a2c8e4ecb19a5a5abcfb3a4f175946c001c8af288b1aa766d67b0d05d2
+    ports:
+      - "127.0.0.1:19000:80"
+    volumes:
+      - ./taiga.conf:/etc/nginx/conf.d/default.conf:ro
+      - taiga-static-data:/taiga/static
+      - taiga-media-data:/taiga/media
+    depends_on:
+      - taiga-front
+      - taiga-back
+      - taiga-events
+    networks: [taiga]
+
+volumes:
+  taiga-static-data:
+  taiga-media-data:
+  taiga-db-data:
+  taiga-async-rabbitmq-data:
+  taiga-events-rabbitmq-data:
+
+networks:
+  taiga:

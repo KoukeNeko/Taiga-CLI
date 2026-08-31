@@ -1,0 +1,253 @@
+//go:build integration
+
+package e2e
+
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"io"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+)
+
+type envelope struct {
+	Data  map[string]any   `json:"data"`
+	Items []map[string]any `json:"items"`
+	Plan  map[string]any   `json:"plan"`
+}
+
+func TestPhaseOneAgainstDocker(t *testing.T) {
+	baseURL := requiredEnv(t, "TAIGA_E2E_URL")
+	host := requiredEnv(t, "TAIGA_E2E_HOST")
+	binary := requiredEnv(t, "TAIGA_E2E_BIN")
+	home := t.TempDir()
+	username := "e2e_" + strconv.FormatInt(time.Now().UnixNano(), 36)
+	password := "E2E-Password-7fK2mQ9"
+	token := register(t, baseURL, username, password)
+	project := createProject(t, baseURL, token)
+	projectID := int64(project["id"].(float64))
+	projectSlug := project["slug"].(string)
+	t.Cleanup(func() {
+		apiRequest(t, http.MethodDelete, baseURL+"projects/"+strconv.FormatInt(projectID, 10), token, nil, nil)
+	})
+
+	runner := cliRunner{t: t, binary: binary, dir: t.TempDir(), env: []string{
+		"HOME=" + home,
+		"XDG_CONFIG_HOME=" + filepath.Join(home, ".config"),
+		"TAIGA_API_URL=" + baseURL,
+		"TAIGA_TOKEN=" + token,
+		"TAIGA_PROJECT=" + projectSlug,
+	}}
+
+	runner.jsonOK("doctor", "--host", host)
+	runner.jsonOK("auth", "status")
+	runner.jsonOK("project", "list", "--limit", "10")
+	runner.jsonOK("project", "view", projectSlug)
+	runner.jsonOK("project", "use", projectSlug)
+	runner.jsonOK("schema", "issue", "view")
+
+	created := runner.jsonOK("issue", "create", "--subject", "E2E issue", "--description", "created by integration test")
+	ref := int(created.Data["ref"].(float64))
+	version := int(created.Data["version"].(float64))
+	target := strconv.Itoa(ref)
+
+	listed := runner.jsonOK("issue", "list", "--fields", "ref,subject,status,version")
+	if !containsRef(listed.Items, ref) {
+		t.Fatalf("created issue ref %d missing from list", ref)
+	}
+	runner.jsonOK("issue", "view", target, "--fields", "ref,subject,version")
+
+	dryRun := runner.jsonOK("issue", "edit", target, "--subject", "must not persist", "--dry-run")
+	if dryRun.Plan["performed"] != false || dryRun.Plan["would_write"] != true {
+		t.Fatalf("dry-run plan = %#v", dryRun.Plan)
+	}
+	view := runner.jsonOK("issue", "view", target, "--fields", "subject")
+	if view.Data["subject"] != "E2E issue" {
+		t.Fatalf("dry-run mutated issue: %#v", view.Data)
+	}
+
+	edited := runner.jsonOK("issue", "edit", target, "--subject", "E2E issue updated", "--base-version", strconv.Itoa(version))
+	version = int(edited.Data["version"].(float64))
+	issueID := int64(edited.Data["id"].(float64))
+	var externalUpdate map[string]any
+	apiRequest(t, http.MethodPatch, baseURL+"issues/"+strconv.FormatInt(issueID, 10), token, map[string]any{"subject": "external concurrent edit", "version": version}, &externalUpdate)
+	externalVersion := int(externalUpdate["version"].(float64))
+	stdout, stderr, code := runner.run("--json", "issue", "edit", target, "--subject", "must conflict", "--base-version", strconv.Itoa(version))
+	if code != 6 || strings.TrimSpace(stdout) != "" {
+		t.Fatalf("stale OCC edit exit=%d stdout=%s stderr=%s", code, stdout, stderr)
+	}
+	var conflictEnvelope map[string]any
+	if err := json.Unmarshal([]byte(stderr), &conflictEnvelope); err != nil || conflictEnvelope["error"].(map[string]any)["code"] != "occ_conflict" {
+		t.Fatalf("invalid OCC error: %v: %s", err, stderr)
+	}
+	afterConflict := runner.jsonOK("issue", "view", target, "--fields", "subject,version")
+	if afterConflict.Data["subject"] != "external concurrent edit" {
+		t.Fatalf("stale edit overwrote concurrent change: %#v", afterConflict.Data)
+	}
+	version = externalVersion
+	assigned := runner.jsonOK("issue", "assign", target, "--to", username, "--base-version", strconv.Itoa(version))
+	version = int(assigned.Data["version"].(float64))
+	commented := runner.jsonOK("issue", "comment", target, "--body", "integration comment", "--base-version", strconv.Itoa(version))
+	version = int(commented.Data["version"].(float64))
+	closedStatus := firstClosedStatus(t, baseURL, token, projectID)
+	closed := runner.jsonOK("issue", "close", target, "--status", closedStatus, "--base-version", strconv.Itoa(version))
+	if closed.Data["is_closed"] != true {
+		t.Fatalf("issue not closed: %#v", closed.Data)
+	}
+
+	invalidRunner := runner
+	invalidRunner.env = replaceEnv(runner.env, "TAIGA_TOKEN", "token-that-must-never-appear")
+	stdout, stderr, code = invalidRunner.run("--verbose", "auth", "status")
+	if code != 3 {
+		t.Fatalf("invalid token exit=%d stdout=%s stderr=%s", code, stdout, stderr)
+	}
+	if strings.Contains(stdout+stderr, "token-that-must-never-appear") {
+		t.Fatalf("credential leaked: stdout=%s stderr=%s", stdout, stderr)
+	}
+}
+
+type cliRunner struct {
+	t      *testing.T
+	binary string
+	dir    string
+	env    []string
+}
+
+func (r cliRunner) run(args ...string) (string, string, int) {
+	r.t.Helper()
+	command := exec.Command(r.binary, args...)
+	command.Dir = r.dir
+	command.Env = append(os.Environ(), r.env...)
+	var stdout, stderr bytes.Buffer
+	command.Stdout, command.Stderr = &stdout, &stderr
+	err := command.Run()
+	if err == nil {
+		return stdout.String(), stderr.String(), 0
+	}
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) {
+		r.t.Fatalf("run %v: %v", args, err)
+	}
+	return stdout.String(), stderr.String(), exitErr.ExitCode()
+}
+
+func (r cliRunner) jsonOK(args ...string) envelope {
+	r.t.Helper()
+	args = append([]string{"--json"}, args...)
+	stdout, stderr, code := r.run(args...)
+	if code != 0 {
+		r.t.Fatalf("taiga %v exit=%d stderr=%s", args, code, stderr)
+	}
+	if strings.TrimSpace(stderr) != "" {
+		r.t.Fatalf("taiga %v wrote stderr on success: %s", args, stderr)
+	}
+	var result envelope
+	if err := json.Unmarshal([]byte(stdout), &result); err != nil {
+		r.t.Fatalf("taiga %v returned invalid JSON: %v: %s", args, err, stdout)
+	}
+	return result
+}
+
+func requiredEnv(t *testing.T, name string) string {
+	t.Helper()
+	value := os.Getenv(name)
+	if value == "" {
+		t.Fatalf("%s is required", name)
+	}
+	return value
+}
+
+func register(t *testing.T, baseURL, username, password string) string {
+	t.Helper()
+	body := map[string]any{"accepted_terms": true, "email": username + "@localhost.invalid", "full_name": "Taiga CLI E2E", "password": password, "type": "public", "username": username}
+	var response map[string]any
+	apiRequest(t, http.MethodPost, baseURL+"auth/register", "", body, &response)
+	return response["auth_token"].(string)
+}
+
+func createProject(t *testing.T, baseURL, token string) map[string]any {
+	t.Helper()
+	var templates []map[string]any
+	apiRequest(t, http.MethodGet, baseURL+"project-templates", token, nil, &templates)
+	body := map[string]any{"name": "Taiga CLI E2E", "description": "temporary integration project", "creation_template": templates[0]["id"], "is_private": true}
+	var project map[string]any
+	apiRequest(t, http.MethodPost, baseURL+"projects", token, body, &project)
+	return project
+}
+
+func firstClosedStatus(t *testing.T, baseURL, token string, projectID int64) string {
+	t.Helper()
+	var statuses []map[string]any
+	apiRequest(t, http.MethodGet, baseURL+"issue-statuses?project="+strconv.FormatInt(projectID, 10), token, nil, &statuses)
+	for _, status := range statuses {
+		if status["is_closed"] == true {
+			return status["name"].(string)
+		}
+	}
+	t.Fatal("project has no closed issue status")
+	return ""
+}
+
+func apiRequest(t *testing.T, method, url, token string, body, output any) {
+	t.Helper()
+	var reader io.Reader
+	if body != nil {
+		data, err := json.Marshal(body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		reader = bytes.NewReader(data)
+	}
+	request, err := http.NewRequest(method, url, reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Content-Type", "application/json")
+	if token != "" {
+		request.Header.Set("Authorization", "Bearer "+token)
+	}
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	data, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		t.Fatalf("%s %s returned %d: %s", method, url, response.StatusCode, data)
+	}
+	if output != nil && len(data) > 0 {
+		if err := json.Unmarshal(data, output); err != nil {
+			t.Fatalf("decode %s %s: %v: %s", method, url, err, data)
+		}
+	}
+}
+
+func containsRef(items []map[string]any, ref int) bool {
+	for _, item := range items {
+		if int(item["ref"].(float64)) == ref {
+			return true
+		}
+	}
+	return false
+}
+
+func replaceEnv(values []string, key, value string) []string {
+	prefix := key + "="
+	result := make([]string, 0, len(values)+1)
+	for _, current := range values {
+		if !strings.HasPrefix(current, prefix) {
+			result = append(result, current)
+		}
+	}
+	return append(result, prefix+value)
+}
