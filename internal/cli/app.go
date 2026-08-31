@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/KoukeNeko/taiga-cli/internal/completioncache"
 	"github.com/KoukeNeko/taiga-cli/internal/config"
 	"github.com/KoukeNeko/taiga-cli/internal/credential"
 	"github.com/KoukeNeko/taiga-cli/internal/output"
@@ -18,15 +19,16 @@ import (
 )
 
 type App struct {
-	In          io.Reader
-	Out         io.Writer
-	Err         io.Writer
-	HTTPClient  *http.Client
-	Config      *config.Store
-	GitLocal    *config.GitLocal
-	Credentials credential.Store
-	Getenv      func(string) string
-	Cwd         string
+	In              io.Reader
+	Out             io.Writer
+	Err             io.Writer
+	HTTPClient      *http.Client
+	Config          *config.Store
+	GitLocal        *config.GitLocal
+	Credentials     credential.Store
+	CompletionCache *completioncache.Store
+	Getenv          func(string) string
+	Cwd             string
 
 	global globalOptions
 }
@@ -61,15 +63,16 @@ func New() (*App, error) {
 		return nil, fmt.Errorf("get current directory: %w", err)
 	}
 	return &App{
-		In:          os.Stdin,
-		Out:         os.Stdout,
-		Err:         os.Stderr,
-		HTTPClient:  &http.Client{Timeout: 30 * time.Second},
-		Config:      config.NewStore(path),
-		GitLocal:    config.NewGitLocal(cwd),
-		Credentials: credential.NewKeyringStore(),
-		Getenv:      os.Getenv,
-		Cwd:         cwd,
+		In:              os.Stdin,
+		Out:             os.Stdout,
+		Err:             os.Stderr,
+		HTTPClient:      &http.Client{Timeout: 30 * time.Second},
+		Config:          config.NewStore(path),
+		GitLocal:        config.NewGitLocal(cwd),
+		Credentials:     credential.NewKeyringStore(),
+		CompletionCache: completioncache.NewStore(completioncache.DefaultPath(path)),
+		Getenv:          os.Getenv,
+		Cwd:             cwd,
 	}, nil
 }
 

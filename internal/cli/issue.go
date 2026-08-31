@@ -202,13 +202,13 @@ func (a *App) issueCreateCommand() *cobra.Command {
 	flags.StringVar(&assignee, "assignee", "", "assignee username or full name")
 	flags.BoolVar(&dryRun, "dry-run", false, "resolve and display the mutation without writing")
 	_ = command.RegisterFlagCompletionFunc("status", a.completeIssueStatuses)
-	_ = command.RegisterFlagCompletionFunc("priority", a.completeNamedMetadata(func(ctx context.Context, client *taiga.Client, projectID int64) ([]taiga.NamedMetadata, error) {
+	_ = command.RegisterFlagCompletionFunc("priority", a.completeNamedMetadata("issue-priorities", func(ctx context.Context, client *taiga.Client, projectID int64) ([]taiga.NamedMetadata, error) {
 		return client.IssuePriorities(ctx, projectID)
 	}))
-	_ = command.RegisterFlagCompletionFunc("severity", a.completeNamedMetadata(func(ctx context.Context, client *taiga.Client, projectID int64) ([]taiga.NamedMetadata, error) {
+	_ = command.RegisterFlagCompletionFunc("severity", a.completeNamedMetadata("issue-severities", func(ctx context.Context, client *taiga.Client, projectID int64) ([]taiga.NamedMetadata, error) {
 		return client.IssueSeverities(ctx, projectID)
 	}))
-	_ = command.RegisterFlagCompletionFunc("type", a.completeNamedMetadata(func(ctx context.Context, client *taiga.Client, projectID int64) ([]taiga.NamedMetadata, error) {
+	_ = command.RegisterFlagCompletionFunc("type", a.completeNamedMetadata("issue-types", func(ctx context.Context, client *taiga.Client, projectID int64) ([]taiga.NamedMetadata, error) {
 		return client.IssueTypes(ctx, projectID)
 	}))
 	_ = command.RegisterFlagCompletionFunc("assignee", a.completeMembers)
@@ -306,13 +306,13 @@ func (a *App) issueEditCommand() *cobra.Command {
 	addEditFlags(command, &options)
 	command.ValidArgsFunction = a.completeIssues
 	_ = command.RegisterFlagCompletionFunc("status", a.completeIssueStatuses)
-	_ = command.RegisterFlagCompletionFunc("priority", a.completeNamedMetadata(func(ctx context.Context, client *taiga.Client, projectID int64) ([]taiga.NamedMetadata, error) {
+	_ = command.RegisterFlagCompletionFunc("priority", a.completeNamedMetadata("issue-priorities", func(ctx context.Context, client *taiga.Client, projectID int64) ([]taiga.NamedMetadata, error) {
 		return client.IssuePriorities(ctx, projectID)
 	}))
-	_ = command.RegisterFlagCompletionFunc("severity", a.completeNamedMetadata(func(ctx context.Context, client *taiga.Client, projectID int64) ([]taiga.NamedMetadata, error) {
+	_ = command.RegisterFlagCompletionFunc("severity", a.completeNamedMetadata("issue-severities", func(ctx context.Context, client *taiga.Client, projectID int64) ([]taiga.NamedMetadata, error) {
 		return client.IssueSeverities(ctx, projectID)
 	}))
-	_ = command.RegisterFlagCompletionFunc("type", a.completeNamedMetadata(func(ctx context.Context, client *taiga.Client, projectID int64) ([]taiga.NamedMetadata, error) {
+	_ = command.RegisterFlagCompletionFunc("type", a.completeNamedMetadata("issue-types", func(ctx context.Context, client *taiga.Client, projectID int64) ([]taiga.NamedMetadata, error) {
 		return client.IssueTypes(ctx, projectID)
 	}))
 	_ = command.RegisterFlagCompletionFunc("assignee", a.completeMembers)

@@ -8,11 +8,14 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/KoukeNeko/taiga-cli/internal/completioncache"
 	"github.com/KoukeNeko/taiga-cli/internal/config"
 	"github.com/KoukeNeko/taiga-cli/internal/credential"
 	"github.com/KoukeNeko/taiga-cli/internal/taiga"
@@ -58,17 +61,80 @@ func testApp(t *testing.T, server *httptest.Server) (*App, *bytes.Buffer, *bytes
 	out, stderr := &bytes.Buffer{}, &bytes.Buffer{}
 	credentials := &fakeCredentials{values: map[string]credential.Tokens{credential.Account("test", apiURL): {AuthToken: "test-token"}}}
 	app := &App{
-		In:          strings.NewReader(""),
-		Out:         out,
-		Err:         stderr,
-		HTTPClient:  client,
-		Config:      store,
-		GitLocal:    config.NewGitLocal(dir),
-		Credentials: credentials,
-		Getenv:      func(string) string { return "" },
-		Cwd:         dir,
+		In:              strings.NewReader(""),
+		Out:             out,
+		Err:             stderr,
+		HTTPClient:      client,
+		Config:          store,
+		GitLocal:        config.NewGitLocal(dir),
+		Credentials:     credentials,
+		CompletionCache: completioncache.NewStore(filepath.Join(dir, "completion-cache.json")),
+		Getenv:          func(string) string { return "" },
+		Cwd:             dir,
 	}
 	return app, out, stderr, credentials
+}
+
+func TestDynamicCompletionUsesFreshCache(t *testing.T) {
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		switch r.URL.Path {
+		case "/api/v1/projects/by_slug":
+			_, _ = io.WriteString(w, `{"id":1,"name":"Demo","slug":"demo"}`)
+		case "/api/v1/issues":
+			_, _ = io.WriteString(w, `[{"id":2,"ref":3,"project":1,"subject":"Cached issue","version":1}]`)
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	app, _, _, _ := testApp(t, server)
+	command := &cobra.Command{}
+	command.SetContext(context.Background())
+	for attempt := 0; attempt < 2; attempt++ {
+		values, directive := app.completeIssues(command, nil, "")
+		if len(values) != 1 || !strings.HasPrefix(values[0], "3\tCached issue") || directive != cobra.ShellCompDirectiveNoFileComp {
+			t.Fatalf("attempt=%d values=%#v directive=%v", attempt, values, directive)
+		}
+	}
+	if requests != 2 {
+		t.Fatalf("requests=%d, want one project and one issue request", requests)
+	}
+	data, err := os.ReadFile(filepath.Join(app.Cwd, "completion-cache.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "test-token") {
+		t.Fatalf("completion cache leaked credential: %s", data)
+	}
+}
+
+func TestDynamicCompletionFallsBackToStaleCache(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, `{"detail":"offline"}`, http.StatusServiceUnavailable)
+	}))
+	defer server.Close()
+	app, _, _, _ := testApp(t, server)
+	key := completioncache.Key("test", server.URL+"/api/v1/", "demo", "issues")
+	payload, err := json.Marshal(map[string]any{
+		"version": 1,
+		"entries": map[string]any{
+			key: map[string]any{"updated_at": time.Now().Add(-completioncache.FreshTTL - time.Minute).UTC(), "values": []string{"9\tStale issue"}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(app.Cwd, "completion-cache.json"), payload, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	command := &cobra.Command{}
+	command.SetContext(context.Background())
+	values, _ := app.completeIssues(command, nil, "")
+	if len(values) != 1 || values[0] != "9\tStale issue" {
+		t.Fatalf("values=%#v", values)
+	}
 }
 
 func TestSchemaMachineContract(t *testing.T) {

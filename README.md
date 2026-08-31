@@ -21,6 +21,7 @@
 - Human output、versioned JSON、`--fields`、structured error 與固定 exit code。
 - `--dry-run`、`--no-input`、redacted verbose logging。
 - JSON Schema command descriptors 與四種 shell completion。
+- 依 profile、API 與 project 隔離的 completion metadata cache，支援 stale-on-error。
 - `httptest` 單元測試和隔離的真實 Taiga Docker E2E。
 - `taiga version` 顯示版本、commit、建置時間與平台。
 
@@ -312,7 +313,7 @@ taiga completion fish
 taiga completion powershell
 ```
 
-Completion 會在 2 秒 timeout 內提供 Project、work item ref、status、member、Sprint 與 Issue metadata 候選；API 無法使用時安靜退化，不影響 shell。
+Completion 會在 2 秒 timeout 內提供 Project、work item ref、status、member、Sprint 與 Issue metadata 候選。成功結果以 `0600` 權限快取 5 分鐘；網路失敗時可使用 24 小時內的 stale cache，不儲存 token，且 cache 損壞不影響 shell。
 
 ## 安全原則
 
