@@ -339,6 +339,58 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 		t.Fatalf("sprint not reopened: %#v", reopenedSprint.Data)
 	}
 
+	wikiSlug := "e2e-guide"
+	wiki := runner.jsonOK("wiki", "create", "--slug", wikiSlug, "--body", "# E2E guide\nInitial content")
+	wikiID := int64(wiki.Data["id"].(float64))
+	wikiVersion := int(wiki.Data["version"].(float64))
+	wikiPages := runner.jsonOK("wiki", "list", "--fields", "slug,version,editions")
+	if !containsSlug(wikiPages.Items, wikiSlug) {
+		t.Fatalf("created wiki page %q missing from list", wikiSlug)
+	}
+	wikiView := runner.jsonOK("wiki", "view", wikiSlug, "--fields", "slug,content,version,is_watcher")
+	if wikiView.Data["content"] != "# E2E guide\nInitial content" {
+		t.Fatalf("wiki content=%#v", wikiView.Data)
+	}
+	wikiDryRun := runner.jsonOK("wiki", "edit", wikiSlug, "--body", "must not persist", "--dry-run")
+	if wikiDryRun.Plan["performed"] != false || wikiDryRun.Plan["would_write"] != true {
+		t.Fatalf("wiki dry-run plan=%#v", wikiDryRun.Plan)
+	}
+	wikiEdited := runner.jsonOKWithInput("# E2E guide\nUpdated from stdin", "wiki", "edit", wikiSlug, "--body-file", "-", "--base-version", strconv.Itoa(wikiVersion))
+	wikiVersion = int(wikiEdited.Data["version"].(float64))
+	if wikiEdited.Data["content"] != "# E2E guide\nUpdated from stdin" {
+		t.Fatalf("wiki stdin update=%#v", wikiEdited.Data)
+	}
+	var externalWikiUpdate map[string]any
+	apiRequest(t, http.MethodPatch, baseURL+"wiki/"+strconv.FormatInt(wikiID, 10), token, map[string]any{"content": "external wiki edit", "version": wikiVersion}, &externalWikiUpdate)
+	stdout, stderr, code = runner.run("--json", "wiki", "edit", wikiSlug, "--body", "must conflict", "--base-version", strconv.Itoa(wikiVersion))
+	if code != 6 || strings.TrimSpace(stdout) != "" {
+		t.Fatalf("stale wiki OCC edit exit=%d stdout=%s stderr=%s", code, stdout, stderr)
+	}
+	watchedWiki := runner.jsonOK("wiki", "watch", wikiSlug)
+	if watchedWiki.Data["watching"] != true || watchedWiki.Data["verified"] != true {
+		t.Fatalf("wiki watch was not verified: %#v", watchedWiki.Data)
+	}
+	wikiHistory := runner.jsonOK("wiki", "history", wikiSlug, "--type", "activity", "--fields", "id,kind,author,changes")
+	if len(wikiHistory.Items) == 0 {
+		t.Fatalf("wiki activity history is empty")
+	}
+	unwatchedWiki := runner.jsonOK("wiki", "unwatch", wikiSlug)
+	if unwatchedWiki.Data["watching"] != false || unwatchedWiki.Data["verified"] != true {
+		t.Fatalf("wiki unwatch was not verified: %#v", unwatchedWiki.Data)
+	}
+	stdout, stderr, code = runner.run("--json", "--no-input", "wiki", "delete", wikiSlug)
+	if code != 10 || strings.TrimSpace(stdout) != "" {
+		t.Fatalf("unconfirmed wiki delete exit=%d stdout=%s stderr=%s", code, stdout, stderr)
+	}
+	deletedWiki := runner.jsonOK("wiki", "delete", wikiSlug, "--yes")
+	if deletedWiki.Data["deleted"] != true {
+		t.Fatalf("wiki page not deleted: %#v", deletedWiki.Data)
+	}
+	wikiPages = runner.jsonOK("wiki", "list", "--fields", "slug")
+	if containsSlug(wikiPages.Items, wikiSlug) {
+		t.Fatalf("deleted wiki page %q remains in list", wikiSlug)
+	}
+
 	searchResults := runner.jsonOK("search", "external", "--fields", "kind,ref,subject")
 	if !containsKind(searchResults.Items, "issue") || !containsKind(searchResults.Items, "story") {
 		t.Fatalf("search did not return issue and story results: %#v", searchResults.Items)
@@ -367,10 +419,17 @@ type cliRunner struct {
 }
 
 func (r cliRunner) run(args ...string) (string, string, int) {
+	return r.runWithInput("", args...)
+}
+
+func (r cliRunner) runWithInput(input string, args ...string) (string, string, int) {
 	r.t.Helper()
 	command := exec.Command(r.binary, args...)
 	command.Dir = r.dir
 	command.Env = append(os.Environ(), r.env...)
+	if input != "" {
+		command.Stdin = strings.NewReader(input)
+	}
 	var stdout, stderr bytes.Buffer
 	command.Stdout, command.Stderr = &stdout, &stderr
 	err := command.Run()
@@ -382,6 +441,23 @@ func (r cliRunner) run(args ...string) (string, string, int) {
 		r.t.Fatalf("run %v: %v", args, err)
 	}
 	return stdout.String(), stderr.String(), exitErr.ExitCode()
+}
+
+func (r cliRunner) jsonOKWithInput(input string, args ...string) envelope {
+	r.t.Helper()
+	args = append([]string{"--json"}, args...)
+	stdout, stderr, code := r.runWithInput(input, args...)
+	if code != 0 {
+		r.t.Fatalf("taiga %v exit=%d stderr=%s", args, code, stderr)
+	}
+	if strings.TrimSpace(stderr) != "" {
+		r.t.Fatalf("taiga %v wrote stderr on success: %s", args, stderr)
+	}
+	var result envelope
+	if err := json.Unmarshal([]byte(stdout), &result); err != nil {
+		r.t.Fatalf("taiga %v returned invalid JSON: %v: %s", args, err, stdout)
+	}
+	return result
 }
 
 func (r cliRunner) jsonOK(args ...string) envelope {

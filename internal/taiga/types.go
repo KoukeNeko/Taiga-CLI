@@ -236,6 +236,33 @@ type UpdateTaskRequest struct {
 	Comment     *string `json:"comment,omitempty"`
 }
 
+type WikiPage struct {
+	ID           int64  `json:"id"`
+	Project      int64  `json:"project"`
+	Slug         string `json:"slug"`
+	Content      string `json:"content"`
+	HTML         string `json:"html,omitempty"`
+	Owner        *int64 `json:"owner,omitempty"`
+	LastModifier *int64 `json:"last_modifier,omitempty"`
+	CreatedDate  string `json:"created_date,omitempty"`
+	ModifiedDate string `json:"modified_date,omitempty"`
+	Editions     int    `json:"editions"`
+	Version      int    `json:"version"`
+	IsWatcher    bool   `json:"is_watcher"`
+}
+
+type CreateWikiPageRequest struct {
+	Project int64  `json:"project"`
+	Slug    string `json:"slug"`
+	Content string `json:"content"`
+}
+
+type UpdateWikiPageRequest struct {
+	Version int     `json:"version"`
+	Slug    *string `json:"slug,omitempty"`
+	Content *string `json:"content,omitempty"`
+}
+
 type SearchItem struct {
 	ID            int64    `json:"id"`
 	Ref           int      `json:"ref,omitempty"`

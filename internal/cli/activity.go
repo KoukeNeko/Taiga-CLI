@@ -16,6 +16,7 @@ type activityTarget struct {
 	Project   string
 	ID        int64
 	Ref       int
+	Slug      string
 	Subject   string
 	IsWatcher bool
 }
@@ -23,7 +24,8 @@ type activityTarget struct {
 type watchView struct {
 	Resource string `json:"resource"`
 	Project  string `json:"project"`
-	Ref      int    `json:"ref"`
+	Ref      int    `json:"ref,omitempty"`
+	Slug     string `json:"slug,omitempty"`
 	Subject  string `json:"subject"`
 	Watching bool   `json:"watching"`
 	Verified bool   `json:"verified"`
@@ -50,14 +52,14 @@ func (a *App) watchCommand(resource string, watching bool) *cobra.Command {
 	}
 	var dryRun bool
 	command := &cobra.Command{
-		Use: name + " <ref|project#ref|url>", Short: short, Args: exactArgs(1),
+		Use: name + " " + activityArgument(resource), Short: short, Args: exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			target, err := a.loadActivityTarget(cmd.Context(), resource, args[0])
 			if err != nil {
 				return err
 			}
 			if dryRun {
-				return a.renderDryRun(name+" "+resource, fmt.Sprintf("%s#%d", target.Project, target.Ref), map[string]any{"watching": watching})
+				return a.renderDryRun(name+" "+resource, target.reference(), map[string]any{"watching": watching})
 			}
 			verified := target.IsWatcher
 			if verified != watching {
@@ -66,12 +68,16 @@ func (a *App) watchCommand(resource string, watching bool) *cobra.Command {
 					return err
 				}
 			}
-			view := watchView{Resource: resource, Project: target.Project, Ref: target.Ref, Subject: target.Subject, Watching: verified, Verified: verified == watching}
+			view := watchView{Resource: resource, Project: target.Project, Ref: target.Ref, Slug: target.Slug, Subject: target.Subject, Watching: verified, Verified: verified == watching}
 			if a.global.JSON {
 				return a.renderer().Data(view)
 			}
 			if !a.global.Quiet {
-				_, _ = fmt.Fprintf(a.Out, "%s %s %s#%d: %s\n", verb, resource, target.Project, target.Ref, target.Subject)
+				suffix := ""
+				if target.Subject != "" {
+					suffix = ": " + target.Subject
+				}
+				_, _ = fmt.Fprintf(a.Out, "%s %s %s%s\n", verb, resource, target.reference(), suffix)
 			}
 			return nil
 		},
@@ -85,7 +91,7 @@ func (a *App) historyCommand(resource string) *cobra.Command {
 	var historyType string
 	var page, limit int
 	command := &cobra.Command{
-		Use: "history <ref|project#ref|url>", Short: "Show " + resource + " activity and comments", Args: exactArgs(1),
+		Use: "history " + activityArgument(resource), Short: "Show " + resource + " activity and comments", Args: exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if historyType != "all" && historyType != "activity" && historyType != "comment" {
 				return usageError("--type must be all, activity, or comment")
@@ -143,14 +149,37 @@ func (a *App) loadActivityTarget(ctx context.Context, resource, value string) (a
 			return activityTarget{}, err
 		}
 		return activityTarget{Client: target.Client, Project: target.Project.Slug, ID: target.Task.ID, Ref: target.Task.Ref, Subject: target.Task.Subject, IsWatcher: target.Task.IsWatcher}, nil
+	case "wiki":
+		target, err := a.loadWikiTarget(ctx, value)
+		if err != nil {
+			return activityTarget{}, err
+		}
+		return activityTarget{Client: target.Client, Project: target.Project.Slug, ID: target.Page.ID, Slug: target.Page.Slug, IsWatcher: target.Page.IsWatcher}, nil
 	default:
-		return activityTarget{}, usageError("resource must be issue, story, or task")
+		return activityTarget{}, usageError("resource must be issue, story, task, or wiki")
 	}
+}
+
+func activityArgument(resource string) string {
+	if resource == "wiki" {
+		return "<slug|project#slug|url>"
+	}
+	return "<ref|project#ref|url>"
+}
+
+func (target activityTarget) reference() string {
+	if target.Slug != "" {
+		return target.Project + "#" + target.Slug
+	}
+	return fmt.Sprintf("%s#%d", target.Project, target.Ref)
 }
 
 func workItemArticle(resource string) string {
 	if resource == "issue" {
 		return "an issue"
+	}
+	if resource == "wiki" {
+		return "a wiki page"
 	}
 	return "a " + resource
 }
@@ -161,6 +190,8 @@ func (a *App) activityCompletion(resource string) func(*cobra.Command, []string,
 		return a.completeIssues
 	case "story":
 		return a.completeStories
+	case "wiki":
+		return a.completeWikiPages
 	default:
 		return a.completeTasks
 	}

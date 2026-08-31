@@ -247,6 +247,14 @@ func TestStoryAndTaskCommandReadAndDryRunContracts(t *testing.T) {
 		case "/api/v1/history/issue/2", "/api/v1/history/userstory/2", "/api/v1/history/task/9":
 			w.Header().Set("X-Pagination-Count", "1")
 			_, _ = io.WriteString(w, `[{"id":"entry-1","created_at":"2026-08-31T00:00:00Z","type":1,"user":{"pk":8,"username":"demo","name":"Demo User"},"comment":"note"}]`)
+		case "/api/v1/wiki":
+			w.Header().Set("X-Pagination-Count", "1")
+			_, _ = io.WriteString(w, `[{"id":14,"project":1,"slug":"guide","content":"Hello","version":2,"editions":2}]`)
+		case "/api/v1/wiki/by_slug":
+			_, _ = io.WriteString(w, `{"id":14,"project":1,"slug":"guide","content":"Hello","version":2,"editions":2}`)
+		case "/api/v1/history/wiki/14":
+			w.Header().Set("X-Pagination-Count", "1")
+			_, _ = io.WriteString(w, `[{"id":"wiki-entry","created_at":"2026-08-31T00:00:00Z","type":1,"user":{"pk":8,"username":"demo","name":"Demo User"},"values_diff":{"content":["Old","Hello"]}}]`)
 		default:
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
 		}
@@ -294,6 +302,14 @@ func TestStoryAndTaskCommandReadAndDryRunContracts(t *testing.T) {
 		{"--json", "task", "watch", "10", "--dry-run"},
 		{"--json", "task", "unwatch", "10", "--dry-run"},
 		{"--json", "task", "history", "10"},
+		{"--json", "wiki", "list"},
+		{"--json", "wiki", "view", "guide"},
+		{"--json", "wiki", "create", "--slug", "new-page", "--body", "Hello", "--dry-run"},
+		{"--json", "wiki", "edit", "guide", "--body", "Updated", "--dry-run"},
+		{"--json", "wiki", "delete", "guide", "--dry-run"},
+		{"--json", "wiki", "watch", "guide", "--dry-run"},
+		{"--json", "wiki", "unwatch", "guide", "--dry-run"},
+		{"--json", "wiki", "history", "guide", "--type", "activity"},
 	}
 	for _, args := range commands {
 		app, out, stderr, _ := testApp(t, server)
@@ -375,6 +391,29 @@ func TestAttachmentDeleteRequiresConfirmation(t *testing.T) {
 	defer server.Close()
 	app, out, stderr, _ := testApp(t, server)
 	code := app.Execute(context.Background(), []string{"--json", "--no-input", "attachment", "delete", "issue", "13"})
+	if code != ExitConfirmationRequired || out.Len() != 0 || deletes != 0 || !strings.Contains(stderr.String(), "confirmation_required") {
+		t.Fatalf("exit=%d stdout=%s stderr=%s deletes=%d", code, out.String(), stderr.String(), deletes)
+	}
+}
+
+func TestWikiDeleteRequiresConfirmation(t *testing.T) {
+	deletes := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/projects/by_slug":
+			_, _ = io.WriteString(w, `{"id":1,"name":"Demo","slug":"demo"}`)
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/wiki/by_slug":
+			_, _ = io.WriteString(w, `{"id":14,"project":1,"slug":"guide","content":"Hello","version":2}`)
+		case r.Method == http.MethodDelete:
+			deletes++
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	app, out, stderr, _ := testApp(t, server)
+	code := app.Execute(context.Background(), []string{"--json", "--no-input", "wiki", "delete", "guide"})
 	if code != ExitConfirmationRequired || out.Len() != 0 || deletes != 0 || !strings.Contains(stderr.String(), "confirmation_required") {
 		t.Fatalf("exit=%d stdout=%s stderr=%s deletes=%d", code, out.String(), stderr.String(), deletes)
 	}

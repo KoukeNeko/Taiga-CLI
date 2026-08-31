@@ -130,6 +130,24 @@ func (a *App) completeTasks(cmd *cobra.Command, _ []string, toComplete string) (
 	return completionResult(values, toComplete)
 }
 
+func (a *App) completeWikiPages(cmd *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	ctx, cancel := a.completionContext(cmd)
+	defer cancel()
+	client, project, err := a.completionProject(ctx)
+	if err != nil {
+		return noCompletions()
+	}
+	pages, _, err := client.ListWikiPages(ctx, project.ID, 1, 100)
+	if err != nil {
+		return noCompletions()
+	}
+	values := make([]string, 0, len(pages))
+	for _, page := range pages {
+		values = append(values, fmt.Sprintf("%s\tversion %d", page.Slug, page.Version))
+	}
+	return completionResult(values, toComplete)
+}
+
 func (a *App) completeMembers(cmd *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	ctx, cancel := a.completionContext(cmd)
 	defer cancel()

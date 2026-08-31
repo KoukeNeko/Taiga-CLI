@@ -2,7 +2,7 @@
 
 以 Go 實作的 [Taiga 6](https://taiga.io/) 命令列工具。它提供適合人類閱讀的終端介面，以及給 Shell、CI 與 LLM／Agent 使用的穩定 JSON contract。
 
-目前狀態：**Phase 1 與 Phase 2 核心敏捷流程已實作，尚未發布正式版本。**
+目前狀態：**Phase 1、Phase 2 與 Phase 3 Wiki 垂直切片已實作，尚未發布正式版本。**
 
 ## 功能
 
@@ -16,6 +16,7 @@
 - Sprint list、view、create、edit、close、reopen。
 - Issue、Story、Task 的 watch、unwatch、activity/comment history。
 - Issue、Story、Task 的附件 streaming upload、list、view、edit、delete。
+- Wiki list、view、create、edit、delete、watch 與 history。
 - Taiga optimistic concurrency control（OCC）與 `--base-version`。
 - Human output、versioned JSON、`--fields`、structured error 與固定 exit code。
 - `--dry-run`、`--no-input`、redacted verbose logging。
@@ -161,7 +162,22 @@ taiga story history 51 --type activity
 taiga task history 72 --page 2 --limit 20
 ```
 
-Watch/unwatch 支援 issue、story、task，命令會在 mutation 後回讀 `is_watcher` 確認狀態。History 的 `--type` 可用 `all`、`activity`、`comment`。
+Watch/unwatch 支援 issue、story、task、wiki，命令會在 mutation 後回讀 `is_watcher` 確認狀態。History 的 `--type` 可用 `all`、`activity`、`comment`。
+
+管理 Wiki：
+
+```sh
+taiga wiki list
+taiga wiki view api-guide
+taiga wiki create --slug api-guide --body-file guide.md
+printf '%s\n' '# Updated guide' | taiga wiki edit api-guide --body-file -
+taiga wiki watch api-guide
+taiga wiki history api-guide --type activity
+taiga wiki unwatch api-guide
+taiga wiki delete api-guide --yes
+```
+
+Wiki identifier 支援裸 slug、`project#slug` 與 Taiga Wiki URL。Edit 使用 OCC；非互動刪除必須提供 `--yes`。
 
 Issue identifier 可以是裸 ref、`project#ref` 或 Taiga URL：
 
