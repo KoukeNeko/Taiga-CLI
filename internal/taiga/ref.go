@@ -13,6 +13,14 @@ type ItemRef struct {
 }
 
 func ParseItemRef(value, defaultProject string) (ItemRef, error) {
+	return parseTypedItemRef(value, defaultProject, map[string]struct{}{"issue": {}})
+}
+
+func ParseStoryRef(value, defaultProject string) (ItemRef, error) {
+	return parseTypedItemRef(value, defaultProject, map[string]struct{}{"us": {}, "story": {}, "userstory": {}, "user-story": {}})
+}
+
+func parseTypedItemRef(value, defaultProject string, kinds map[string]struct{}) (ItemRef, error) {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return ItemRef{}, fmt.Errorf("item reference cannot be empty")
@@ -20,7 +28,8 @@ func ParseItemRef(value, defaultProject string) (ItemRef, error) {
 	if parsed, err := url.Parse(value); err == nil && parsed.Scheme != "" && parsed.Host != "" {
 		parts := splitPath(parsed.Path)
 		for index := 0; index+3 < len(parts); index++ {
-			if parts[index] == "project" && parts[index+2] == "issue" {
+			_, kindMatches := kinds[parts[index+2]]
+			if parts[index] == "project" && kindMatches {
 				ref, err := strconv.Atoi(parts[index+3])
 				if err != nil || ref <= 0 {
 					return ItemRef{}, fmt.Errorf("invalid issue ref in URL %q", value)
@@ -28,7 +37,7 @@ func ParseItemRef(value, defaultProject string) (ItemRef, error) {
 				return ItemRef{Project: parts[index+1], Ref: ref}, nil
 			}
 		}
-		return ItemRef{}, fmt.Errorf("URL %q is not a Taiga issue URL", value)
+		return ItemRef{}, fmt.Errorf("URL %q is not a supported Taiga item URL", value)
 	}
 	if project, rawRef, ok := strings.Cut(value, "#"); ok {
 		ref, err := strconv.Atoi(rawRef)

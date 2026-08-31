@@ -34,3 +34,13 @@ func FuzzParseItemRef(f *testing.F) {
 		_, _ = ParseItemRef(value, project)
 	})
 }
+
+func TestParseStoryRefURL(t *testing.T) {
+	got, err := ParseStoryRef("https://example.test/taiga/project/demo/us/13", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != (ItemRef{Project: "demo", Ref: 13}) {
+		t.Fatalf("ParseStoryRef() = %#v", got)
+	}
+}

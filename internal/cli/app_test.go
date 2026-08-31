@@ -203,3 +203,69 @@ func TestFieldsWithoutJSONIsUsageError(t *testing.T) {
 		t.Fatalf("exit = %d, stderr=%s", code, stderr.String())
 	}
 }
+
+func TestStoryCommandReadAndDryRunContracts(t *testing.T) {
+	mutations := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			mutations++
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		switch r.URL.Path {
+		case "/api/v1/projects/by_slug":
+			_, _ = io.WriteString(w, `{"id":1,"name":"Demo","slug":"demo"}`)
+		case "/api/v1/userstories/by_ref":
+			_, _ = io.WriteString(w, `{"id":2,"ref":3,"project":1,"subject":"Story","description":"Body","version":7,"status":4,"status_extra_info":{"name":"New"},"assigned_users":[],"is_closed":false}`)
+		case "/api/v1/userstories":
+			w.Header().Set("X-Pagination-Count", "1")
+			_, _ = io.WriteString(w, `[{"id":2,"ref":3,"project":1,"subject":"Story","version":7,"status":4,"status_extra_info":{"name":"New"}}]`)
+		case "/api/v1/userstory-statuses":
+			_, _ = io.WriteString(w, `[{"id":4,"name":"New","is_closed":false,"order":1},{"id":5,"name":"Closed","is_closed":true,"order":2}]`)
+		case "/api/v1/milestones":
+			_, _ = io.WriteString(w, `[{"id":6,"name":"Sprint 1","slug":"sprint-1","project":1,"closed":false}]`)
+		case "/api/v1/users":
+			_, _ = io.WriteString(w, `[{"id":8,"username":"demo","full_name_display":"Demo User"}]`)
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	commands := [][]string{
+		{"--json", "story", "list"},
+		{"--json", "story", "view", "3"},
+		{"--json", "story", "create", "--subject", "New story", "--dry-run"},
+		{"--json", "story", "edit", "3", "--subject", "Updated", "--dry-run"},
+		{"--json", "story", "close", "3", "--status", "Closed", "--dry-run"},
+		{"--json", "story", "move", "3", "--sprint", "sprint-1", "--dry-run"},
+		{"--json", "story", "assign", "3", "--to", "demo", "--dry-run"},
+		{"--json", "story", "comment", "3", "--body", "note", "--dry-run"},
+	}
+	for _, args := range commands {
+		app, out, stderr, _ := testApp(t, server)
+		if code := app.Execute(context.Background(), args); code != ExitSuccess {
+			t.Fatalf("taiga %v exit=%d stderr=%s", args, code, stderr.String())
+		}
+		if !json.Valid(out.Bytes()) {
+			t.Fatalf("taiga %v returned invalid JSON: %s", args, out.String())
+		}
+	}
+	if mutations != 0 {
+		t.Fatalf("dry-run/read commands sent %d mutation requests", mutations)
+	}
+}
+
+func TestStoryListRejectsUnknownOrder(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/projects/by_slug" {
+			t.Fatalf("unexpected request %s", r.URL.Path)
+		}
+		_, _ = io.WriteString(w, `{"id":1,"name":"Demo","slug":"demo"}`)
+	}))
+	defer server.Close()
+	app, out, stderr, _ := testApp(t, server)
+	if code := app.Execute(context.Background(), []string{"--json", "story", "list", "--order-by", "unknown"}); code != ExitUsage {
+		t.Fatalf("exit=%d stdout=%s stderr=%s", code, out.String(), stderr.String())
+	}
+}

@@ -97,3 +97,64 @@ type UpdateIssueRequest struct {
 	AssignedTo  *int64  `json:"assigned_to,omitempty"`
 	Comment     *string `json:"comment,omitempty"`
 }
+
+type UserStory struct {
+	ID              int64            `json:"id"`
+	Ref             int              `json:"ref"`
+	Project         int64            `json:"project"`
+	Subject         string           `json:"subject"`
+	Description     string           `json:"description,omitempty"`
+	Version         int              `json:"version"`
+	Status          int64            `json:"status"`
+	StatusExtraInfo ExtraInfo        `json:"status_extra_info"`
+	Milestone       *int64           `json:"milestone"`
+	MilestoneSlug   string           `json:"milestone_slug,omitempty"`
+	MilestoneName   string           `json:"milestone_name,omitempty"`
+	AssignedUsers   []int64          `json:"assigned_users,omitempty"`
+	TotalPoints     *float64         `json:"total_points,omitempty"`
+	Points          map[string]int64 `json:"points,omitempty"`
+	IsClosed        bool             `json:"is_closed"`
+	IsBlocked       bool             `json:"is_blocked"`
+	BlockedNote     string           `json:"blocked_note,omitempty"`
+	BacklogOrder    int64            `json:"backlog_order"`
+	SprintOrder     int64            `json:"sprint_order"`
+	KanbanOrder     int64            `json:"kanban_order"`
+	CreatedDate     string           `json:"created_date,omitempty"`
+	ModifiedDate    string           `json:"modified_date,omitempty"`
+}
+
+type UserStoryStatus struct {
+	ID       int64  `json:"id"`
+	Name     string `json:"name"`
+	IsClosed bool   `json:"is_closed"`
+	Order    int    `json:"order"`
+}
+
+type Milestone struct {
+	ID              int64  `json:"id"`
+	Name            string `json:"name"`
+	Slug            string `json:"slug"`
+	Project         int64  `json:"project"`
+	Closed          bool   `json:"closed"`
+	EstimatedStart  string `json:"estimated_start,omitempty"`
+	EstimatedFinish string `json:"estimated_finish,omitempty"`
+}
+
+type CreateUserStoryRequest struct {
+	Project       int64   `json:"project"`
+	Subject       string  `json:"subject"`
+	Description   string  `json:"description,omitempty"`
+	Status        *int64  `json:"status,omitempty"`
+	Milestone     *int64  `json:"milestone,omitempty"`
+	AssignedUsers []int64 `json:"assigned_users,omitempty"`
+}
+
+type UpdateUserStoryRequest struct {
+	Version       int      `json:"version"`
+	Subject       *string  `json:"subject,omitempty"`
+	Description   *string  `json:"description,omitempty"`
+	Status        *int64   `json:"status,omitempty"`
+	Milestone     **int64  `json:"milestone,omitempty"`
+	AssignedUsers *[]int64 `json:"assigned_users,omitempty"`
+	Comment       *string  `json:"comment,omitempty"`
+}
