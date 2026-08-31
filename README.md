@@ -12,6 +12,7 @@
 - Project list、view、use、create、edit、delete。
 - Project member/invitation 與 Role/permission 管理。
 - Webhook list、view、create、edit、test、delete，secret 永不回顯。
+- Epic、Story、Task、Issue 的 Custom field definition 與 OCC value merge。
 - Epic list、view、create、edit、close、跨專案 Story link/unlink、watch 與 history。
 - Issue list、view、create、edit、close、assign、comment。
 - User Story list、view、create、edit、close、move、assign、comment。
@@ -119,6 +120,19 @@ taiga webhook delete CI --yes
 ```
 
 Webhook signing secret 只會送往 Taiga API，不會出現在成功輸出或 dry-run。`webhook test` 要求 Taiga server 自己發送測試事件，CLI 不會直接連第三方 URL。
+
+管理 Custom fields：
+
+```sh
+taiga custom-field create issue --name Environment --type dropdown --option staging --option production
+taiga custom-field list issue
+taiga custom-field set issue 42 --value Environment='"staging"' --value Attempts=3
+taiga custom-field values issue 42
+taiga custom-field set issue 42 --unset Environment
+taiga custom-field delete issue Environment --yes
+```
+
+`--value` 的右側會先按 JSON 解析，因此字串可加 JSON 引號，boolean/number/null 會保留型別；無法解析的值視為普通字串。更新前會 GET 現值並 merge，再以 custom-values version 執行 OCC PATCH，避免覆蓋其他欄位。
 
 操作 User Story：
 

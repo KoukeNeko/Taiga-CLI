@@ -157,6 +157,46 @@ type WebhookLog struct {
 	Created         string         `json:"created,omitempty"`
 }
 
+type CustomField struct {
+	ID           int64          `json:"id"`
+	Name         string         `json:"name"`
+	Description  string         `json:"description,omitempty"`
+	Type         string         `json:"type"`
+	Order        int64          `json:"order"`
+	Project      int64          `json:"project"`
+	Extra        map[string]any `json:"extra,omitempty"`
+	CreatedDate  string         `json:"created_date,omitempty"`
+	ModifiedDate string         `json:"modified_date,omitempty"`
+}
+
+type CreateCustomFieldRequest struct {
+	Name        string         `json:"name"`
+	Description string         `json:"description,omitempty"`
+	Type        string         `json:"type"`
+	Order       int64          `json:"order,omitempty"`
+	Project     int64          `json:"project"`
+	Extra       map[string]any `json:"extra,omitempty"`
+}
+
+type UpdateCustomFieldRequest struct {
+	Name        *string         `json:"name,omitempty"`
+	Description *string         `json:"description,omitempty"`
+	Type        *string         `json:"type,omitempty"`
+	Order       *int64          `json:"order,omitempty"`
+	Extra       *map[string]any `json:"extra,omitempty"`
+}
+
+type CustomFieldValues struct {
+	Resource         int64          `json:"-"`
+	AttributesValues map[string]any `json:"attributes_values"`
+	Version          int            `json:"version"`
+}
+
+type UpdateCustomFieldValuesRequest struct {
+	AttributesValues map[string]any `json:"attributes_values"`
+	Version          int            `json:"version"`
+}
+
 type ExtraInfo struct {
 	ID       int64  `json:"id"`
 	Name     string `json:"name,omitempty"`

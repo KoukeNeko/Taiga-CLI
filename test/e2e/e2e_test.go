@@ -147,6 +147,30 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 	ref := int(created.Data["ref"].(float64))
 	version := int(created.Data["version"].(float64))
 	target := strconv.Itoa(ref)
+	customField := runner.jsonOK("custom-field", "create", "issue", "--name", "Environment", "--type", "dropdown", "--option", "staging", "--option", "production")
+	customFieldID := int64(customField.Data["id"].(float64))
+	customFieldEdited := runner.jsonOK("custom-field", "edit", "issue", strconv.FormatInt(customFieldID, 10), "--description", "Deployment environment")
+	if customFieldEdited.Data["description"] != "Deployment environment" {
+		t.Fatalf("custom field edit=%#v", customFieldEdited.Data)
+	}
+	customValues := runner.jsonOK("custom-field", "set", "issue", target, "--value", `Environment="staging"`)
+	resolvedValues := customValues.Data["values"].(map[string]any)
+	if resolvedValues["Environment"] != "staging" {
+		t.Fatalf("custom field set=%#v", customValues.Data)
+	}
+	customValues = runner.jsonOK("custom-field", "values", "issue", target)
+	resolvedValues = customValues.Data["values"].(map[string]any)
+	if resolvedValues["Environment"] != "staging" {
+		t.Fatalf("custom field readback=%#v", customValues.Data)
+	}
+	stdout, stderr, code = runner.run("--json", "--no-input", "custom-field", "delete", "issue", strconv.FormatInt(customFieldID, 10))
+	if code != 10 || strings.TrimSpace(stdout) != "" {
+		t.Fatalf("unconfirmed custom field delete exit=%d stdout=%s stderr=%s", code, stdout, stderr)
+	}
+	deletedCustomField := runner.jsonOK("custom-field", "delete", "issue", strconv.FormatInt(customFieldID, 10), "--yes")
+	if deletedCustomField.Data["deleted"] != true {
+		t.Fatalf("custom field deletion=%#v", deletedCustomField.Data)
+	}
 
 	listed := runner.jsonOK("issue", "list", "--fields", "ref,subject,status,version")
 	if !containsRef(listed.Items, ref) {

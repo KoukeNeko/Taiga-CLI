@@ -14,6 +14,7 @@ import (
 type activityTarget struct {
 	Client    *taiga.Client
 	Project   string
+	ProjectID int64
 	ID        int64
 	Ref       int
 	Slug      string
@@ -136,31 +137,31 @@ func (a *App) loadActivityTarget(ctx context.Context, resource, value string) (a
 		if err != nil {
 			return activityTarget{}, err
 		}
-		return activityTarget{Client: target.Client, Project: target.Project.Slug, ID: target.Issue.ID, Ref: target.Issue.Ref, Subject: target.Issue.Subject, IsWatcher: target.Issue.IsWatcher}, nil
+		return activityTarget{Client: target.Client, Project: target.Project.Slug, ProjectID: target.Project.ID, ID: target.Issue.ID, Ref: target.Issue.Ref, Subject: target.Issue.Subject, IsWatcher: target.Issue.IsWatcher}, nil
 	case "story":
 		target, err := a.loadStoryTarget(ctx, value)
 		if err != nil {
 			return activityTarget{}, err
 		}
-		return activityTarget{Client: target.Client, Project: target.Project.Slug, ID: target.Story.ID, Ref: target.Story.Ref, Subject: target.Story.Subject, IsWatcher: target.Story.IsWatcher}, nil
+		return activityTarget{Client: target.Client, Project: target.Project.Slug, ProjectID: target.Project.ID, ID: target.Story.ID, Ref: target.Story.Ref, Subject: target.Story.Subject, IsWatcher: target.Story.IsWatcher}, nil
 	case "task":
 		target, err := a.loadTaskTarget(ctx, value)
 		if err != nil {
 			return activityTarget{}, err
 		}
-		return activityTarget{Client: target.Client, Project: target.Project.Slug, ID: target.Task.ID, Ref: target.Task.Ref, Subject: target.Task.Subject, IsWatcher: target.Task.IsWatcher}, nil
+		return activityTarget{Client: target.Client, Project: target.Project.Slug, ProjectID: target.Project.ID, ID: target.Task.ID, Ref: target.Task.Ref, Subject: target.Task.Subject, IsWatcher: target.Task.IsWatcher}, nil
 	case "wiki":
 		target, err := a.loadWikiTarget(ctx, value)
 		if err != nil {
 			return activityTarget{}, err
 		}
-		return activityTarget{Client: target.Client, Project: target.Project.Slug, ID: target.Page.ID, Slug: target.Page.Slug, IsWatcher: target.Page.IsWatcher}, nil
+		return activityTarget{Client: target.Client, Project: target.Project.Slug, ProjectID: target.Project.ID, ID: target.Page.ID, Slug: target.Page.Slug, IsWatcher: target.Page.IsWatcher}, nil
 	case "epic":
 		target, err := a.loadEpicTarget(ctx, value)
 		if err != nil {
 			return activityTarget{}, err
 		}
-		return activityTarget{Client: target.Client, Project: target.Project.Slug, ID: target.Epic.ID, Ref: target.Epic.Ref, Subject: target.Epic.Subject, IsWatcher: target.Epic.IsWatcher}, nil
+		return activityTarget{Client: target.Client, Project: target.Project.Slug, ProjectID: target.Project.ID, ID: target.Epic.ID, Ref: target.Epic.Ref, Subject: target.Epic.Subject, IsWatcher: target.Epic.IsWatcher}, nil
 	default:
 		return activityTarget{}, usageError("resource must be issue, story, task, wiki, or epic")
 	}
