@@ -1,0 +1,227 @@
+package taiga
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+)
+
+func TestClientSendsBearerAndParsesPagination(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "Bearer secret-token" {
+			t.Fatalf("Authorization = %q", got)
+		}
+		w.Header().Set("X-Pagination-Current", "2")
+		w.Header().Set("X-Paginated-By", "10")
+		w.Header().Set("X-Pagination-Count", "25")
+		w.Header().Set("X-Pagination-Next", "3")
+		_, _ = io.WriteString(w, `[{"id":1,"name":"Demo","slug":"demo"}]`)
+	}))
+	defer server.Close()
+	client, err := NewClient(server.URL+"/api/v1/", WithToken("secret-token"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	projects, page, err := client.ListProjects(context.Background(), 2, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(projects) != 1 || projects[0].Slug != "demo" {
+		t.Fatalf("projects = %#v", projects)
+	}
+	if page.Number != 2 || page.Size != 10 || page.Total != 25 || page.Next != 3 {
+		t.Fatalf("page = %#v", page)
+	}
+}
+
+func TestClientRetriesGETButNotMutation(t *testing.T) {
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		if requests < 3 {
+			http.Error(w, `{"detail":"temporary"}`, http.StatusServiceUnavailable)
+			return
+		}
+		_, _ = io.WriteString(w, `[]`)
+	}))
+	defer server.Close()
+	client, _ := NewClient(server.URL+"/", WithMaxRetries(3))
+	client.sleep = func(context.Context, time.Duration) error { return nil }
+	var result []any
+	if _, err := client.Get(context.Background(), "projects", nil, &result); err != nil {
+		t.Fatal(err)
+	}
+	if requests != 3 {
+		t.Fatalf("requests = %d, want 3", requests)
+	}
+}
+
+type failingTransport struct{}
+
+func (failingTransport) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, errors.New("connection lost")
+}
+
+func TestMutationTransportFailureIsAmbiguous(t *testing.T) {
+	httpClient := &http.Client{Transport: failingTransport{}}
+	client, _ := NewClient("https://example.test/api/v1/", WithHTTPClient(httpClient))
+	_, err := client.Post(context.Background(), "issues", map[string]any{"subject": "x"}, nil)
+	var apiErr *Error
+	if !errors.As(err, &apiErr) || apiErr.Kind != KindAmbiguousCommit {
+		t.Fatalf("error = %#v", err)
+	}
+}
+
+func TestAPIErrorClassificationAndNoTokenInVerbose(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusConflict)
+		_, _ = io.WriteString(w, `{"_error_message":"wrong version","_error_type":"WrongVersion"}`)
+	}))
+	defer server.Close()
+	var log strings.Builder
+	client, _ := NewClient(server.URL+"/", WithToken("do-not-log"), WithVerbose(&log))
+	_, err := client.Patch(context.Background(), "issues/1", UpdateIssueRequest{Version: 1}, nil)
+	var apiErr *Error
+	if !errors.As(err, &apiErr) || apiErr.Kind != KindConflict {
+		t.Fatalf("error = %#v", err)
+	}
+	if strings.Contains(log.String(), "do-not-log") {
+		t.Fatalf("verbose log leaked token: %s", log.String())
+	}
+}
+
+func TestDiscoverAPIPreservesSubpath(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/taiga/conf.json" {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+		_, _ = io.WriteString(w, `{"api":"`+"http://"+r.Host+`/taiga/api/v1/","baseHref":"/taiga/"}`)
+	}))
+	defer server.Close()
+	config, err := DiscoverAPI(context.Background(), server.Client(), server.URL+"/taiga/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasSuffix(config.API, "/taiga/api/v1/") {
+		t.Fatalf("API = %q", config.API)
+	}
+}
+
+func TestClientRefreshesExpiredTokenAndPersistsRotation(t *testing.T) {
+	meRequests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/users/me":
+			meRequests++
+			if r.Header.Get("Authorization") == "Bearer old-token" {
+				w.WriteHeader(http.StatusUnauthorized)
+				_, _ = io.WriteString(w, `{"detail":"expired"}`)
+				return
+			}
+			if r.Header.Get("Authorization") != "Bearer new-token" {
+				t.Fatalf("unexpected refreshed Authorization: %q", r.Header.Get("Authorization"))
+			}
+			_, _ = io.WriteString(w, `{"id":1,"username":"demo"}`)
+		case "/api/v1/auth/refresh":
+			if r.Header.Get("Authorization") != "" {
+				t.Fatalf("refresh leaked Authorization header")
+			}
+			_, _ = io.WriteString(w, `{"auth_token":"new-token","refresh":"new-refresh"}`)
+		default:
+			t.Fatalf("unexpected path %q", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	var persistedAuth, persistedRefresh string
+	client, _ := NewClient(server.URL+"/api/v1/",
+		WithToken("old-token"),
+		WithRefreshToken("old-refresh", func(authToken, refreshToken string) error {
+			persistedAuth, persistedRefresh = authToken, refreshToken
+			return nil
+		}),
+	)
+	user, err := client.Me(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if user.Username != "demo" || meRequests != 2 {
+		t.Fatalf("user=%#v meRequests=%d", user, meRequests)
+	}
+	if persistedAuth != "new-token" || persistedRefresh != "new-refresh" {
+		t.Fatalf("persisted auth=%q refresh=%q", persistedAuth, persistedRefresh)
+	}
+}
+
+func TestClientPropagatesCancellation(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done()
+	}))
+	defer server.Close()
+	client, _ := NewClient(server.URL+"/", WithMaxRetries(3))
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	var output any
+	_, err := client.Get(ctx, "slow", nil, &output)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("error = %#v", err)
+	}
+}
+
+func TestAPIStatusClassification(t *testing.T) {
+	tests := []struct {
+		status int
+		kind   ErrorKind
+	}{
+		{status: http.StatusUnauthorized, kind: KindAuth},
+		{status: http.StatusForbidden, kind: KindForbidden},
+		{status: http.StatusNotFound, kind: KindNotFound},
+		{status: http.StatusTooManyRequests, kind: KindThrottled},
+		{status: http.StatusBadGateway, kind: KindTransport},
+	}
+	for _, test := range tests {
+		t.Run(http.StatusText(test.status), func(t *testing.T) {
+			apiErr := decodeAPIError("GET /resource", test.status, []byte(`{"detail":"failure"}`))
+			if apiErr.Kind != test.kind {
+				t.Fatalf("kind = %q, want %q", apiErr.Kind, test.kind)
+			}
+		})
+	}
+}
+
+func TestTaigaVersionFieldIsConflict(t *testing.T) {
+	apiErr := decodeAPIError("PATCH /issues/1", http.StatusBadRequest, []byte(`{"version":"The version doesn't match with the current one"}`))
+	if apiErr.Kind != KindConflict {
+		t.Fatalf("kind = %q, want %q", apiErr.Kind, KindConflict)
+	}
+}
+
+func TestLoginUsesCurrentRefreshField(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/auth" {
+			t.Fatalf("request = %s %s", r.Method, r.URL.Path)
+		}
+		var request LoginRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatal(err)
+		}
+		if request.Type != "normal" || request.Username != "demo" || request.Password != "password" {
+			t.Fatalf("request = %#v", request)
+		}
+		_, _ = io.WriteString(w, `{"auth_token":"auth","refresh":"refresh","id":1,"username":"demo"}`)
+	}))
+	defer server.Close()
+	client, _ := NewClient(server.URL + "/api/v1/")
+	response, err := client.Login(context.Background(), "demo", "password")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.AuthToken != "auth" || response.RefreshToken != "refresh" {
+		t.Fatalf("response = %#v", response)
+	}
+}
