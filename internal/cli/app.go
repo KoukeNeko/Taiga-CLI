@@ -130,6 +130,8 @@ func (a *App) rootCommand() *cobra.Command {
 		a.authCommand(),
 		a.configCommand(),
 		a.projectCommand(),
+		a.memberCommand(),
+		a.roleCommand(),
 		a.epicCommand(),
 		a.issueCommand(),
 		a.storyCommand(),

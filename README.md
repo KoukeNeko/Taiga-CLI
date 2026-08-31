@@ -10,6 +10,7 @@
 - 互動式帳密登入、stdin token 登入、OS keyring 與 `TAIGA_TOKEN`。
 - 多 profile、profile 預設 project 與 Git-local project mapping。
 - Project list、view、use、create、edit、delete。
+- Project member/invitation 與 Role/permission 管理。
 - Epic list、view、create、edit、close、跨專案 Story link/unlink、watch 與 history。
 - Issue list、view、create、edit、close、assign、comment。
 - User Story list、view、create、edit、close、move、assign、comment。
@@ -91,6 +92,20 @@ taiga project delete mobile-app --yes
 ```
 
 Project 預設建立為 private；使用 `--public` 明確建立公開專案。永久刪除由 Taiga 非同步執行且不可還原，非互動模式必須提供 `--yes`。目前 Taiga 6 REST API 將 `archived_code` 設為唯讀且沒有 archive action，因此 `project archive|unarchive` 會清楚回報 `unsupported_capability`，需由站台管理者處理。
+
+管理成員與 Role：
+
+```sh
+taiga role list
+taiga role create --name Reviewer --computable=false
+taiga role edit reviewer --permission view_us --permission comment_us
+taiga member add alice@example.com --role reviewer
+taiga member edit alice@example.com --role ux --admin=false
+taiga member remove alice@example.com --yes
+taiga role delete reviewer --move-to ux --yes
+```
+
+`member add` 可加入既有 username/email，或為未知 email 建立 invitation。Taiga 會保護 owner 與最後一位 active admin；CLI 不會繞過這些限制。刪除仍有 members 的 Role 必須明確提供 `--move-to`。
 
 操作 User Story：
 

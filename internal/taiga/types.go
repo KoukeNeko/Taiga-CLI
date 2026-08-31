@@ -67,6 +67,62 @@ type UpdateProjectRequest struct {
 	IsIssuesActivated  *bool   `json:"is_issues_activated,omitempty"`
 }
 
+type Membership struct {
+	ID             int64      `json:"id"`
+	User           *int64     `json:"user,omitempty"`
+	Project        int64      `json:"project"`
+	Role           int64      `json:"role"`
+	RoleName       string     `json:"role_name,omitempty"`
+	IsAdmin        bool       `json:"is_admin"`
+	IsOwner        bool       `json:"is_owner"`
+	Email          string     `json:"email,omitempty"`
+	UserEmail      string     `json:"user_email,omitempty"`
+	FullName       string     `json:"full_name,omitempty"`
+	IsUserActive   bool       `json:"is_user_active"`
+	InvitedBy      *ExtraInfo `json:"invited_by,omitempty"`
+	CreatedAt      string     `json:"created_at,omitempty"`
+	InvitationText string     `json:"invitation_extra_text,omitempty"`
+}
+
+type CreateMembershipRequest struct {
+	Username       string `json:"username"`
+	Project        int64  `json:"project"`
+	Role           int64  `json:"role"`
+	IsAdmin        bool   `json:"is_admin"`
+	InvitationText string `json:"invitation_extra_text,omitempty"`
+}
+
+type UpdateMembershipRequest struct {
+	Role    *int64 `json:"role,omitempty"`
+	IsAdmin *bool  `json:"is_admin,omitempty"`
+}
+
+type Role struct {
+	ID           int64    `json:"id"`
+	Name         string   `json:"name"`
+	Slug         string   `json:"slug"`
+	Project      int64    `json:"project"`
+	Order        int      `json:"order"`
+	Computable   bool     `json:"computable"`
+	Permissions  []string `json:"permissions,omitempty"`
+	MembersCount int      `json:"members_count"`
+}
+
+type CreateRoleRequest struct {
+	Name        string   `json:"name"`
+	Project     int64    `json:"project"`
+	Computable  bool     `json:"computable"`
+	Permissions []string `json:"permissions,omitempty"`
+	Order       int      `json:"order,omitempty"`
+}
+
+type UpdateRoleRequest struct {
+	Name        *string   `json:"name,omitempty"`
+	Computable  *bool     `json:"computable,omitempty"`
+	Permissions *[]string `json:"permissions,omitempty"`
+	Order       *int      `json:"order,omitempty"`
+}
+
 type ExtraInfo struct {
 	ID       int64  `json:"id"`
 	Name     string `json:"name,omitempty"`

@@ -254,6 +254,24 @@ func (a *App) completeMembers(cmd *cobra.Command, _ []string, toComplete string)
 	})
 }
 
+func (a *App) completeRoles(cmd *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return a.completeCached(cmd, "roles", true, toComplete, func(ctx context.Context) ([]string, error) {
+		client, project, err := a.completionProject(ctx)
+		if err != nil {
+			return nil, err
+		}
+		roles, err := client.ListRoles(ctx, project.ID)
+		if err != nil {
+			return nil, err
+		}
+		values := make([]string, 0, len(roles))
+		for _, role := range roles {
+			values = append(values, fmt.Sprintf("%s\t%s", role.Slug, role.Name))
+		}
+		return values, nil
+	})
+}
+
 func (a *App) completeSprints(cmd *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	return a.completeSprintValues(cmd, toComplete, true)
 }

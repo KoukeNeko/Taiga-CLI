@@ -31,6 +31,10 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 	username := "e2e_" + strconv.FormatInt(time.Now().UnixNano(), 36)
 	password := "E2E-Password-7fK2mQ9"
 	token := register(t, baseURL, username, password)
+	verifyEmail(t, username)
+	memberUsername := "member_" + strconv.FormatInt(time.Now().UnixNano(), 36)
+	memberEmail := memberUsername + "@localhost.invalid"
+	_ = register(t, baseURL, memberUsername, password)
 	project := createProject(t, baseURL, token)
 	projectID := int64(project["id"].(float64))
 	projectSlug := project["slug"].(string)
@@ -78,6 +82,37 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 	deletedProject := runner.jsonOK("project", "delete", managedProjectSlug, "--yes")
 	if deletedProject.Data["deletion_requested"] != true || deletedProject.Data["asynchronous"] != true {
 		t.Fatalf("project deletion request=%#v", deletedProject.Data)
+	}
+	role := runner.jsonOK("role", "create", "--name", "E2E Reviewer", "--computable=false")
+	roleSlug := role.Data["slug"].(string)
+	roleEdited := runner.jsonOK("role", "edit", roleSlug, "--name", "E2E Review", "--order", "30")
+	if roleEdited.Data["name"] != "E2E Review" || roleEdited.Data["order"] != float64(30) {
+		t.Fatalf("role edit=%#v", roleEdited.Data)
+	}
+	member := runner.jsonOK("member", "add", memberEmail, "--role", roleSlug)
+	membershipID := int64(member.Data["id"].(float64))
+	if member.Data["user_email"] != memberEmail || member.Data["role_name"] != "E2E Review" {
+		t.Fatalf("member add=%#v", member.Data)
+	}
+	memberEdited := runner.jsonOK("member", "edit", strconv.FormatInt(membershipID, 10), "--admin=true")
+	if memberEdited.Data["is_admin"] != true {
+		t.Fatalf("member admin edit=%#v", memberEdited.Data)
+	}
+	members := runner.jsonOK("member", "list", "--fields", "id,user_email,role_name,is_admin")
+	if !containsMembership(members.Items, membershipID, memberEmail) {
+		t.Fatalf("membership missing from list: %#v", members.Items)
+	}
+	stdout, stderr, code = runner.run("--json", "--no-input", "member", "remove", strconv.FormatInt(membershipID, 10))
+	if code != 10 || strings.TrimSpace(stdout) != "" {
+		t.Fatalf("unconfirmed member removal exit=%d stdout=%s stderr=%s", code, stdout, stderr)
+	}
+	removedMember := runner.jsonOK("member", "remove", strconv.FormatInt(membershipID, 10), "--yes")
+	if removedMember.Data["removed"] != true {
+		t.Fatalf("member removal=%#v", removedMember.Data)
+	}
+	deletedRole := runner.jsonOK("role", "delete", roleSlug, "--yes")
+	if deletedRole.Data["deleted"] != true {
+		t.Fatalf("role deletion=%#v", deletedRole.Data)
 	}
 
 	created := runner.jsonOK("issue", "create", "--subject", "E2E issue", "--description", "created by integration test")
@@ -582,6 +617,16 @@ func register(t *testing.T, baseURL, username, password string) string {
 	return response["auth_token"].(string)
 }
 
+func verifyEmail(t *testing.T, username string) {
+	t.Helper()
+	code := "from taiga.users.models import User; User.objects.filter(username='" + username + "').update(verified_email=True)"
+	command := exec.Command("docker", "compose", "--project-name", "taiga-cli-e2e", "--file", "docker-compose.yml", "exec", "-T", "taiga-back", "python", "manage.py", "shell", "-c", code)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("verify E2E email: %v: %s", err, output)
+	}
+}
+
 func createProject(t *testing.T, baseURL, token string) map[string]any {
 	t.Helper()
 	var templates []map[string]any
@@ -719,6 +764,15 @@ func containsRef(items []map[string]any, ref int) bool {
 func containsProjectRef(items []map[string]any, project string, ref int) bool {
 	for _, item := range items {
 		if item["story_project"] == project && int(item["story_ref"].(float64)) == ref {
+			return true
+		}
+	}
+	return false
+}
+
+func containsMembership(items []map[string]any, id int64, email string) bool {
+	for _, item := range items {
+		if int64(item["id"].(float64)) == id && item["user_email"] == email {
 			return true
 		}
 	}
