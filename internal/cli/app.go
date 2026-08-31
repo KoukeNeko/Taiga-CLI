@@ -118,6 +118,7 @@ func (a *App) rootCommand() *cobra.Command {
 	flags.BoolVarP(&a.global.Quiet, "quiet", "q", false, "suppress non-essential human output")
 	flags.BoolVarP(&a.global.Verbose, "verbose", "v", false, "print redacted HTTP diagnostics to stderr")
 	root.AddCommand(
+		a.versionCommand(),
 		a.doctorCommand(),
 		a.authCommand(),
 		a.configCommand(),

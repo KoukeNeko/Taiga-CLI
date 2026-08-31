@@ -39,6 +39,7 @@ func descriptors() map[string]Descriptor {
 	commonOutput := objectSchema(map[string]any{"data": map[string]any{"type": "object"}, "meta": map[string]any{"type": "object"}}, "data", "meta")
 	listOutput := objectSchema(map[string]any{"items": map[string]any{"type": "array"}, "page": map[string]any{"type": "object"}, "meta": map[string]any{"type": "object"}}, "items", "meta")
 	return map[string]Descriptor{
+		"version":       {Command: "version", Description: "Show CLI build information", Safety: SafetyRead, Idempotency: Idempotent, Input: objectSchema(map[string]any{}), Output: commonOutput},
 		"doctor":        {Command: "doctor", Description: "Diagnose a Taiga endpoint and current context", Safety: SafetyRead, Idempotency: Idempotent, Input: objectSchema(map[string]any{"host": stringProperty, "api_url": stringProperty}), Output: commonOutput},
 		"auth login":    {Command: "auth login", Description: "Authenticate and save credentials", Safety: SafetyLocal, Idempotency: NonIdempotent, Input: objectSchema(map[string]any{"host": stringProperty, "api_url": stringProperty, "profile": stringProperty, "with_token": booleanProperty}), Output: commonOutput},
 		"auth logout":   {Command: "auth logout", Description: "Remove saved credentials", Safety: SafetyLocal, Idempotency: Idempotent, Input: objectSchema(map[string]any{"profile": stringProperty}), Output: commonOutput},
