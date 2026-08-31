@@ -174,11 +174,41 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 		t.Fatalf("story not closed: %#v", closedStory.Data)
 	}
 
-	storyWithTask := runner.jsonOK("story", "create", "--subject", "Story with open task")
-	storyWithTaskID := int64(storyWithTask.Data["id"].(float64))
+	storyWithTask := runner.jsonOK("story", "create", "--subject", "Story with open task", "--sprint", milestoneSlug)
 	storyWithTaskRef := int(storyWithTask.Data["ref"].(float64))
 	storyWithTaskVersion := int(storyWithTask.Data["version"].(float64))
-	createOpenTask(t, baseURL, token, projectID, storyWithTaskID)
+	task := runner.jsonOK("task", "create", "--story", strconv.Itoa(storyWithTaskRef), "--subject", "E2E task")
+	taskID := int64(task.Data["id"].(float64))
+	taskRef := int(task.Data["ref"].(float64))
+	taskVersion := int(task.Data["version"].(float64))
+	taskTarget := strconv.Itoa(taskRef)
+	if task.Data["story_ref"] != float64(storyWithTaskRef) || task.Data["sprint_slug"] != milestoneSlug {
+		t.Fatalf("task did not inherit parent Story/Sprint: %#v", task.Data)
+	}
+	tasks := runner.jsonOK("task", "list", "--story", strconv.Itoa(storyWithTaskRef), "--fields", "ref,subject,status,story_ref,version")
+	if !containsRef(tasks.Items, taskRef) {
+		t.Fatalf("created task ref %d missing from parent-filtered list", taskRef)
+	}
+	runner.jsonOK("task", "view", taskTarget, "--fields", "ref,subject,status,story_ref,version")
+	taskDryRun := runner.jsonOK("task", "edit", taskTarget, "--subject", "must not persist", "--dry-run")
+	if taskDryRun.Plan["performed"] != false || taskDryRun.Plan["would_write"] != true {
+		t.Fatalf("task dry-run plan = %#v", taskDryRun.Plan)
+	}
+	taskEdited := runner.jsonOK("task", "edit", taskTarget, "--subject", "E2E task updated", "--base-version", strconv.Itoa(taskVersion))
+	taskVersion = int(taskEdited.Data["version"].(float64))
+	taskAssigned := runner.jsonOK("task", "assign", taskTarget, "--to", username, "--base-version", strconv.Itoa(taskVersion))
+	taskVersion = int(taskAssigned.Data["version"].(float64))
+	if taskAssigned.Data["assignee"] != username {
+		t.Fatalf("task assignee = %#v", taskAssigned.Data)
+	}
+	taskComment := runner.jsonOK("task", "comment", taskTarget, "--body", "task integration comment", "--base-version", strconv.Itoa(taskVersion))
+	taskVersion = int(taskComment.Data["version"].(float64))
+	var taskHistory []map[string]any
+	apiRequest(t, http.MethodGet, baseURL+"history/task/"+strconv.FormatInt(taskID, 10), token, nil, &taskHistory)
+	taskHistoryJSON, _ := json.Marshal(taskHistory)
+	if !bytes.Contains(taskHistoryJSON, []byte("task integration comment")) {
+		t.Fatalf("task comment missing from history: %s", taskHistoryJSON)
+	}
 	stdout, stderr, code = runner.run("story", "close", strconv.Itoa(storyWithTaskRef), "--status", closedStoryStatus, "--base-version", strconv.Itoa(storyWithTaskVersion))
 	if code != 0 || !strings.Contains(stderr, "open tasks keep this story active") {
 		t.Fatalf("open-task close warning exit=%d stdout=%s stderr=%s", code, stdout, stderr)
@@ -186,6 +216,15 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 	openTaskStory := runner.jsonOK("story", "view", strconv.Itoa(storyWithTaskRef), "--fields", "status,is_closed")
 	if openTaskStory.Data["status"] != closedStoryStatus || openTaskStory.Data["is_closed"] != false {
 		t.Fatalf("open-task story close semantics = %#v", openTaskStory.Data)
+	}
+	closedTaskStatus := firstClosedTaskStatus(t, baseURL, token, projectID)
+	doneTask := runner.jsonOK("task", "done", taskTarget, "--status", closedTaskStatus, "--base-version", strconv.Itoa(taskVersion))
+	if doneTask.Data["is_closed"] != true {
+		t.Fatalf("task not done: %#v", doneTask.Data)
+	}
+	completedParent := runner.jsonOK("story", "view", strconv.Itoa(storyWithTaskRef), "--fields", "status,is_closed")
+	if completedParent.Data["status"] != closedStoryStatus || completedParent.Data["is_closed"] != true {
+		t.Fatalf("parent Story did not close after final task: %#v", completedParent.Data)
 	}
 
 	invalidRunner := runner
@@ -279,13 +318,6 @@ func createMilestone(t *testing.T, baseURL, token string, projectID int64) map[s
 	return milestone
 }
 
-func createOpenTask(t *testing.T, baseURL, token string, projectID, storyID int64) {
-	t.Helper()
-	body := map[string]any{"project": projectID, "user_story": storyID, "subject": "Open E2E task"}
-	var task map[string]any
-	apiRequest(t, http.MethodPost, baseURL+"tasks", token, body, &task)
-}
-
 func firstClosedStatus(t *testing.T, baseURL, token string, projectID int64) string {
 	t.Helper()
 	var statuses []map[string]any
@@ -309,6 +341,19 @@ func firstClosedStoryStatus(t *testing.T, baseURL, token string, projectID int64
 		}
 	}
 	t.Fatal("project has no closed user story status")
+	return ""
+}
+
+func firstClosedTaskStatus(t *testing.T, baseURL, token string, projectID int64) string {
+	t.Helper()
+	var statuses []map[string]any
+	apiRequest(t, http.MethodGet, baseURL+"task-statuses?project="+strconv.FormatInt(projectID, 10), token, nil, &statuses)
+	for _, status := range statuses {
+		if status["is_closed"] == true {
+			return status["name"].(string)
+		}
+	}
+	t.Fatal("project has no closed task status")
 	return ""
 }
 

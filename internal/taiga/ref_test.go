@@ -44,3 +44,13 @@ func TestParseStoryRefURL(t *testing.T) {
 		t.Fatalf("ParseStoryRef() = %#v", got)
 	}
 }
+
+func TestParseTaskRefURL(t *testing.T) {
+	got, err := ParseTaskRef("https://example.test/taiga/project/demo/task/21", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != (ItemRef{Project: "demo", Ref: 21}) {
+		t.Fatalf("ParseTaskRef() = %#v", got)
+	}
+}

@@ -20,6 +20,10 @@ func ParseStoryRef(value, defaultProject string) (ItemRef, error) {
 	return parseTypedItemRef(value, defaultProject, map[string]struct{}{"us": {}, "story": {}, "userstory": {}, "user-story": {}})
 }
 
+func ParseTaskRef(value, defaultProject string) (ItemRef, error) {
+	return parseTypedItemRef(value, defaultProject, map[string]struct{}{"task": {}})
+}
+
 func parseTypedItemRef(value, defaultProject string, kinds map[string]struct{}) (ItemRef, error) {
 	value = strings.TrimSpace(value)
 	if value == "" {

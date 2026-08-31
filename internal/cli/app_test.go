@@ -204,7 +204,7 @@ func TestFieldsWithoutJSONIsUsageError(t *testing.T) {
 	}
 }
 
-func TestStoryCommandReadAndDryRunContracts(t *testing.T) {
+func TestStoryAndTaskCommandReadAndDryRunContracts(t *testing.T) {
 	mutations := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -226,6 +226,13 @@ func TestStoryCommandReadAndDryRunContracts(t *testing.T) {
 			_, _ = io.WriteString(w, `[{"id":6,"name":"Sprint 1","slug":"sprint-1","project":1,"closed":false}]`)
 		case "/api/v1/users":
 			_, _ = io.WriteString(w, `[{"id":8,"username":"demo","full_name_display":"Demo User"}]`)
+		case "/api/v1/tasks/by_ref":
+			_, _ = io.WriteString(w, `{"id":9,"ref":10,"project":1,"user_story":2,"user_story_extra_info":{"id":2,"ref":3,"subject":"Story"},"subject":"Task","description":"Body","version":4,"status":11,"status_extra_info":{"name":"New"},"is_closed":false}`)
+		case "/api/v1/tasks":
+			w.Header().Set("X-Pagination-Count", "1")
+			_, _ = io.WriteString(w, `[{"id":9,"ref":10,"project":1,"user_story":2,"user_story_extra_info":{"id":2,"ref":3,"subject":"Story"},"subject":"Task","version":4,"status":11,"status_extra_info":{"name":"New"},"is_closed":false}]`)
+		case "/api/v1/task-statuses":
+			_, _ = io.WriteString(w, `[{"id":11,"name":"New","is_closed":false,"order":1},{"id":12,"name":"Closed","is_closed":true,"order":2}]`)
 		default:
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
 		}
@@ -241,6 +248,13 @@ func TestStoryCommandReadAndDryRunContracts(t *testing.T) {
 		{"--json", "story", "move", "3", "--sprint", "sprint-1", "--dry-run"},
 		{"--json", "story", "assign", "3", "--to", "demo", "--dry-run"},
 		{"--json", "story", "comment", "3", "--body", "note", "--dry-run"},
+		{"--json", "task", "list", "--story", "3"},
+		{"--json", "task", "view", "10"},
+		{"--json", "task", "create", "--subject", "New task", "--story", "3", "--dry-run"},
+		{"--json", "task", "edit", "10", "--subject", "Updated", "--dry-run"},
+		{"--json", "task", "done", "10", "--status", "Closed", "--dry-run"},
+		{"--json", "task", "assign", "10", "--to", "demo", "--dry-run"},
+		{"--json", "task", "comment", "10", "--body", "note", "--dry-run"},
 	}
 	for _, args := range commands {
 		app, out, stderr, _ := testApp(t, server)

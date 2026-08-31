@@ -76,7 +76,8 @@ services:
     platform: linux/amd64
     entrypoint: ["/taiga-back/docker/async_entrypoint.sh"]
     environment: *back-environment
-    volumes: *back-volumes
+    volumes:
+      - taiga-media-data:/taiga-back/media
     depends_on:
       taiga-db:
         condition: service_healthy

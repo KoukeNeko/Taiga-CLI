@@ -158,3 +158,58 @@ type UpdateUserStoryRequest struct {
 	AssignedUsers *[]int64 `json:"assigned_users,omitempty"`
 	Comment       *string  `json:"comment,omitempty"`
 }
+
+type TaskStoryInfo struct {
+	ID      int64  `json:"id"`
+	Ref     int    `json:"ref"`
+	Subject string `json:"subject"`
+}
+
+type Task struct {
+	ID                  int64          `json:"id"`
+	Ref                 int            `json:"ref"`
+	Project             int64          `json:"project"`
+	UserStory           *int64         `json:"user_story"`
+	UserStoryExtraInfo  *TaskStoryInfo `json:"user_story_extra_info,omitempty"`
+	Milestone           *int64         `json:"milestone"`
+	MilestoneSlug       string         `json:"milestone_slug,omitempty"`
+	Subject             string         `json:"subject"`
+	Description         string         `json:"description,omitempty"`
+	Version             int            `json:"version"`
+	Status              int64          `json:"status"`
+	StatusExtraInfo     ExtraInfo      `json:"status_extra_info"`
+	AssignedTo          *int64         `json:"assigned_to"`
+	AssignedToExtraInfo *ExtraInfo     `json:"assigned_to_extra_info,omitempty"`
+	IsClosed            bool           `json:"is_closed"`
+	IsBlocked           bool           `json:"is_blocked"`
+	BlockedNote         string         `json:"blocked_note,omitempty"`
+	CreatedDate         string         `json:"created_date,omitempty"`
+	ModifiedDate        string         `json:"modified_date,omitempty"`
+	FinishedDate        string         `json:"finished_date,omitempty"`
+}
+
+type TaskStatus struct {
+	ID       int64  `json:"id"`
+	Name     string `json:"name"`
+	IsClosed bool   `json:"is_closed"`
+	Order    int    `json:"order"`
+}
+
+type CreateTaskRequest struct {
+	Project     int64  `json:"project"`
+	Subject     string `json:"subject"`
+	Description string `json:"description,omitempty"`
+	UserStory   *int64 `json:"user_story,omitempty"`
+	Status      *int64 `json:"status,omitempty"`
+	AssignedTo  *int64 `json:"assigned_to,omitempty"`
+}
+
+type UpdateTaskRequest struct {
+	Version     int     `json:"version"`
+	Subject     *string `json:"subject,omitempty"`
+	Description *string `json:"description,omitempty"`
+	UserStory   *int64  `json:"user_story,omitempty"`
+	Status      *int64  `json:"status,omitempty"`
+	AssignedTo  *int64  `json:"assigned_to,omitempty"`
+	Comment     *string `json:"comment,omitempty"`
+}
