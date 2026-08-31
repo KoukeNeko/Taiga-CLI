@@ -84,7 +84,7 @@ func (a *App) sprintListCommand() *cobra.Command {
 }
 
 func (a *App) sprintViewCommand() *cobra.Command {
-	return &cobra.Command{
+	command := &cobra.Command{
 		Use: "view <name|slug>", Short: "View a sprint", Args: exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, settings, project, milestone, err := a.loadSprint(cmd, args[0])
@@ -103,6 +103,8 @@ func (a *App) sprintViewCommand() *cobra.Command {
 			return nil
 		},
 	}
+	command.ValidArgsFunction = a.completeSprintNames
+	return command
 }
 
 func (a *App) sprintCreateCommand() *cobra.Command {
@@ -196,6 +198,7 @@ func (a *App) sprintEditCommand() *cobra.Command {
 	command.Flags().StringVar(&start, "start", "", "new estimated start date (YYYY-MM-DD)")
 	command.Flags().StringVar(&finish, "finish", "", "new estimated finish date (YYYY-MM-DD)")
 	command.Flags().BoolVar(&dryRun, "dry-run", false, "resolve and display the mutation without writing")
+	command.ValidArgsFunction = a.completeSprintNames
 	return command
 }
 
@@ -223,6 +226,7 @@ func (a *App) sprintStateCommand(closed bool) *cobra.Command {
 		},
 	}
 	command.Flags().BoolVar(&dryRun, "dry-run", false, "resolve and display the mutation without writing")
+	command.ValidArgsFunction = a.completeSprintNames
 	return command
 }
 

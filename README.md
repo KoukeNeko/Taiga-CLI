@@ -257,6 +257,8 @@ taiga completion fish
 taiga completion powershell
 ```
 
+Completion 會在 2 秒 timeout 內提供 Project、work item ref、status、member、Sprint 與 Issue metadata 候選；API 無法使用時安靜退化，不影響 shell。
+
 ## 安全原則
 
 - 不接受 command-line password。

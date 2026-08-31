@@ -48,7 +48,7 @@ func (a *App) projectListCommand() *cobra.Command {
 }
 
 func (a *App) projectViewCommand() *cobra.Command {
-	return &cobra.Command{
+	command := &cobra.Command{
 		Use:   "view <slug>",
 		Short: "View a project",
 		Args:  exactArgs(1),
@@ -68,6 +68,8 @@ func (a *App) projectViewCommand() *cobra.Command {
 			return nil
 		},
 	}
+	command.ValidArgsFunction = a.completeProjects
+	return command
 }
 
 func (a *App) projectUseCommand() *cobra.Command {
@@ -118,5 +120,6 @@ func (a *App) projectUseCommand() *cobra.Command {
 		},
 	}
 	command.Flags().BoolVar(&local, "local", false, "save profile/project mapping in .git/config")
+	command.ValidArgsFunction = a.completeProjects
 	return command
 }

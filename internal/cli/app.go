@@ -107,6 +107,8 @@ func (a *App) rootCommand() *cobra.Command {
 		},
 	}
 	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error { return usageError(err.Error()) })
+	root.SetOut(a.Out)
+	root.SetErr(a.Err)
 	flags := root.PersistentFlags()
 	flags.StringVar(&a.global.Profile, "profile", "", "Taiga profile to use")
 	flags.StringVar(&a.global.APIURL, "api-url", "", "complete Taiga API base URL")
@@ -117,6 +119,8 @@ func (a *App) rootCommand() *cobra.Command {
 	flags.BoolVar(&a.global.NoColor, "no-color", false, "disable color output")
 	flags.BoolVarP(&a.global.Quiet, "quiet", "q", false, "suppress non-essential human output")
 	flags.BoolVarP(&a.global.Verbose, "verbose", "v", false, "print redacted HTTP diagnostics to stderr")
+	_ = root.RegisterFlagCompletionFunc("profile", a.completeProfiles)
+	_ = root.RegisterFlagCompletionFunc("project", a.completeProjects)
 	root.AddCommand(
 		a.versionCommand(),
 		a.doctorCommand(),

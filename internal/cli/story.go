@@ -109,11 +109,12 @@ func (a *App) storyListCommand() *cobra.Command {
 	command.Flags().IntVar(&limit, "limit", 30, "maximum stories to return")
 	command.Flags().StringVar(&sprint, "sprint", "", "filter by sprint name/slug, or backlog")
 	command.Flags().StringVar(&orderBy, "order-by", "backlog_order", "order field, prefix with - for descending")
+	_ = command.RegisterFlagCompletionFunc("sprint", a.completeSprints)
 	return command
 }
 
 func (a *App) storyViewCommand() *cobra.Command {
-	return &cobra.Command{
+	command := &cobra.Command{
 		Use:   "view <ref|project#ref|url>",
 		Short: "View a user story",
 		Args:  exactArgs(1),
@@ -134,6 +135,8 @@ func (a *App) storyViewCommand() *cobra.Command {
 			return nil
 		},
 	}
+	command.ValidArgsFunction = a.completeStories
+	return command
 }
 
 func (a *App) storyCreateCommand() *cobra.Command {
@@ -187,6 +190,8 @@ func (a *App) storyCreateCommand() *cobra.Command {
 	command.Flags().StringVar(&status, "status", "", "story status name")
 	command.Flags().StringVar(&sprint, "sprint", "", "sprint name/slug, or backlog")
 	command.Flags().BoolVar(&dryRun, "dry-run", false, "resolve and display the mutation without writing")
+	_ = command.RegisterFlagCompletionFunc("status", a.completeStoryStatuses)
+	_ = command.RegisterFlagCompletionFunc("sprint", a.completeSprints)
 	return command
 }
 
@@ -252,6 +257,9 @@ func (a *App) storyEditCommand() *cobra.Command {
 		},
 	}
 	addStoryEditFlags(command, &options)
+	command.ValidArgsFunction = a.completeStories
+	_ = command.RegisterFlagCompletionFunc("status", a.completeStoryStatuses)
+	_ = command.RegisterFlagCompletionFunc("sprint", a.completeSprints)
 	return command
 }
 
@@ -307,6 +315,8 @@ func (a *App) storyCloseCommand() *cobra.Command {
 	command.Flags().StringVar(&status, "status", "", "closed status name when the project has multiple closed statuses")
 	command.Flags().IntVar(&baseVersion, "base-version", 0, "explicit Taiga base version")
 	command.Flags().BoolVar(&dryRun, "dry-run", false, "resolve and display the mutation without writing")
+	command.ValidArgsFunction = a.completeStories
+	_ = command.RegisterFlagCompletionFunc("status", a.completeStoryStatuses)
 	return command
 }
 
@@ -350,6 +360,8 @@ func (a *App) storyAssignCommand() *cobra.Command {
 	command.Flags().StringSliceVar(&assignees, "to", nil, "assignee username/full name; repeat or comma-separate for multiple users")
 	command.Flags().IntVar(&baseVersion, "base-version", 0, "explicit Taiga base version")
 	command.Flags().BoolVar(&dryRun, "dry-run", false, "resolve and display the mutation without writing")
+	command.ValidArgsFunction = a.completeStories
+	_ = command.RegisterFlagCompletionFunc("to", a.completeMembers)
 	return command
 }
 
@@ -393,6 +405,8 @@ func (a *App) storyMoveCommand() *cobra.Command {
 	command.Flags().StringVar(&sprint, "sprint", "", "sprint name/slug, or backlog")
 	command.Flags().IntVar(&baseVersion, "base-version", 0, "explicit Taiga base version")
 	command.Flags().BoolVar(&dryRun, "dry-run", false, "resolve and display the mutation without writing")
+	command.ValidArgsFunction = a.completeStories
+	_ = command.RegisterFlagCompletionFunc("sprint", a.completeSprints)
 	return command
 }
 
@@ -440,6 +454,7 @@ func (a *App) storyCommentCommand() *cobra.Command {
 	command.Flags().StringVar(&bodyFile, "body-file", "", "read comment from a file, or - for stdin")
 	command.Flags().IntVar(&baseVersion, "base-version", 0, "explicit Taiga base version")
 	command.Flags().BoolVar(&dryRun, "dry-run", false, "resolve and display the mutation without writing")
+	command.ValidArgsFunction = a.completeStories
 	return command
 }
 

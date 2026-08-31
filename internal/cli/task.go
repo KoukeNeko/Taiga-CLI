@@ -102,11 +102,12 @@ func (a *App) taskListCommand() *cobra.Command {
 	command.Flags().StringVar(&orderBy, "order-by", "us_order", "order field, prefix with - for descending")
 	command.Flags().IntVar(&page, "page", 1, "page number")
 	command.Flags().IntVar(&limit, "limit", 30, "maximum tasks to return")
+	_ = command.RegisterFlagCompletionFunc("story", a.completeStories)
 	return command
 }
 
 func (a *App) taskViewCommand() *cobra.Command {
-	return &cobra.Command{
+	command := &cobra.Command{
 		Use: "view <ref|project#ref|url>", Short: "View a task", Args: exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			target, err := a.loadTaskTarget(cmd.Context(), args[0])
@@ -121,6 +122,8 @@ func (a *App) taskViewCommand() *cobra.Command {
 			return nil
 		},
 	}
+	command.ValidArgsFunction = a.completeTasks
+	return command
 }
 
 func (a *App) taskCreateCommand() *cobra.Command {
@@ -181,6 +184,9 @@ func (a *App) taskCreateCommand() *cobra.Command {
 	command.Flags().StringVar(&status, "status", "", "task status name")
 	command.Flags().StringVar(&assignee, "assignee", "", "assignee username or full name")
 	command.Flags().BoolVar(&dryRun, "dry-run", false, "resolve and display the mutation without writing")
+	_ = command.RegisterFlagCompletionFunc("story", a.completeStories)
+	_ = command.RegisterFlagCompletionFunc("status", a.completeTaskStatuses)
+	_ = command.RegisterFlagCompletionFunc("assignee", a.completeMembers)
 	return command
 }
 
@@ -259,6 +265,10 @@ func (a *App) taskEditCommand() *cobra.Command {
 	command.Flags().StringVar(&options.Assignee, "assignee", "", "assignee username or full name")
 	command.Flags().IntVar(&options.BaseVersion, "base-version", 0, "explicit Taiga base version")
 	command.Flags().BoolVar(&options.DryRun, "dry-run", false, "resolve and display the mutation without writing")
+	command.ValidArgsFunction = a.completeTasks
+	_ = command.RegisterFlagCompletionFunc("story", a.completeStories)
+	_ = command.RegisterFlagCompletionFunc("status", a.completeTaskStatuses)
+	_ = command.RegisterFlagCompletionFunc("assignee", a.completeMembers)
 	return command
 }
 
@@ -297,6 +307,8 @@ func (a *App) taskDoneCommand() *cobra.Command {
 	command.Flags().StringVar(&status, "status", "", "closed status name when the project has multiple closed statuses")
 	command.Flags().IntVar(&baseVersion, "base-version", 0, "explicit Taiga base version")
 	command.Flags().BoolVar(&dryRun, "dry-run", false, "resolve and display the mutation without writing")
+	command.ValidArgsFunction = a.completeTasks
+	_ = command.RegisterFlagCompletionFunc("status", a.completeTaskStatuses)
 	return command
 }
 
@@ -335,6 +347,8 @@ func (a *App) taskReopenCommand() *cobra.Command {
 	command.Flags().StringVar(&status, "status", "", "open status name when the project has multiple open statuses")
 	command.Flags().IntVar(&baseVersion, "base-version", 0, "explicit Taiga base version")
 	command.Flags().BoolVar(&dryRun, "dry-run", false, "resolve and display the mutation without writing")
+	command.ValidArgsFunction = a.completeTasks
+	_ = command.RegisterFlagCompletionFunc("status", a.completeTaskStatuses)
 	return command
 }
 
@@ -377,6 +391,8 @@ func (a *App) taskAssignCommand() *cobra.Command {
 	command.Flags().StringVar(&assignee, "to", "", "assignee username or full name")
 	command.Flags().IntVar(&baseVersion, "base-version", 0, "explicit Taiga base version")
 	command.Flags().BoolVar(&dryRun, "dry-run", false, "resolve and display the mutation without writing")
+	command.ValidArgsFunction = a.completeTasks
+	_ = command.RegisterFlagCompletionFunc("to", a.completeMembers)
 	return command
 }
 
@@ -410,6 +426,7 @@ func (a *App) taskUnassignCommand() *cobra.Command {
 	}
 	command.Flags().IntVar(&baseVersion, "base-version", 0, "explicit Taiga base version")
 	command.Flags().BoolVar(&dryRun, "dry-run", false, "resolve and display the mutation without writing")
+	command.ValidArgsFunction = a.completeTasks
 	return command
 }
 
@@ -474,6 +491,9 @@ func (a *App) taskMoveCommand() *cobra.Command {
 	command.Flags().StringVar(&sprint, "sprint", "", "standalone Sprint name/slug, or backlog")
 	command.Flags().IntVar(&baseVersion, "base-version", 0, "explicit Taiga base version")
 	command.Flags().BoolVar(&dryRun, "dry-run", false, "resolve and display the mutation without writing")
+	command.ValidArgsFunction = a.completeTasks
+	_ = command.RegisterFlagCompletionFunc("story", a.completeStories)
+	_ = command.RegisterFlagCompletionFunc("sprint", a.completeSprints)
 	return command
 }
 
@@ -519,6 +539,7 @@ func (a *App) taskCommentCommand() *cobra.Command {
 	command.Flags().StringVar(&bodyFile, "body-file", "", "read comment from a file, or - for stdin")
 	command.Flags().IntVar(&baseVersion, "base-version", 0, "explicit Taiga base version")
 	command.Flags().BoolVar(&dryRun, "dry-run", false, "resolve and display the mutation without writing")
+	command.ValidArgsFunction = a.completeTasks
 	return command
 }
 

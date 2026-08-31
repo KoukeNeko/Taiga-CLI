@@ -96,7 +96,7 @@ func (a *App) issueListCommand() *cobra.Command {
 }
 
 func (a *App) issueViewCommand() *cobra.Command {
-	return &cobra.Command{
+	command := &cobra.Command{
 		Use:   "view <ref|project#ref|url>",
 		Short: "View an issue",
 		Args:  exactArgs(1),
@@ -113,6 +113,8 @@ func (a *App) issueViewCommand() *cobra.Command {
 			return nil
 		},
 	}
+	command.ValidArgsFunction = a.completeIssues
+	return command
 }
 
 func (a *App) issueCreateCommand() *cobra.Command {
@@ -195,6 +197,17 @@ func (a *App) issueCreateCommand() *cobra.Command {
 	flags.StringVar(&issueType, "type", "", "issue type name")
 	flags.StringVar(&assignee, "assignee", "", "assignee username or full name")
 	flags.BoolVar(&dryRun, "dry-run", false, "resolve and display the mutation without writing")
+	_ = command.RegisterFlagCompletionFunc("status", a.completeIssueStatuses)
+	_ = command.RegisterFlagCompletionFunc("priority", a.completeNamedMetadata(func(ctx context.Context, client *taiga.Client, projectID int64) ([]taiga.NamedMetadata, error) {
+		return client.IssuePriorities(ctx, projectID)
+	}))
+	_ = command.RegisterFlagCompletionFunc("severity", a.completeNamedMetadata(func(ctx context.Context, client *taiga.Client, projectID int64) ([]taiga.NamedMetadata, error) {
+		return client.IssueSeverities(ctx, projectID)
+	}))
+	_ = command.RegisterFlagCompletionFunc("type", a.completeNamedMetadata(func(ctx context.Context, client *taiga.Client, projectID int64) ([]taiga.NamedMetadata, error) {
+		return client.IssueTypes(ctx, projectID)
+	}))
+	_ = command.RegisterFlagCompletionFunc("assignee", a.completeMembers)
 	return command
 }
 
@@ -287,6 +300,18 @@ func (a *App) issueEditCommand() *cobra.Command {
 		},
 	}
 	addEditFlags(command, &options)
+	command.ValidArgsFunction = a.completeIssues
+	_ = command.RegisterFlagCompletionFunc("status", a.completeIssueStatuses)
+	_ = command.RegisterFlagCompletionFunc("priority", a.completeNamedMetadata(func(ctx context.Context, client *taiga.Client, projectID int64) ([]taiga.NamedMetadata, error) {
+		return client.IssuePriorities(ctx, projectID)
+	}))
+	_ = command.RegisterFlagCompletionFunc("severity", a.completeNamedMetadata(func(ctx context.Context, client *taiga.Client, projectID int64) ([]taiga.NamedMetadata, error) {
+		return client.IssueSeverities(ctx, projectID)
+	}))
+	_ = command.RegisterFlagCompletionFunc("type", a.completeNamedMetadata(func(ctx context.Context, client *taiga.Client, projectID int64) ([]taiga.NamedMetadata, error) {
+		return client.IssueTypes(ctx, projectID)
+	}))
+	_ = command.RegisterFlagCompletionFunc("assignee", a.completeMembers)
 	return command
 }
 
@@ -340,6 +365,8 @@ func (a *App) issueCloseCommand() *cobra.Command {
 	command.Flags().StringVar(&status, "status", "", "closed status name; required when the project has multiple closed statuses in non-interactive mode")
 	command.Flags().IntVar(&baseVersion, "base-version", 0, "explicit Taiga base version")
 	command.Flags().BoolVar(&dryRun, "dry-run", false, "resolve and display the mutation without writing")
+	command.ValidArgsFunction = a.completeIssues
+	_ = command.RegisterFlagCompletionFunc("status", a.completeIssueStatuses)
 	return command
 }
 
@@ -383,6 +410,8 @@ func (a *App) issueAssignCommand() *cobra.Command {
 	command.Flags().StringVar(&assignee, "to", "", "assignee username or full name")
 	command.Flags().IntVar(&baseVersion, "base-version", 0, "explicit Taiga base version")
 	command.Flags().BoolVar(&dryRun, "dry-run", false, "resolve and display the mutation without writing")
+	command.ValidArgsFunction = a.completeIssues
+	_ = command.RegisterFlagCompletionFunc("to", a.completeMembers)
 	return command
 }
 
@@ -443,6 +472,7 @@ func (a *App) issueCommentCommand() *cobra.Command {
 	command.Flags().StringVar(&bodyFile, "body-file", "", "read comment from a file, or - for stdin")
 	command.Flags().IntVar(&baseVersion, "base-version", 0, "explicit Taiga base version")
 	command.Flags().BoolVar(&dryRun, "dry-run", false, "resolve and display the mutation without writing")
+	command.ValidArgsFunction = a.completeIssues
 	return command
 }
 

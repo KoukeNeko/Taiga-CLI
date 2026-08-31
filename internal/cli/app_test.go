@@ -14,6 +14,7 @@ import (
 
 	"github.com/KoukeNeko/taiga-cli/internal/config"
 	"github.com/KoukeNeko/taiga-cli/internal/credential"
+	"github.com/spf13/cobra"
 )
 
 type fakeCredentials struct {
@@ -288,6 +289,23 @@ func TestSprintCreateRejectsInvalidDateRange(t *testing.T) {
 	code := app.Execute(context.Background(), []string{"--json", "sprint", "create", "--name", "Bad Sprint", "--start", "2026-09-10", "--finish", "2026-09-01"})
 	if code != ExitValidation || out.Len() != 0 || !strings.Contains(stderr.String(), "invalid_date_range") {
 		t.Fatalf("exit=%d stdout=%s stderr=%s", code, out.String(), stderr.String())
+	}
+}
+
+func TestDynamicProjectCompletion(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/projects" {
+			t.Fatalf("unexpected request %s", r.URL.Path)
+		}
+		_, _ = io.WriteString(w, `[{"id":1,"name":"Demo Project","slug":"demo"},{"id":2,"name":"Other","slug":"other"}]`)
+	}))
+	defer server.Close()
+	app, _, _, _ := testApp(t, server)
+	command := app.rootCommand()
+	command.SetContext(context.Background())
+	values, directive := app.completeProjects(command, nil, "de")
+	if directive != cobra.ShellCompDirectiveNoFileComp || len(values) != 1 || values[0] != "demo\tDemo Project" {
+		t.Fatalf("values=%#v directive=%v", values, directive)
 	}
 }
 
