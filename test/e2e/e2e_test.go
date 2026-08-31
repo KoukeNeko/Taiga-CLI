@@ -101,6 +101,33 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 	if closed.Data["is_closed"] != true {
 		t.Fatalf("issue not closed: %#v", closed.Data)
 	}
+	attachmentPath := filepath.Join(runner.dir, "evidence.txt")
+	if err := os.WriteFile(attachmentPath, []byte("Taiga CLI attachment evidence"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	attachment := runner.jsonOK("attachment", "add", "issue", target, attachmentPath, "--description", "E2E evidence")
+	attachmentID := int64(attachment.Data["id"].(float64))
+	attachmentList := runner.jsonOK("attachment", "list", "issue", target, "--fields", "id,name,size,description")
+	if !containsID(attachmentList.Items, attachmentID) {
+		t.Fatalf("attachment %d missing from list", attachmentID)
+	}
+	runner.jsonOK("attachment", "view", "issue", strconv.FormatInt(attachmentID, 10), "--fields", "id,name,size,url,sha1")
+	editedAttachment := runner.jsonOK("attachment", "edit", "issue", strconv.FormatInt(attachmentID, 10), "--description", "Archived evidence", "--deprecated")
+	if editedAttachment.Data["description"] != "Archived evidence" || editedAttachment.Data["is_deprecated"] != true {
+		t.Fatalf("attachment metadata not updated: %#v", editedAttachment.Data)
+	}
+	stdout, stderr, code = runner.run("--json", "--no-input", "attachment", "delete", "issue", strconv.FormatInt(attachmentID, 10))
+	if code != 10 || strings.TrimSpace(stdout) != "" {
+		t.Fatalf("unconfirmed delete exit=%d stdout=%s stderr=%s", code, stdout, stderr)
+	}
+	deletedAttachment := runner.jsonOK("attachment", "delete", "issue", strconv.FormatInt(attachmentID, 10), "--yes")
+	if deletedAttachment.Data["deleted"] != true {
+		t.Fatalf("attachment not deleted: %#v", deletedAttachment.Data)
+	}
+	attachmentList = runner.jsonOK("attachment", "list", "issue", target, "--fields", "id,name")
+	if containsID(attachmentList.Items, attachmentID) {
+		t.Fatalf("deleted attachment %d remains in list", attachmentID)
+	}
 
 	sprint := runner.jsonOK("sprint", "create", "--name", "E2E Sprint", "--start", "2026-08-31", "--finish", "2026-09-07")
 	milestoneSlug := sprint.Data["slug"].(string)
@@ -484,6 +511,15 @@ func containsSlug(items []map[string]any, slug string) bool {
 func containsKind(items []map[string]any, kind string) bool {
 	for _, item := range items {
 		if item["kind"] == kind {
+			return true
+		}
+	}
+	return false
+}
+
+func containsID(items []map[string]any, id int64) bool {
+	for _, item := range items {
+		if int64(item["id"].(float64)) == id {
 			return true
 		}
 	}

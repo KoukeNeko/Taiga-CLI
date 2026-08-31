@@ -253,3 +253,26 @@ type SearchResponse struct {
 	WikiPages   []SearchItem `json:"wikipages,omitempty"`
 	Count       int          `json:"count"`
 }
+
+type Attachment struct {
+	ID               int64  `json:"id"`
+	Project          int64  `json:"project"`
+	Owner            *int64 `json:"owner,omitempty"`
+	ObjectID         int64  `json:"object_id"`
+	Name             string `json:"name"`
+	Size             int64  `json:"size"`
+	URL              string `json:"url"`
+	PreviewURL       string `json:"preview_url,omitempty"`
+	ThumbnailCardURL string `json:"thumbnail_card_url,omitempty"`
+	Description      string `json:"description,omitempty"`
+	IsDeprecated     bool   `json:"is_deprecated"`
+	FromComment      bool   `json:"from_comment"`
+	SHA1             string `json:"sha1,omitempty"`
+	CreatedDate      string `json:"created_date,omitempty"`
+	ModifiedDate     string `json:"modified_date,omitempty"`
+}
+
+type UpdateAttachmentRequest struct {
+	Description  *string `json:"description,omitempty"`
+	IsDeprecated *bool   `json:"is_deprecated,omitempty"`
+}

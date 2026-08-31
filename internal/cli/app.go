@@ -132,6 +132,7 @@ func (a *App) rootCommand() *cobra.Command {
 		a.taskCommand(),
 		a.sprintCommand(),
 		a.searchCommand(),
+		a.attachmentCommand(),
 		a.schemaCommand(),
 		a.completionCommand(root),
 	)

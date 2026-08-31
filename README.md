@@ -134,6 +134,19 @@ taiga search "API tests" --type task --json --fields kind,ref,subject
 
 Search 支援 epic、story、task、issue、wiki；Taiga server 每次最多回傳 150 筆。
 
+管理附件：
+
+```sh
+taiga attachment list issue 42
+taiga attachment add issue 42 ./error.log --description "Build failure"
+cat error.log | taiga attachment add issue 42 - --name error.log
+taiga attachment view issue 17
+taiga attachment edit issue 17 --description "Resolved" --deprecated
+taiga attachment delete issue 17 --yes
+```
+
+Attachment 支援 issue、story、task。非互動刪除必須明確提供 `--yes`；upload 採 streaming，不會先把整個檔案載入記憶體。
+
 Issue identifier 可以是裸 ref、`project#ref` 或 Taiga URL：
 
 ```text

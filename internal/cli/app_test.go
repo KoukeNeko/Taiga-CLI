@@ -217,6 +217,8 @@ func TestStoryAndTaskCommandReadAndDryRunContracts(t *testing.T) {
 		switch r.URL.Path {
 		case "/api/v1/projects/by_slug":
 			_, _ = io.WriteString(w, `{"id":1,"name":"Demo","slug":"demo"}`)
+		case "/api/v1/issues/by_ref":
+			_, _ = io.WriteString(w, `{"id":2,"ref":3,"project":1,"subject":"Issue","description":"Body","version":1}`)
 		case "/api/v1/userstories/by_ref":
 			_, _ = io.WriteString(w, `{"id":2,"ref":3,"project":1,"subject":"Story","description":"Body","version":7,"status":4,"status_extra_info":{"name":"New"},"assigned_users":[],"is_closed":false}`)
 		case "/api/v1/userstories":
@@ -237,6 +239,10 @@ func TestStoryAndTaskCommandReadAndDryRunContracts(t *testing.T) {
 			_, _ = io.WriteString(w, `[{"id":9,"ref":10,"project":1,"user_story":2,"user_story_extra_info":{"id":2,"ref":3,"subject":"Story"},"subject":"Task","version":4,"status":11,"status_extra_info":{"name":"New"},"is_closed":false}]`)
 		case "/api/v1/task-statuses":
 			_, _ = io.WriteString(w, `[{"id":11,"name":"New","is_closed":false,"order":1},{"id":12,"name":"Closed","is_closed":true,"order":2}]`)
+		case "/api/v1/issues/attachments":
+			_, _ = io.WriteString(w, `[{"id":13,"project":1,"object_id":2,"name":"note.txt","size":5}]`)
+		case "/api/v1/issues/attachments/13":
+			_, _ = io.WriteString(w, `{"id":13,"project":1,"object_id":2,"name":"note.txt","size":5}`)
 		default:
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
 		}
@@ -270,6 +276,11 @@ func TestStoryAndTaskCommandReadAndDryRunContracts(t *testing.T) {
 		{"--json", "sprint", "edit", "sprint-1", "--finish", "2026-09-08", "--dry-run"},
 		{"--json", "sprint", "close", "sprint-1", "--dry-run"},
 		{"--json", "sprint", "reopen", "sprint-1", "--dry-run"},
+		{"--json", "attachment", "list", "issue", "3"},
+		{"--json", "attachment", "view", "issue", "13"},
+		{"--json", "attachment", "add", "issue", "3", "-", "--name", "note.txt", "--dry-run"},
+		{"--json", "attachment", "edit", "issue", "13", "--description", "updated", "--dry-run"},
+		{"--json", "attachment", "delete", "issue", "13", "--dry-run"},
 	}
 	for _, args := range commands {
 		app, out, stderr, _ := testApp(t, server)
@@ -282,6 +293,27 @@ func TestStoryAndTaskCommandReadAndDryRunContracts(t *testing.T) {
 	}
 	if mutations != 0 {
 		t.Fatalf("dry-run/read commands sent %d mutation requests", mutations)
+	}
+}
+
+func TestAttachmentDeleteRequiresConfirmation(t *testing.T) {
+	deletes := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodDelete {
+			deletes++
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		if r.URL.Path != "/api/v1/issues/attachments/13" {
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		_, _ = io.WriteString(w, `{"id":13,"project":1,"object_id":2,"name":"note.txt","size":5}`)
+	}))
+	defer server.Close()
+	app, out, stderr, _ := testApp(t, server)
+	code := app.Execute(context.Background(), []string{"--json", "--no-input", "attachment", "delete", "issue", "13"})
+	if code != ExitConfirmationRequired || out.Len() != 0 || deletes != 0 || !strings.Contains(stderr.String(), "confirmation_required") {
+		t.Fatalf("exit=%d stdout=%s stderr=%s deletes=%d", code, out.String(), stderr.String(), deletes)
 	}
 }
 

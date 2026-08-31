@@ -225,3 +225,42 @@ func TestLoginUsesCurrentRefreshField(t *testing.T) {
 		t.Fatalf("response = %#v", response)
 	}
 }
+
+func TestCreateAttachmentStreamsMultipart(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/issues/attachments" {
+			t.Fatalf("request = %s %s", r.Method, r.URL.Path)
+		}
+		if r.Header.Get("Authorization") != "Bearer token" {
+			t.Fatalf("Authorization = %q", r.Header.Get("Authorization"))
+		}
+		if err := r.ParseMultipartForm(1 << 20); err != nil {
+			t.Fatal(err)
+		}
+		if r.FormValue("project") != "1" || r.FormValue("object_id") != "2" || r.FormValue("description") != "evidence" {
+			t.Fatalf("form = %#v", r.MultipartForm.Value)
+		}
+		file, header, err := r.FormFile("attached_file")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = file.Close() }()
+		data, err := io.ReadAll(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if header.Filename != "note.txt" || string(data) != "hello" {
+			t.Fatalf("filename=%q data=%q", header.Filename, data)
+		}
+		_, _ = io.WriteString(w, `{"id":3,"project":1,"object_id":2,"name":"note.txt","size":5,"description":"evidence"}`)
+	}))
+	defer server.Close()
+	client, _ := NewClient(server.URL+"/api/v1/", WithToken("token"))
+	attachment, err := client.CreateAttachment(context.Background(), "issue", 1, 2, "note.txt", "evidence", false, strings.NewReader("hello"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if attachment.ID != 3 || attachment.Name != "note.txt" || attachment.Size != 5 {
+		t.Fatalf("attachment = %#v", attachment)
+	}
+}

@@ -57,6 +57,10 @@ func authRequired(message string) error {
 	return &contractError{Code: "authentication_required", Message: message, ExitCode: ExitAuth}
 }
 
+func confirmationRequired(message string) error {
+	return &contractError{Code: "confirmation_required", Message: message, ExitCode: ExitConfirmationRequired}
+}
+
 func classifyError(err error) (*contractError, output.ErrorBody) {
 	var known *contractError
 	if errors.As(err, &known) {
