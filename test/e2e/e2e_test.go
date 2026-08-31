@@ -34,8 +34,12 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 	project := createProject(t, baseURL, token)
 	projectID := int64(project["id"].(float64))
 	projectSlug := project["slug"].(string)
+	secondaryProject := createProject(t, baseURL, token)
+	secondaryProjectID := int64(secondaryProject["id"].(float64))
+	secondaryProjectSlug := secondaryProject["slug"].(string)
 	t.Cleanup(func() {
 		apiRequest(t, http.MethodDelete, baseURL+"projects/"+strconv.FormatInt(projectID, 10), token, nil, nil)
+		apiRequest(t, http.MethodDelete, baseURL+"projects/"+strconv.FormatInt(secondaryProjectID, 10), token, nil, nil)
 	})
 
 	runner := cliRunner{t: t, binary: binary, dir: t.TempDir(), env: []string{
@@ -230,6 +234,67 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 	closedStory := runner.jsonOK("story", "close", storyTarget, "--status", closedStoryStatus, "--base-version", strconv.Itoa(storyVersion))
 	if closedStory.Data["is_closed"] != true {
 		t.Fatalf("story not closed: %#v", closedStory.Data)
+	}
+
+	secondaryStory := runner.jsonOK("--project", secondaryProjectSlug, "story", "create", "--subject", "Cross-project story")
+	secondaryStoryRef := int(secondaryStory.Data["ref"].(float64))
+	secondaryStoryTarget := secondaryProjectSlug + "#" + strconv.Itoa(secondaryStoryRef)
+	epic := runner.jsonOK("epic", "create", "--subject", "E2E epic", "--description", "cross-project relation test")
+	epicRef := int(epic.Data["ref"].(float64))
+	epicID := int64(epic.Data["id"].(float64))
+	epicVersion := int(epic.Data["version"].(float64))
+	epicTarget := strconv.Itoa(epicRef)
+	epics := runner.jsonOK("epic", "list", "--fields", "ref,subject,status,version")
+	if !containsRef(epics.Items, epicRef) {
+		t.Fatalf("created epic ref %d missing from list", epicRef)
+	}
+	runner.jsonOK("epic", "view", epicTarget, "--fields", "ref,subject,status,version")
+	epicDryRun := runner.jsonOK("epic", "edit", epicTarget, "--subject", "must not persist", "--dry-run")
+	if epicDryRun.Plan["performed"] != false || epicDryRun.Plan["would_write"] != true {
+		t.Fatalf("epic dry-run plan=%#v", epicDryRun.Plan)
+	}
+	epicEdited := runner.jsonOK("epic", "edit", epicTarget, "--subject", "E2E epic updated", "--base-version", strconv.Itoa(epicVersion))
+	epicVersion = int(epicEdited.Data["version"].(float64))
+	var externalEpicUpdate map[string]any
+	apiRequest(t, http.MethodPatch, baseURL+"epics/"+strconv.FormatInt(epicID, 10), token, map[string]any{"subject": "external epic edit", "version": epicVersion}, &externalEpicUpdate)
+	stdout, stderr, code = runner.run("--json", "epic", "edit", epicTarget, "--subject", "must conflict", "--base-version", strconv.Itoa(epicVersion))
+	if code != 6 || strings.TrimSpace(stdout) != "" {
+		t.Fatalf("stale epic OCC edit exit=%d stdout=%s stderr=%s", code, stdout, stderr)
+	}
+	linkedStory := runner.jsonOK("epic", "link", epicTarget, "--story", secondaryStoryTarget)
+	if linkedStory.Data["story_project"] != secondaryProjectSlug || linkedStory.Data["story_ref"] != float64(secondaryStoryRef) {
+		t.Fatalf("cross-project Epic link=%#v", linkedStory.Data)
+	}
+	epicStories := runner.jsonOK("epic", "stories", epicTarget, "--fields", "story_project,story_ref,subject")
+	if !containsProjectRef(epicStories.Items, secondaryProjectSlug, secondaryStoryRef) {
+		t.Fatalf("cross-project Story missing from Epic: %#v", epicStories.Items)
+	}
+	watchedEpic := runner.jsonOK("epic", "watch", epicTarget)
+	if watchedEpic.Data["watching"] != true || watchedEpic.Data["verified"] != true {
+		t.Fatalf("epic watch was not verified: %#v", watchedEpic.Data)
+	}
+	epicHistory := runner.jsonOK("epic", "history", epicTarget, "--type", "activity", "--fields", "id,kind,author,changes")
+	if len(epicHistory.Items) == 0 {
+		t.Fatal("epic activity history is empty")
+	}
+	unwatchedEpic := runner.jsonOK("epic", "unwatch", epicTarget)
+	if unwatchedEpic.Data["watching"] != false || unwatchedEpic.Data["verified"] != true {
+		t.Fatalf("epic unwatch was not verified: %#v", unwatchedEpic.Data)
+	}
+	unlinkedStory := runner.jsonOK("epic", "unlink", epicTarget, "--story", secondaryStoryTarget)
+	if unlinkedStory.Data["linked"] != false {
+		t.Fatalf("epic unlink=%#v", unlinkedStory.Data)
+	}
+	epicStories = runner.jsonOK("epic", "stories", epicTarget, "--fields", "story_project,story_ref")
+	if containsProjectRef(epicStories.Items, secondaryProjectSlug, secondaryStoryRef) {
+		t.Fatalf("unlinked Story remains in Epic: %#v", epicStories.Items)
+	}
+	closedEpicStatus := firstClosedEpicStatus(t, baseURL, token, projectID)
+	currentEpic := runner.jsonOK("epic", "view", epicTarget, "--fields", "version")
+	epicVersion = int(currentEpic.Data["version"].(float64))
+	closedEpic := runner.jsonOK("epic", "close", epicTarget, "--status", closedEpicStatus, "--base-version", strconv.Itoa(epicVersion))
+	if closedEpic.Data["is_closed"] != true {
+		t.Fatalf("epic not closed: %#v", closedEpic.Data)
 	}
 
 	storyWithTask := runner.jsonOK("story", "create", "--subject", "Story with open task", "--sprint", milestoneSlug)
@@ -530,6 +595,19 @@ func firstClosedStoryStatus(t *testing.T, baseURL, token string, projectID int64
 	return ""
 }
 
+func firstClosedEpicStatus(t *testing.T, baseURL, token string, projectID int64) string {
+	t.Helper()
+	var statuses []map[string]any
+	apiRequest(t, http.MethodGet, baseURL+"epic-statuses?project="+strconv.FormatInt(projectID, 10), token, nil, &statuses)
+	for _, status := range statuses {
+		if status["is_closed"] == true {
+			return status["name"].(string)
+		}
+	}
+	t.Fatal("project has no closed epic status")
+	return ""
+}
+
 func firstClosedTaskStatus(t *testing.T, baseURL, token string, projectID int64) string {
 	t.Helper()
 	var statuses []map[string]any
@@ -596,6 +674,15 @@ func apiRequest(t *testing.T, method, url, token string, body, output any) {
 func containsRef(items []map[string]any, ref int) bool {
 	for _, item := range items {
 		if int(item["ref"].(float64)) == ref {
+			return true
+		}
+	}
+	return false
+}
+
+func containsProjectRef(items []map[string]any, project string, ref int) bool {
+	for _, item := range items {
+		if item["story_project"] == project && int(item["story_ref"].(float64)) == ref {
 			return true
 		}
 	}

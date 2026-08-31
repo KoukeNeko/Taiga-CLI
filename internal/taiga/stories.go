@@ -34,6 +34,12 @@ func (c *Client) GetUserStoryByRef(ctx context.Context, projectSlug string, ref 
 	return story, err
 }
 
+func (c *Client) GetUserStory(ctx context.Context, id int64) (UserStory, error) {
+	var story UserStory
+	_, err := c.Get(ctx, fmt.Sprintf("userstories/%d", id), nil, &story)
+	return story, err
+}
+
 func (c *Client) CreateUserStory(ctx context.Context, request CreateUserStoryRequest) (UserStory, error) {
 	var story UserStory
 	_, err := c.Post(ctx, "userstories", request, &story)

@@ -263,6 +263,66 @@ type UpdateWikiPageRequest struct {
 	Content *string `json:"content,omitempty"`
 }
 
+type Epic struct {
+	ID                  int64          `json:"id"`
+	Ref                 int            `json:"ref"`
+	Project             int64          `json:"project"`
+	Subject             string         `json:"subject"`
+	Description         string         `json:"description,omitempty"`
+	Color               string         `json:"color,omitempty"`
+	Version             int            `json:"version"`
+	Status              int64          `json:"status"`
+	StatusExtraInfo     ExtraInfo      `json:"status_extra_info"`
+	AssignedTo          *int64         `json:"assigned_to"`
+	AssignedToExtraInfo *ExtraInfo     `json:"assigned_to_extra_info,omitempty"`
+	ClientRequirement   bool           `json:"client_requirement"`
+	TeamRequirement     bool           `json:"team_requirement"`
+	IsClosed            bool           `json:"is_closed"`
+	IsBlocked           bool           `json:"is_blocked"`
+	BlockedNote         string         `json:"blocked_note,omitempty"`
+	IsWatcher           bool           `json:"is_watcher"`
+	UserStoriesCounts   map[string]any `json:"user_stories_counts,omitempty"`
+	CreatedDate         string         `json:"created_date,omitempty"`
+	ModifiedDate        string         `json:"modified_date,omitempty"`
+}
+
+type EpicStatus struct {
+	ID       int64  `json:"id"`
+	Name     string `json:"name"`
+	Slug     string `json:"slug,omitempty"`
+	IsClosed bool   `json:"is_closed"`
+	Order    int    `json:"order"`
+}
+
+type CreateEpicRequest struct {
+	Project     int64  `json:"project"`
+	Subject     string `json:"subject"`
+	Description string `json:"description,omitempty"`
+	Status      *int64 `json:"status,omitempty"`
+	AssignedTo  *int64 `json:"assigned_to,omitempty"`
+	Color       string `json:"color,omitempty"`
+}
+
+type UpdateEpicRequest struct {
+	Version     int     `json:"version"`
+	Subject     *string `json:"subject,omitempty"`
+	Description *string `json:"description,omitempty"`
+	Status      *int64  `json:"status,omitempty"`
+	AssignedTo  **int64 `json:"assigned_to,omitempty"`
+	Color       *string `json:"color,omitempty"`
+}
+
+type EpicRelatedUserStory struct {
+	Epic      int64 `json:"epic"`
+	UserStory int64 `json:"user_story"`
+	Order     int64 `json:"order"`
+}
+
+type CreateEpicRelatedUserStoryRequest struct {
+	Epic      int64 `json:"epic"`
+	UserStory int64 `json:"user_story"`
+}
+
 type SearchItem struct {
 	ID            int64    `json:"id"`
 	Ref           int      `json:"ref,omitempty"`

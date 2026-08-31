@@ -10,6 +10,7 @@
 - 互動式帳密登入、stdin token 登入、OS keyring 與 `TAIGA_TOKEN`。
 - 多 profile、profile 預設 project 與 Git-local project mapping。
 - Project list、view、use。
+- Epic list、view、create、edit、close、跨專案 Story link/unlink、watch 與 history。
 - Issue list、view、create、edit、close、assign、comment。
 - User Story list、view、create、edit、close、move、assign、comment。
 - Task list、view、create、edit、done、assign、comment。
@@ -179,6 +180,22 @@ taiga wiki delete api-guide --yes
 ```
 
 Wiki identifier 支援裸 slug、`project#slug` 與 Taiga Wiki URL。Edit 使用 OCC；非互動刪除必須提供 `--yes`。
+
+管理 Epic 與跨專案 Story 關聯：
+
+```sh
+taiga epic list
+taiga epic create --subject "Unify authentication"
+taiga epic edit 8 --status "In progress" --assignee alice
+taiga epic link 8 --story mobile-app#42
+taiga epic stories 8
+taiga epic unlink 8 --story mobile-app#42
+taiga epic watch 8
+taiga epic history 8 --type activity
+taiga epic close 8
+```
+
+Epic 與 Story 是多對多關聯；`link`／`unlink` 接受其他專案的 Story ref 或 URL，不會把 Story 視為 Epic 的單一 parent。
 
 Issue identifier 可以是裸 ref、`project#ref` 或 Taiga URL：
 

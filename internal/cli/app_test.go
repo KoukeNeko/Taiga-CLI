@@ -82,6 +82,15 @@ func TestDynamicCompletionUsesFreshCache(t *testing.T) {
 		switch r.URL.Path {
 		case "/api/v1/projects/by_slug":
 			_, _ = io.WriteString(w, `{"id":1,"name":"Demo","slug":"demo"}`)
+		case "/api/v1/epics/by_ref":
+			_, _ = io.WriteString(w, `{"id":15,"ref":8,"project":1,"subject":"Epic","description":"Body","version":2,"status":21,"status_extra_info":{"name":"New"}}`)
+		case "/api/v1/epics":
+			w.Header().Set("X-Pagination-Count", "1")
+			_, _ = io.WriteString(w, `[{"id":15,"ref":8,"project":1,"subject":"Epic","version":2,"status":21,"status_extra_info":{"name":"New"}}]`)
+		case "/api/v1/epic-statuses":
+			_, _ = io.WriteString(w, `[{"id":21,"name":"New","is_closed":false,"order":1},{"id":22,"name":"Closed","is_closed":true,"order":2}]`)
+		case "/api/v1/epics/15/related_userstories":
+			_, _ = io.WriteString(w, `[]`)
 		case "/api/v1/issues":
 			_, _ = io.WriteString(w, `[{"id":2,"ref":3,"project":1,"subject":"Cached issue","version":1}]`)
 		default:
@@ -284,6 +293,15 @@ func TestStoryAndTaskCommandReadAndDryRunContracts(t *testing.T) {
 		switch r.URL.Path {
 		case "/api/v1/projects/by_slug":
 			_, _ = io.WriteString(w, `{"id":1,"name":"Demo","slug":"demo"}`)
+		case "/api/v1/epics/by_ref":
+			_, _ = io.WriteString(w, `{"id":15,"ref":8,"project":1,"subject":"Epic","description":"Body","version":2,"status":21,"status_extra_info":{"name":"New"}}`)
+		case "/api/v1/epics":
+			w.Header().Set("X-Pagination-Count", "1")
+			_, _ = io.WriteString(w, `[{"id":15,"ref":8,"project":1,"subject":"Epic","version":2,"status":21,"status_extra_info":{"name":"New"}}]`)
+		case "/api/v1/epic-statuses":
+			_, _ = io.WriteString(w, `[{"id":21,"name":"New","is_closed":false,"order":1},{"id":22,"name":"Closed","is_closed":true,"order":2}]`)
+		case "/api/v1/epics/15/related_userstories":
+			_, _ = io.WriteString(w, `[]`)
 		case "/api/v1/issues/by_ref":
 			_, _ = io.WriteString(w, `{"id":2,"ref":3,"project":1,"subject":"Issue","description":"Body","version":1}`)
 		case "/api/v1/userstories/by_ref":
@@ -310,7 +328,7 @@ func TestStoryAndTaskCommandReadAndDryRunContracts(t *testing.T) {
 			_, _ = io.WriteString(w, `[{"id":13,"project":1,"object_id":2,"name":"note.txt","size":5}]`)
 		case "/api/v1/issues/attachments/13":
 			_, _ = io.WriteString(w, `{"id":13,"project":1,"object_id":2,"name":"note.txt","size":5}`)
-		case "/api/v1/history/issue/2", "/api/v1/history/userstory/2", "/api/v1/history/task/9":
+		case "/api/v1/history/issue/2", "/api/v1/history/userstory/2", "/api/v1/history/task/9", "/api/v1/history/epic/15":
 			w.Header().Set("X-Pagination-Count", "1")
 			_, _ = io.WriteString(w, `[{"id":"entry-1","created_at":"2026-08-31T00:00:00Z","type":1,"user":{"pk":8,"username":"demo","name":"Demo User"},"comment":"note"}]`)
 		case "/api/v1/wiki":
@@ -376,6 +394,17 @@ func TestStoryAndTaskCommandReadAndDryRunContracts(t *testing.T) {
 		{"--json", "wiki", "watch", "guide", "--dry-run"},
 		{"--json", "wiki", "unwatch", "guide", "--dry-run"},
 		{"--json", "wiki", "history", "guide", "--type", "activity"},
+		{"--json", "epic", "list"},
+		{"--json", "epic", "view", "8"},
+		{"--json", "epic", "create", "--subject", "New epic", "--dry-run"},
+		{"--json", "epic", "edit", "8", "--subject", "Updated", "--dry-run"},
+		{"--json", "epic", "close", "8", "--status", "Closed", "--dry-run"},
+		{"--json", "epic", "stories", "8"},
+		{"--json", "epic", "link", "8", "--story", "3", "--dry-run"},
+		{"--json", "epic", "unlink", "8", "--story", "3", "--dry-run"},
+		{"--json", "epic", "watch", "8", "--dry-run"},
+		{"--json", "epic", "unwatch", "8", "--dry-run"},
+		{"--json", "epic", "history", "8", "--type", "activity"},
 	}
 	for _, args := range commands {
 		app, out, stderr, _ := testApp(t, server)

@@ -155,8 +155,14 @@ func (a *App) loadActivityTarget(ctx context.Context, resource, value string) (a
 			return activityTarget{}, err
 		}
 		return activityTarget{Client: target.Client, Project: target.Project.Slug, ID: target.Page.ID, Slug: target.Page.Slug, IsWatcher: target.Page.IsWatcher}, nil
+	case "epic":
+		target, err := a.loadEpicTarget(ctx, value)
+		if err != nil {
+			return activityTarget{}, err
+		}
+		return activityTarget{Client: target.Client, Project: target.Project.Slug, ID: target.Epic.ID, Ref: target.Epic.Ref, Subject: target.Epic.Subject, IsWatcher: target.Epic.IsWatcher}, nil
 	default:
-		return activityTarget{}, usageError("resource must be issue, story, task, or wiki")
+		return activityTarget{}, usageError("resource must be issue, story, task, wiki, or epic")
 	}
 }
 
@@ -175,8 +181,8 @@ func (target activityTarget) reference() string {
 }
 
 func workItemArticle(resource string) string {
-	if resource == "issue" {
-		return "an issue"
+	if resource == "issue" || resource == "epic" {
+		return "an " + resource
 	}
 	if resource == "wiki" {
 		return "a wiki page"
@@ -192,6 +198,8 @@ func (a *App) activityCompletion(resource string) func(*cobra.Command, []string,
 		return a.completeStories
 	case "wiki":
 		return a.completeWikiPages
+	case "epic":
+		return a.completeEpics
 	default:
 		return a.completeTasks
 	}

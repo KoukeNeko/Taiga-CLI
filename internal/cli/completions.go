@@ -182,6 +182,42 @@ func (a *App) completeWikiPages(cmd *cobra.Command, _ []string, toComplete strin
 	})
 }
 
+func (a *App) completeEpics(cmd *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return a.completeCached(cmd, "epics", true, toComplete, func(ctx context.Context) ([]string, error) {
+		client, project, err := a.completionProject(ctx)
+		if err != nil {
+			return nil, err
+		}
+		epics, _, err := client.ListEpics(ctx, project.ID, 1, 100)
+		if err != nil {
+			return nil, err
+		}
+		values := make([]string, 0, len(epics))
+		for _, epic := range epics {
+			values = append(values, fmt.Sprintf("%d\t%s", epic.Ref, epic.Subject))
+		}
+		return values, nil
+	})
+}
+
+func (a *App) completeEpicStatuses(cmd *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return a.completeCached(cmd, "epic-statuses", true, toComplete, func(ctx context.Context) ([]string, error) {
+		client, project, err := a.completionProject(ctx)
+		if err != nil {
+			return nil, err
+		}
+		statuses, err := client.EpicStatuses(ctx, project.ID)
+		if err != nil {
+			return nil, err
+		}
+		values := make([]string, 0, len(statuses))
+		for _, status := range statuses {
+			values = append(values, fmt.Sprintf("%s\tclosed=%t", status.Name, status.IsClosed))
+		}
+		return values, nil
+	})
+}
+
 func (a *App) completeMembers(cmd *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	return a.completeCached(cmd, "members", true, toComplete, func(ctx context.Context) ([]string, error) {
 		client, project, err := a.completionProject(ctx)

@@ -16,6 +16,8 @@ func workItemPath(resource string) (string, error) {
 		return "tasks", nil
 	case "wiki":
 		return "wiki", nil
+	case "epic":
+		return "epics", nil
 	default:
 		return "", fmt.Errorf("unsupported work item resource %q", resource)
 	}
@@ -31,6 +33,8 @@ func historyPath(resource string) (string, error) {
 		return "history/task", nil
 	case "wiki":
 		return "history/wiki", nil
+	case "epic":
+		return "history/epic", nil
 	default:
 		return "", fmt.Errorf("unsupported history resource %q", resource)
 	}

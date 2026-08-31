@@ -24,6 +24,10 @@ func ParseTaskRef(value, defaultProject string) (ItemRef, error) {
 	return parseTypedItemRef(value, defaultProject, map[string]struct{}{"task": {}})
 }
 
+func ParseEpicRef(value, defaultProject string) (ItemRef, error) {
+	return parseTypedItemRef(value, defaultProject, map[string]struct{}{"epic": {}})
+}
+
 func parseTypedItemRef(value, defaultProject string, kinds map[string]struct{}) (ItemRef, error) {
 	value = strings.TrimSpace(value)
 	if value == "" {
