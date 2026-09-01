@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/KoukeNeko/taiga-cli/internal/config"
 	"github.com/KoukeNeko/taiga-cli/internal/credential"
@@ -152,4 +153,45 @@ func runGit(directory string, args ...string) ([]byte, error) {
 	command := exec.Command("git", args...)
 	command.Dir = directory
 	return command.CombinedOutput()
+}
+
+func TestContainsSensitiveValueScansPlaintextThatCompressionWouldHide(t *testing.T) {
+	const slug = "private-project-slug"
+	// Repetition makes Deflate encode the identifier as back-references, so the
+	// literal bytes are absent from the archive that the check used to scan.
+	leaked := []byte(`{"a":"` + strings.Repeat(slug+" ", 40) + `"}`)
+	files := map[string][]byte{"checks.json": leaked}
+	archive, err := encodeDiagnosticZip(files, time.Unix(0, 0).UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(archive, []byte(slug)) {
+		t.Skip("this archive still stores the identifier literally; the regression needs another payload")
+	}
+	if got := containsSensitiveValue(files, []string{slug}); got != slug {
+		t.Fatalf("containsSensitiveValue() = %q, want %q", got, slug)
+	}
+}
+
+func TestContainsSensitiveValueCoversShortAndMixedCaseIdentifiers(t *testing.T) {
+	files := map[string][]byte{"config.json": []byte(`{"slug":"Team"}`)}
+	if got := containsSensitiveValue(files, []string{"team"}); got != "team" {
+		t.Fatalf("containsSensitiveValue() = %q, want the four-character identifier", got)
+	}
+	if got := containsSensitiveValue(files, []string{"am"}); got != "" {
+		t.Fatalf("containsSensitiveValue() = %q, want no match below the minimum length", got)
+	}
+}
+
+func TestContainsSensitiveValueIgnoresTheConstantManifest(t *testing.T) {
+	files := map[string][]byte{"manifest.json": mustDiagnosticJSON(diagnosticManifest{Format: 1, Privacy: "No URLs, hostnames, usernames, project names, paths, logs, or credentials are included."})}
+	for _, name := range []string{"usernames", "paths", "logs"} {
+		if got := containsSensitiveValue(files, []string{name}); got != "" {
+			t.Fatalf("containsSensitiveValue(%q) = %q, want the constant notice to be exempt", name, got)
+		}
+	}
+	files["checks.json"] = []byte(`{"name":"usernames"}`)
+	if got := containsSensitiveValue(files, []string{"usernames"}); got != "usernames" {
+		t.Fatalf("containsSensitiveValue() = %q, want a match outside the manifest", got)
+	}
 }

@@ -84,12 +84,12 @@ func (a *App) doctorBundleCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if leaked := containsSensitiveValue(files, sensitive); leaked != "" {
+				return validationError("diagnostic_redaction_failed", "diagnostic bundle contained a sensitive runtime value and was not written")
+			}
 			data, err := encodeDiagnosticZip(files, time.Now().UTC())
 			if err != nil {
 				return err
-			}
-			if leaked := containsSensitiveValue(data, sensitive); leaked != "" {
-				return validationError("diagnostic_redaction_failed", "diagnostic bundle contained a sensitive runtime value and was not written")
 			}
 			if err := writeDiagnosticBundle(path, data, force); err != nil {
 				return err
@@ -302,11 +302,36 @@ func sortedDiagnosticNames(files map[string][]byte) []string {
 	return names
 }
 
-func containsSensitiveValue(data []byte, values []string) string {
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if len(value) >= 7 && bytes.Contains(data, []byte(value)) {
-			return value
+// minimumSensitiveLength bounds the redaction tripwire away from values so
+// short that they collide with the bundle's own schema vocabulary. Below four
+// characters a profile named "api" or "ok" would match the fixed check names
+// and refuse every bundle, so such values are left to the schema itself, which
+// never copies runtime identifiers into a report.
+const minimumSensitiveLength = 4
+
+// redactionExemptFiles holds bundle members built purely from compile-time
+// constants. manifest.json embeds an English privacy notice mentioning
+// "usernames", "paths" and "logs", which would otherwise match legitimate
+// short profile and project names.
+var redactionExemptFiles = map[string]struct{}{"manifest.json": {}}
+
+// containsSensitiveValue reports the first runtime identifier that reached the
+// bundle, scanning the plaintext members rather than the compressed archive so
+// that Deflate cannot hide a leak from the check.
+func containsSensitiveValue(files map[string][]byte, values []string) string {
+	for _, name := range sortedDiagnosticNames(files) {
+		if _, exempt := redactionExemptFiles[name]; exempt {
+			continue
+		}
+		content := strings.ToLower(string(files[name]))
+		for _, value := range values {
+			value = strings.TrimSpace(value)
+			if len(value) < minimumSensitiveLength {
+				continue
+			}
+			if strings.Contains(content, strings.ToLower(value)) {
+				return value
+			}
 		}
 	}
 	return ""
