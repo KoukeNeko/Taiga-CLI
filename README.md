@@ -2,7 +2,7 @@
 
 以 Go 實作的 [Taiga 6](https://taiga.io/) 命令列工具。它提供適合人類閱讀的終端介面，以及給 Shell、CI 與 LLM／Agent 使用的穩定 JSON contract。
 
-目前狀態：**Phase 1、Phase 2 與 Phase 3 Wiki 垂直切片已實作，尚未發布正式版本。**
+目前狀態：**Phase 1–3 operator workflows 已實作，尚未發布正式版本。**
 
 ## 功能
 
@@ -26,6 +26,7 @@
 - Taiga optimistic concurrency control（OCC）與 `--base-version`。
 - Human output、versioned JSON、`--fields`、structured error 與固定 exit code。
 - `--dry-run`、`--no-input`、redacted verbose logging。
+- Epic、Story、Issue、Task 的 bounded native bulk create，支援檔案/stdin、共同 metadata 與完整 dry-run。
 - JSON Schema command descriptors 與四種 shell completion。
 - 依 profile、API 與 project 隔離的 completion metadata cache，支援 stale-on-error。
 - `httptest` 單元測試和隔離的真實 Taiga Docker E2E。
@@ -219,6 +220,20 @@ taiga stats system
 ```
 
 `timeline` 使用目前選取的 Project，預設排除低訊號 change/delete；輸出會將 Taiga event 正規化為 resource、action、ref/slug、subject、user、comment 與 changes。`stats project|issues|members` 可省略 project slug 並使用目前 Project；`stats sprint` 使用目前 Project 解析 Sprint。`stats discover` 可查公開可探索的 Project 數量。`stats system` 只有站台管理者啟用 Taiga `STATS_ENABLED` 時才存在，未啟用的標準部署會回報 `not_found`。
+
+批次建立工作項目：
+
+```sh
+printf '%s\n' "First issue" "Second issue" > issues.txt
+taiga batch create issue issues.txt --sprint sprint-27 --dry-run --json
+taiga batch create issue issues.txt --sprint sprint-27 --yes --json
+
+cat stories.txt | taiga batch create story - --status New --yes
+taiga batch create task tasks.txt --story 51 --yes
+taiga batch create epic epics.txt --yes
+```
+
+Batch input 每個非空白行是一個 subject，上限 1000 筆與 4 MiB；同一批可套用共同 `--status`。Issue 可指定共同 `--sprint`；Task 必須指定 `--sprint`，或以 `--story` 從 parent Story 推導 Sprint。Taiga 原生 bulk endpoint 不支援每筆不同 description/assignee，也不保證跨資源原子交易。CLI 在成功回應後核對回傳筆數；若不一致會回報 `ambiguous_commit`，要求先 list 確認，避免盲目重送。非互動執行必須提供 `--yes`。
 
 管理附件：
 

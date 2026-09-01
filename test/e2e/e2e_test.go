@@ -4,6 +4,7 @@ package e2e
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,6 +23,7 @@ type envelope struct {
 	Data  map[string]any   `json:"data"`
 	Items []map[string]any `json:"items"`
 	Plan  map[string]any   `json:"plan"`
+	Page  map[string]any   `json:"page"`
 }
 
 func TestPhaseOneAgainstDocker(t *testing.T) {
@@ -541,6 +543,34 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 		t.Fatalf("backlog task still has sprint: %#v", backlogTask.Data)
 	}
 
+	batchPath := filepath.Join(runner.dir, "batch-subjects.txt")
+	if err := os.WriteFile(batchPath, []byte("Batch first\nBatch second\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	batchDryRun := runner.jsonOK("batch", "create", "story", batchPath, "--dry-run")
+	if batchDryRun.Plan["performed"] != false || batchDryRun.Plan["would_write"] != true {
+		t.Fatalf("batch dry-run plan=%#v", batchDryRun.Plan)
+	}
+	for _, batch := range []struct {
+		resource string
+		args     []string
+	}{
+		{resource: "epic", args: []string{"batch", "create", "epic", batchPath, "--yes"}},
+		{resource: "story", args: []string{"batch", "create", "story", batchPath, "--yes"}},
+		{resource: "issue", args: []string{"batch", "create", "issue", batchPath, "--sprint", milestoneSlug, "--yes"}},
+		{resource: "task", args: []string{"batch", "create", "task", batchPath, "--story", strconv.Itoa(storyWithTaskRef), "--yes"}},
+	} {
+		created := runner.jsonOK(batch.args...)
+		if len(created.Items) != 2 || created.Page["created"] != float64(2) || created.Page["verified"] != true {
+			t.Fatalf("%s batch result=%#v page=%#v", batch.resource, created.Items, created.Page)
+		}
+		for _, item := range created.Items {
+			if item["resource"] != batch.resource || item["project"] != projectSlug {
+				t.Fatalf("%s batch item=%#v", batch.resource, item)
+			}
+		}
+	}
+
 	editedSprint := runner.jsonOK("sprint", "edit", milestoneSlug, "--finish", "2026-09-08")
 	if editedSprint.Data["finish"] != "2026-09-08" {
 		t.Fatalf("sprint finish was not updated: %#v", editedSprint.Data)
@@ -797,18 +827,14 @@ func waitForProjectDump(t *testing.T, rawURL, path string) {
 	for time.Now().Before(deadline) {
 		response, err := http.Get(rawURL)
 		if err == nil && response.StatusCode == http.StatusOK {
-			file, createErr := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
-			if createErr != nil {
-				_ = response.Body.Close()
-				t.Fatal(createErr)
-			}
-			_, copyErr := io.Copy(file, response.Body)
-			closeErr := file.Close()
+			data, readErr := io.ReadAll(response.Body)
 			bodyCloseErr := response.Body.Close()
-			if copyErr != nil || closeErr != nil || bodyCloseErr != nil {
-				t.Fatalf("download project dump: copy=%v close=%v body_close=%v", copyErr, closeErr, bodyCloseErr)
+			if readErr == nil && bodyCloseErr == nil && validGzip(data) {
+				if writeErr := os.WriteFile(path, data, 0o600); writeErr != nil {
+					t.Fatal(writeErr)
+				}
+				return
 			}
-			return
 		}
 		if response != nil {
 			_ = response.Body.Close()
@@ -816,6 +842,16 @@ func waitForProjectDump(t *testing.T, rawURL, path string) {
 		time.Sleep(500 * time.Millisecond)
 	}
 	t.Fatalf("project dump was not ready before timeout: %s", rawURL)
+}
+
+func validGzip(data []byte) bool {
+	reader, err := gzip.NewReader(bytes.NewReader(data))
+	if err != nil {
+		return false
+	}
+	_, copyErr := io.Copy(io.Discard, reader)
+	closeErr := reader.Close()
+	return copyErr == nil && closeErr == nil
 }
 
 func waitForImportedProject(t *testing.T, baseURL, token, name string, excludedIDs ...int64) int64 {
