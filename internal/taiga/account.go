@@ -78,7 +78,7 @@ func (c *Client) MarkAllWebNotificationsRead(ctx context.Context) error {
 }
 
 type Application struct {
-	ID          int64  `json:"id"`
+	ID          string `json:"id"`
 	Name        string `json:"name"`
 	Web         string `json:"web"`
 	Description string `json:"description"`
@@ -93,15 +93,26 @@ type ApplicationToken struct {
 }
 
 func (c *Client) ListApplications(ctx context.Context) ([]Application, error) {
-	var values []Application
-	_, err := c.Get(ctx, "applications", url.Values{"page_size": {"1000"}}, &values)
-	return values, err
+	tokens, err := c.ListApplicationTokens(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]bool{}
+	values := make([]Application, 0, len(tokens))
+	for _, token := range tokens {
+		if token.Application.ID == "" || seen[token.Application.ID] {
+			continue
+		}
+		seen[token.Application.ID] = true
+		values = append(values, token.Application)
+	}
+	return values, nil
 }
 
-func (c *Client) ListApplicationTokens(ctx context.Context, applicationID *int64) ([]ApplicationToken, error) {
+func (c *Client) ListApplicationTokens(ctx context.Context, applicationID *string) ([]ApplicationToken, error) {
 	query := url.Values{"page_size": {"1000"}}
-	if applicationID != nil {
-		query.Set("application", fmt.Sprint(*applicationID))
+	if applicationID != nil && *applicationID != "" {
+		query.Set("application", *applicationID)
 	}
 	var values []ApplicationToken
 	_, err := c.Get(ctx, "application-tokens", query, &values)

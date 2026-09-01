@@ -95,3 +95,98 @@ func TestImporterDryRunRedactsCredentials(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestApplicationListUsesAuthorizedTokensAndRedactsSecrets(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/application-tokens" {
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		_, _ = io.WriteString(w, `[{"id":7,"auth_code":"must-not-leak","next_url":"https://app.invalid/callback?auth_code=must-not-leak","application":{"id":"demo-app","name":"Demo App","web":"https://app.invalid"}}]`)
+	}))
+	defer server.Close()
+	app, out, stderr, _ := testApp(t, server)
+	if code := app.Execute(context.Background(), []string{"--json", "application", "list"}); code != ExitSuccess {
+		t.Fatalf("exit=%d stderr=%s", code, stderr.String())
+	}
+	if strings.Contains(out.String(), "must-not-leak") || !strings.Contains(out.String(), `"id":"demo-app"`) {
+		t.Fatalf("output=%s", out.String())
+	}
+}
+
+func TestStorageKeyRejectsRouterReservedCharacters(t *testing.T) {
+	app, out, stderr, _ := testApp(t, nil)
+	if code := app.Execute(context.Background(), []string{"--json", "storage", "get", "dashboard.preferences"}); code != ExitUsage {
+		t.Fatalf("exit=%d stdout=%s stderr=%s", code, out.String(), stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "cannot contain") {
+		t.Fatalf("stderr=%s", stderr.String())
+	}
+}
+
+func TestNotificationPolicyCreateUsesProvisionedPolicy(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/projects/by_slug":
+			_, _ = io.WriteString(w, `{"id":1,"name":"Demo","slug":"demo"}`)
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/notify-policies":
+			_, _ = io.WriteString(w, `[{"id":4,"project":1,"project_name":"Demo","notify_level":2,"live_notify_level":1,"web_notify_level":true}]`)
+		case r.Method == http.MethodPatch && r.URL.Path == "/api/v1/notify-policies/4":
+			var body map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Fatal(err)
+			}
+			if body["notify_level"] != float64(1) || body["live_notify_level"] != float64(2) || body["web_notify_level"] != false {
+				t.Fatalf("body=%#v", body)
+			}
+			_, _ = io.WriteString(w, `{"id":4,"project":1,"notify_level":1,"live_notify_level":2,"web_notify_level":false}`)
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	app, out, stderr, _ := testApp(t, server)
+	if code := app.Execute(context.Background(), []string{"--json", "notification", "policy", "create", "--email", "involved", "--live", "all", "--web=false"}); code != ExitSuccess {
+		t.Fatalf("exit=%d stderr=%s", code, stderr.String())
+	}
+	if !strings.Contains(out.String(), `"notify_level":1`) {
+		t.Fatalf("output=%s", out.String())
+	}
+}
+
+func TestCustomFieldUnsetLastValueUsesNull(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/projects/by_slug":
+			_, _ = io.WriteString(w, `{"id":1,"name":"Demo","slug":"demo"}`)
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/issues/by_ref":
+			_, _ = io.WriteString(w, `{"id":7,"ref":3,"project":1,"subject":"Issue"}`)
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/issue-custom-attributes":
+			_, _ = io.WriteString(w, `[{"id":3,"project":1,"name":"Environment","type":"text"}]`)
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/issues/custom-attributes-values/7":
+			_, _ = io.WriteString(w, `{"version":2,"attributes_values":{"3":"production"}}`)
+		case r.Method == http.MethodPatch && r.URL.Path == "/api/v1/issues/custom-attributes-values/7":
+			var body struct {
+				Version int            `json:"version"`
+				Values  map[string]any `json:"attributes_values"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Fatal(err)
+			}
+			value, exists := body.Values["3"]
+			if body.Version != 2 || !exists || value != nil {
+				t.Fatalf("body=%#v", body)
+			}
+			_, _ = io.WriteString(w, `{"version":3,"attributes_values":{"3":null}}`)
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	app, out, stderr, _ := testApp(t, server)
+	if code := app.Execute(context.Background(), []string{"--json", "custom-field", "set", "issue", "3", "--unset", "Environment"}); code != ExitSuccess {
+		t.Fatalf("exit=%d stderr=%s", code, stderr.String())
+	}
+	if !strings.Contains(out.String(), `"Environment":null`) {
+		t.Fatalf("output=%s", out.String())
+	}
+}

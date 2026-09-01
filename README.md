@@ -361,6 +361,10 @@ taiga storage set dashboard --value '{"compact":true}'
 taiga storage get dashboard --json
 ```
 
+`application list` 會從目前使用者已授權的 application tokens 去重列出應用程式，因 Taiga 6 沒有 applications collection-list endpoint。Application ID 是 UUID 字串；token 的 auth code 與帶 auth code 的 callback URL 都不會出現在輸出。User storage key 不可包含 `.` 或 `/`，這兩個字元由 Taiga 的 URL router 保留。
+
+Taiga 會在列出 notification policies 時自動為 Project membership 建立缺少的 policy，因此 `notification policy create` 會先觸發該 provisioning，再以 PATCH 套用指定層級；這避開 Taiga 6 直接 POST 時遺失 `user_id` 的上游問題。當 `custom-field set --unset` 清除最後一個值時，CLI 會送出 Taiga 接受的 `null`，避免空 object 被 validator 判定為 blank。
+
 Project social、ownership transfer 與 CSV：
 
 ```sh

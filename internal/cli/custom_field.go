@@ -269,7 +269,14 @@ func (a *App) customFieldSetCommand() *cobra.Command {
 			if !found {
 				return validationError("unknown_custom_field", fmt.Sprintf("custom field %q was not found", name))
 			}
-			delete(merged, strconv.FormatInt(field.ID, 10))
+			key := strconv.FormatInt(field.ID, 10)
+			delete(merged, key)
+			// Taiga 6 rejects an empty attributes_values object as a blank
+			// model field. Null is its accepted representation for clearing
+			// the final remaining custom field value.
+			if len(merged) == 0 {
+				merged[key] = nil
+			}
 		}
 		version := current.Version
 		if baseVersion > 0 {

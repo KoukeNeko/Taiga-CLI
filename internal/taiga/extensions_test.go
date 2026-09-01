@@ -181,3 +181,22 @@ func TestAccountImporterAndBatchContracts(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestApplicationsAreDerivedFromStringIDTokens(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/application-tokens" {
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		_, _ = io.WriteString(w, `[
+			{"id":1,"application":{"id":"demo-app","name":"Demo","web":"https://demo.invalid"}},
+			{"id":2,"application":{"id":"demo-app","name":"Demo","web":"https://demo.invalid"}},
+			{"id":3,"application":{"id":"audit-app","name":"Audit","web":"https://audit.invalid"}}
+		]`)
+	}))
+	defer server.Close()
+	client, _ := NewClient(server.URL + "/api/v1/")
+	applications, err := client.ListApplications(context.Background())
+	if err != nil || len(applications) != 2 || applications[0].ID != "demo-app" || applications[1].ID != "audit-app" {
+		t.Fatalf("applications=%#v err=%v", applications, err)
+	}
+}

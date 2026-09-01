@@ -67,11 +67,21 @@ func (a *App) notificationPolicyCreateCommand() *cobra.Command {
 		if dryRun {
 			return a.renderDryRun("create notification policy", project.Slug, map[string]any{"notify_level": notify, "live_notify_level": liveLevel, "web_notify_level": web})
 		}
-		me, err := client.Me(cmd.Context())
+		policies, err := client.ListNotifyPolicies(cmd.Context())
 		if err != nil {
 			return err
 		}
-		value, err := client.CreateNotifyPolicy(cmd.Context(), project.ID, me.ID, notify, liveLevel, web)
+		var policyID int64
+		for _, policy := range policies {
+			if policy.Project == project.ID {
+				policyID = policy.ID
+				break
+			}
+		}
+		if policyID == 0 {
+			return validationError("missing_notification_policy", "Taiga did not provision a notification policy for the selected project membership")
+		}
+		value, err := client.UpdateNotifyPolicy(cmd.Context(), policyID, map[string]any{"notify_level": notify, "live_notify_level": liveLevel, "web_notify_level": web})
 		if err != nil {
 			return err
 		}
@@ -239,12 +249,12 @@ func (a *App) applicationListCommand() *cobra.Command {
 }
 
 func (a *App) applicationTokenListCommand() *cobra.Command {
-	var application int64
+	var application string
 	command := &cobra.Command{Use: "tokens", Args: exactArgs(0), RunE: func(cmd *cobra.Command, _ []string) error {
-		var filter *int64
+		var filter *string
 		if cmd.Flags().Changed("application") {
-			if application <= 0 {
-				return usageError("--application must be positive")
+			if strings.TrimSpace(application) == "" {
+				return usageError("--application cannot be empty")
 			}
 			filter = &application
 		}
@@ -262,7 +272,7 @@ func (a *App) applicationTokenListCommand() *cobra.Command {
 		}
 		return a.renderer().List(values, map[string]any{"total": len(values), "secrets_redacted": true})
 	}}
-	command.Flags().Int64Var(&application, "application", 0, "filter by application ID")
+	command.Flags().StringVar(&application, "application", "", "filter by application ID")
 	return command
 }
 
@@ -314,6 +324,9 @@ func (a *App) storageListCommand() *cobra.Command {
 }
 func (a *App) storageGetCommand() *cobra.Command {
 	return &cobra.Command{Use: "get <key>", Args: exactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+		if err := validateStorageKey(args[0]); err != nil {
+			return err
+		}
 		client, _, err := a.client(cmd.Context(), true)
 		if err != nil {
 			return err
@@ -330,6 +343,9 @@ func (a *App) storageSetCommand() *cobra.Command {
 	var raw string
 	var dryRun bool
 	command := &cobra.Command{Use: "set <key>", Args: exactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+		if err := validateStorageKey(args[0]); err != nil {
+			return err
+		}
 		if !cmd.Flags().Changed("value") {
 			return usageError("--value is required")
 		}
@@ -368,6 +384,9 @@ func (a *App) storageSetCommand() *cobra.Command {
 func (a *App) storageDeleteCommand() *cobra.Command {
 	var yes, dryRun bool
 	command := &cobra.Command{Use: "delete <key>", Args: exactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+		if err := validateStorageKey(args[0]); err != nil {
+			return err
+		}
 		if dryRun {
 			return a.renderDryRun("delete user storage", args[0], nil)
 		}
@@ -394,4 +413,14 @@ func positiveID(value, name string) (int64, error) {
 		return 0, usageError(name + " ID must be a positive integer")
 	}
 	return id, nil
+}
+
+func validateStorageKey(key string) error {
+	if strings.TrimSpace(key) == "" {
+		return usageError("storage key cannot be empty")
+	}
+	if strings.ContainsAny(key, "./") {
+		return usageError("storage key cannot contain '.' or '/' because Taiga reserves them for URL routing")
+	}
+	return nil
 }
