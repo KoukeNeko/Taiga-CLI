@@ -52,8 +52,10 @@ func (a *App) epicCommand() *cobra.Command {
 	command.AddCommand(
 		a.epicListCommand(), a.epicViewCommand(), a.epicCreateCommand(), a.epicEditCommand(), a.epicCloseCommand(),
 		a.epicStoriesCommand(), a.epicLinkCommand(), a.epicUnlinkCommand(),
+		a.deleteWorkItemCommand("epic"),
 		a.watchCommand("epic", true), a.watchCommand("epic", false), a.historyCommand("epic"),
 		a.voteCommand("epic", true), a.voteCommand("epic", false),
+		a.participantCommand("epic", "watchers"), a.participantCommand("epic", "voters"),
 	)
 	return command
 }

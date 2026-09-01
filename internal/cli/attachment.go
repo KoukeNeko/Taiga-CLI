@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -23,8 +24,128 @@ type attachmentTarget struct {
 
 func (a *App) attachmentCommand() *cobra.Command {
 	command := &cobra.Command{Use: "attachment", Aliases: []string{"attach"}, Short: "Work with Epic, Story, Task, Issue, and Wiki attachments"}
-	command.AddCommand(a.attachmentListCommand(), a.attachmentViewCommand(), a.attachmentAddCommand(), a.attachmentEditCommand(), a.attachmentDeleteCommand())
+	command.AddCommand(a.attachmentListCommand(), a.attachmentViewCommand(), a.attachmentAddCommand(), a.attachmentDownloadCommand(), a.attachmentEditCommand(), a.attachmentDeleteCommand())
 	return command
+}
+
+func (a *App) attachmentDownloadCommand() *cobra.Command {
+	var output string
+	var force, dryRun bool
+	command := &cobra.Command{
+		Use: "download <epic|story|task|issue|wiki> <id>", Short: "Download and verify an attachment", Args: exactArgs(2), ValidArgs: []string{"epic", "story", "task", "issue", "wiki"},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			resource, id, err := parseAttachmentIdentity(args)
+			if err != nil {
+				return err
+			}
+			client, _, err := a.client(cmd.Context(), true)
+			if err != nil {
+				return err
+			}
+			attachment, err := client.GetAttachment(cmd.Context(), resource, id)
+			if err != nil {
+				return err
+			}
+			destination := output
+			if destination == "" {
+				destination = filepath.Base(attachment.Name)
+				if destination == "." || destination == string(filepath.Separator) || destination == "" {
+					return validationError("invalid_attachment_name", "Taiga returned an invalid attachment filename; pass --output explicitly")
+				}
+			}
+			if destination == "-" && a.global.JSON {
+				return usageError("--output - cannot be combined with --json")
+			}
+			if dryRun {
+				return a.renderDryRun("download attachment", strconv.FormatInt(id, 10), map[string]any{"resource": resource, "name": attachment.Name, "bytes": attachment.Size, "output": destination, "sha1": attachment.SHA1})
+			}
+			if destination == "-" {
+				_, err := client.DownloadAttachment(cmd.Context(), attachment, a.Out)
+				return err
+			}
+			path, err := filepath.Abs(destination)
+			if err != nil {
+				return err
+			}
+			if !force {
+				if _, err := os.Stat(path); err == nil {
+					return validationError("output_exists", "download output already exists; pass --force to replace it")
+				} else if !errors.Is(err, os.ErrNotExist) {
+					return fmt.Errorf("inspect download output: %w", err)
+				}
+			}
+			temporary, err := os.CreateTemp(filepath.Dir(path), ".taiga-attachment-*.download")
+			if err != nil {
+				return fmt.Errorf("create download output: %w", err)
+			}
+			temporaryPath := temporary.Name()
+			defer func() { _ = os.Remove(temporaryPath) }()
+			if err := temporary.Chmod(0o600); err != nil {
+				_ = temporary.Close()
+				return err
+			}
+			result, err := client.DownloadAttachment(cmd.Context(), attachment, temporary)
+			if err != nil {
+				_ = temporary.Close()
+				return err
+			}
+			if err := temporary.Sync(); err != nil {
+				_ = temporary.Close()
+				return err
+			}
+			if err := temporary.Close(); err != nil {
+				return err
+			}
+			if err := replaceLocalFile(temporaryPath, path, force); err != nil {
+				return err
+			}
+			view := map[string]any{"id": id, "resource": resource, "name": attachment.Name, "path": path, "bytes": result.Bytes, "sha1": result.SHA1, "sha256": result.SHA256, "verified": true}
+			if a.global.JSON {
+				return a.renderer().Data(view)
+			}
+			if !a.global.Quiet {
+				_, _ = fmt.Fprintf(a.Out, "Downloaded attachment %d to %s (%d bytes, SHA-256 %s)\n", id, path, result.Bytes, result.SHA256)
+			}
+			return nil
+		},
+	}
+	command.Flags().StringVarP(&output, "output", "o", "", "output file, or - for raw stdout")
+	command.Flags().BoolVar(&force, "force", false, "replace an existing output file")
+	command.Flags().BoolVar(&dryRun, "dry-run", false, "resolve metadata and output path without downloading")
+	return command
+}
+
+func replaceLocalFile(temporaryPath, path string, force bool) error {
+	if !force {
+		if err := os.Link(temporaryPath, path); err != nil {
+			if _, statErr := os.Stat(path); statErr == nil {
+				return validationError("output_exists", "download output already exists; pass --force to replace it")
+			}
+			return fmt.Errorf("write output file without overwrite: %w", err)
+		}
+		return nil
+	}
+	if err := os.Rename(temporaryPath, path); err == nil {
+		return nil
+	}
+	backup, err := os.CreateTemp(filepath.Dir(path), ".taiga-output-backup-*")
+	if err != nil {
+		return err
+	}
+	backupPath := backup.Name()
+	_ = backup.Close()
+	_ = os.Remove(backupPath)
+	if err := os.Rename(path, backupPath); err != nil {
+		return fmt.Errorf("backup existing output: %w", err)
+	}
+	if err := os.Rename(temporaryPath, path); err != nil {
+		_ = os.Rename(backupPath, path)
+		return fmt.Errorf("replace output file: %w", err)
+	}
+	if err := os.Remove(backupPath); err != nil {
+		return fmt.Errorf("remove output backup: %w", err)
+	}
+	return nil
 }
 
 func (a *App) attachmentListCommand() *cobra.Command {

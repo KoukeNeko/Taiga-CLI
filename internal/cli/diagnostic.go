@@ -261,10 +261,17 @@ func writeDiagnosticBundle(path string, data []byte, force bool) error {
 	if err := temporary.Close(); err != nil {
 		return err
 	}
+	if !force {
+		if err := os.Link(temporaryPath, path); err != nil {
+			if _, statErr := os.Stat(path); statErr == nil {
+				return validationError("output_exists", "diagnostic bundle output already exists; pass --force to replace it")
+			}
+			return fmt.Errorf("write diagnostic bundle without overwrite: %w", err)
+		}
+		return nil
+	}
 	if err := os.Rename(temporaryPath, path); err == nil {
 		return nil
-	} else if !force {
-		return fmt.Errorf("write diagnostic bundle: %w", err)
 	}
 	backupFile, err := os.CreateTemp(directory, ".taiga-diagnostics-backup-*.zip")
 	if err != nil {

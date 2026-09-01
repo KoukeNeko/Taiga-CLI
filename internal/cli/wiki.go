@@ -38,6 +38,7 @@ func (a *App) wikiCommand() *cobra.Command {
 	command.AddCommand(
 		a.wikiListCommand(), a.wikiViewCommand(), a.wikiCreateCommand(), a.wikiEditCommand(), a.wikiDeleteCommand(),
 		a.watchCommand("wiki", true), a.watchCommand("wiki", false), a.historyCommand("wiki"),
+		a.participantCommand("wiki", "watchers"),
 	)
 	return command
 }

@@ -51,10 +51,12 @@ func (a *App) storyCommand() *cobra.Command {
 		a.storyMoveCommand(),
 		a.storyAssignCommand(),
 		a.storyCommentCommand(),
+		a.deleteWorkItemCommand("story"),
 		a.watchCommand("story", true),
 		a.watchCommand("story", false),
 		a.historyCommand("story"),
 		a.voteCommand("story", true), a.voteCommand("story", false),
+		a.participantCommand("story", "watchers"), a.participantCommand("story", "voters"),
 	)
 	return command
 }

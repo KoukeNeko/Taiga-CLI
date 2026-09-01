@@ -230,6 +230,10 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 	if watchedIssue.Data["watching"] != true || watchedIssue.Data["verified"] != true {
 		t.Fatalf("issue watch was not verified: %#v", watchedIssue.Data)
 	}
+	issueWatchers := runner.jsonOK("issue", "watchers", target, "--fields", "id,username,full_name")
+	if !containsUsername(issueWatchers.Items, username) {
+		t.Fatalf("issue watcher list missing %q: %#v", username, issueWatchers.Items)
+	}
 	issueView := runner.jsonOK("issue", "view", target, "--fields", "ref,is_watcher")
 	if issueView.Data["is_watcher"] != true {
 		t.Fatalf("issue view did not confirm watch state: %#v", issueView.Data)
@@ -238,6 +242,15 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 	if !containsComment(issueHistory.Items, "integration comment") {
 		t.Fatalf("issue comment missing from CLI history: %#v", issueHistory.Items)
 	}
+	issueCommentID := historyIDForComment(t, issueHistory.Items, "integration comment")
+	editedIssueComment := runner.jsonOK("comment", "edit", "issue", target, issueCommentID, "--body", "integration comment edited")
+	if editedIssueComment.Data["verified"] != true {
+		t.Fatalf("edited issue comment=%#v", editedIssueComment.Data)
+	}
+	deletedIssueComment := runner.jsonOK("comment", "delete", "issue", target, issueCommentID, "--yes")
+	if deletedIssueComment.Data["verified"] != true {
+		t.Fatalf("deleted issue comment=%#v", deletedIssueComment.Data)
+	}
 	unwatchedIssue := runner.jsonOK("issue", "unwatch", target)
 	if unwatchedIssue.Data["watching"] != false || unwatchedIssue.Data["verified"] != true {
 		t.Fatalf("issue unwatch was not verified: %#v", unwatchedIssue.Data)
@@ -245,6 +258,10 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 	votedIssue := runner.jsonOK("issue", "vote", target)
 	if votedIssue.Data["voting"] != true || votedIssue.Data["verified"] != true {
 		t.Fatalf("issue vote was not verified: %#v", votedIssue.Data)
+	}
+	issueVoters := runner.jsonOK("issue", "voters", target, "--fields", "id,username,full_name")
+	if !containsUsername(issueVoters.Items, username) {
+		t.Fatalf("issue voter list missing %q: %#v", username, issueVoters.Items)
 	}
 	unvotedIssue := runner.jsonOK("issue", "unvote", target)
 	if unvotedIssue.Data["voting"] != false || unvotedIssue.Data["verified"] != true {
@@ -266,6 +283,15 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 		t.Fatalf("attachment %d missing from list", attachmentID)
 	}
 	runner.jsonOK("attachment", "view", "issue", strconv.FormatInt(attachmentID, 10), "--fields", "id,name,size,url,sha1")
+	downloadPath := filepath.Join(runner.dir, "downloaded-evidence.txt")
+	downloadedAttachment := runner.jsonOK("attachment", "download", "issue", strconv.FormatInt(attachmentID, 10), "--output", downloadPath)
+	if downloadedAttachment.Data["verified"] != true || downloadedAttachment.Data["bytes"] != float64(len("Taiga CLI attachment evidence")) {
+		t.Fatalf("attachment download=%#v", downloadedAttachment.Data)
+	}
+	downloadedData, err := os.ReadFile(downloadPath)
+	if err != nil || string(downloadedData) != "Taiga CLI attachment evidence" {
+		t.Fatalf("downloaded attachment data=%q err=%v", downloadedData, err)
+	}
 	editedAttachment := runner.jsonOK("attachment", "edit", "issue", strconv.FormatInt(attachmentID, 10), "--description", "Archived evidence", "--deprecated")
 	if editedAttachment.Data["description"] != "Archived evidence" || editedAttachment.Data["is_deprecated"] != true {
 		t.Fatalf("attachment metadata not updated: %#v", editedAttachment.Data)
@@ -583,6 +609,56 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 		}
 	}
 
+	for _, metadata := range []struct {
+		kind       string
+		createArgs []string
+		editArgs   []string
+	}{
+		{kind: "epic-status", createArgs: []string{"--color", "#123456"}, editArgs: []string{"--color", "#654321"}},
+		{kind: "story-status", createArgs: []string{"--color", "#123456", "--wip-limit", "3"}, editArgs: []string{"--color", "#654321", "--wip-limit", "4"}},
+		{kind: "task-status", createArgs: []string{"--color", "#123456"}, editArgs: []string{"--color", "#654321"}},
+		{kind: "issue-status", createArgs: []string{"--color", "#123456"}, editArgs: []string{"--color", "#654321"}},
+		{kind: "points", createArgs: []string{"--value", "13"}, editArgs: []string{"--value", "21"}},
+		{kind: "priority", createArgs: []string{"--color", "#123456"}, editArgs: []string{"--color", "#654321"}},
+		{kind: "severity", createArgs: []string{"--color", "#123456"}, editArgs: []string{"--color", "#654321"}},
+		{kind: "issue-type", createArgs: []string{"--color", "#123456"}, editArgs: []string{"--color", "#654321"}},
+	} {
+		before := runner.jsonOK("metadata", "list", metadata.kind, "--fields", "id,name")
+		if len(before.Items) == 0 {
+			t.Fatalf("%s has no replacement metadata", metadata.kind)
+		}
+		replacementID := int64(before.Items[0]["id"].(float64))
+		name := "E2E " + metadata.kind
+		createArgs := append([]string{"metadata", "create", metadata.kind, "--name", name}, metadata.createArgs...)
+		created := runner.jsonOK(createArgs...)
+		createdID := int64(created.Data["id"].(float64))
+		updatedName := name + " Updated"
+		editArgs := append([]string{"metadata", "edit", metadata.kind, strconv.FormatInt(createdID, 10), "--name", updatedName}, metadata.editArgs...)
+		updated := runner.jsonOK(editArgs...)
+		if updated.Data["name"] != updatedName {
+			t.Fatalf("%s metadata edit=%#v", metadata.kind, updated.Data)
+		}
+		deleted := runner.jsonOK("metadata", "delete", metadata.kind, strconv.FormatInt(createdID, 10), "--move-to", strconv.FormatInt(replacementID, 10), "--yes")
+		if deleted.Data["deleted"] != true || deleted.Data["verified"] != true {
+			t.Fatalf("%s metadata delete=%#v", metadata.kind, deleted.Data)
+		}
+	}
+
+	for _, deletion := range []struct {
+		resource string
+		ref      int
+	}{
+		{resource: "issue", ref: int(runner.jsonOK("issue", "create", "--subject", "Delete E2E issue").Data["ref"].(float64))},
+		{resource: "story", ref: int(runner.jsonOK("story", "create", "--subject", "Delete E2E story").Data["ref"].(float64))},
+		{resource: "task", ref: int(runner.jsonOK("task", "create", "--subject", "Delete E2E task").Data["ref"].(float64))},
+		{resource: "epic", ref: int(runner.jsonOK("epic", "create", "--subject", "Delete E2E epic").Data["ref"].(float64))},
+	} {
+		deleted := runner.jsonOK(deletion.resource, "delete", strconv.Itoa(deletion.ref), "--yes")
+		if deleted.Data["deleted"] != true || deleted.Data["verified"] != true {
+			t.Fatalf("%s deletion=%#v", deletion.resource, deleted.Data)
+		}
+	}
+
 	editedSprint := runner.jsonOK("sprint", "edit", milestoneSlug, "--finish", "2026-09-08")
 	if editedSprint.Data["finish"] != "2026-09-08" {
 		t.Fatalf("sprint finish was not updated: %#v", editedSprint.Data)
@@ -621,6 +697,26 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 	if wikiEdited.Data["content"] != "# E2E guide\nUpdated from stdin" {
 		t.Fatalf("wiki stdin update=%#v", wikiEdited.Data)
 	}
+	wikiLink := runner.jsonOK("wiki-link", "create", "--title", "E2E Link Page")
+	wikiLinkID := int64(wikiLink.Data["id"].(float64))
+	wikiLinkHref := wikiLink.Data["href"].(string)
+	wikiLinks := runner.jsonOK("wiki-link", "list", "--fields", "id,title,href,order")
+	if !containsID(wikiLinks.Items, wikiLinkID) {
+		t.Fatalf("created Wiki link missing: %#v", wikiLinks.Items)
+	}
+	editedWikiLink := runner.jsonOK("wiki-link", "edit", strconv.FormatInt(wikiLinkID, 10), "--title", "E2E Link Updated")
+	if editedWikiLink.Data["title"] != "E2E Link Updated" {
+		t.Fatalf("Wiki link edit=%#v", editedWikiLink.Data)
+	}
+	deletedWikiLink := runner.jsonOK("wiki-link", "delete", strconv.FormatInt(wikiLinkID, 10), "--yes")
+	if deletedWikiLink.Data["deleted"] != true || deletedWikiLink.Data["page_deleted"] != false {
+		t.Fatalf("Wiki link delete=%#v", deletedWikiLink.Data)
+	}
+	retainedWikiPage := runner.jsonOK("wiki", "view", wikiLinkHref, "--fields", "slug,version")
+	if retainedWikiPage.Data["slug"] != wikiLinkHref {
+		t.Fatalf("Wiki link page was not retained: %#v", retainedWikiPage.Data)
+	}
+	runner.jsonOK("wiki", "delete", wikiLinkHref, "--yes")
 	wikiAttachment := runner.jsonOK("attachment", "add", "wiki", wikiSlug, attachmentPath, "--description", "Wiki evidence")
 	wikiAttachmentID := int64(wikiAttachment.Data["id"].(float64))
 	wikiAttachments := runner.jsonOK("attachment", "list", "wiki", wikiSlug, "--fields", "id,name,description")
@@ -1095,6 +1191,20 @@ func containsComment(items []map[string]any, comment string) bool {
 		}
 	}
 	return false
+}
+
+func historyIDForComment(t *testing.T, items []map[string]any, comment string) string {
+	t.Helper()
+	for _, item := range items {
+		if item["comment"] == comment {
+			id, _ := item["id"].(string)
+			if id != "" {
+				return id
+			}
+		}
+	}
+	t.Fatalf("history comment %q has no ID: %#v", comment, items)
+	return ""
 }
 
 func containsID(items []map[string]any, id int64) bool {

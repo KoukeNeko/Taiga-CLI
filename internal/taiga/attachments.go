@@ -2,6 +2,9 @@ package taiga
 
 import (
 	"context"
+	"crypto/sha1" // #nosec G505 -- Taiga exposes SHA-1 for compatibility verification; SHA-256 is also computed.
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,6 +15,12 @@ import (
 	"strings"
 	"time"
 )
+
+type AttachmentDownload struct {
+	Bytes  int64  `json:"bytes"`
+	SHA1   string `json:"sha1"`
+	SHA256 string `json:"sha256"`
+}
 
 func attachmentPath(resource string) (string, error) {
 	switch resource {
@@ -147,6 +156,55 @@ func (c *Client) DeleteAttachment(ctx context.Context, resource string, id int64
 		return err
 	}
 	return c.Delete(ctx, fmt.Sprintf("%s/%d", path, id))
+}
+
+func (c *Client) DownloadAttachment(ctx context.Context, attachment Attachment, destination io.Writer) (AttachmentDownload, error) {
+	parsed, err := url.Parse(attachment.URL)
+	if err != nil {
+		return AttachmentDownload{}, fmt.Errorf("parse attachment URL: %w", err)
+	}
+	if !parsed.IsAbs() {
+		parsed = c.baseURL.ResolveReference(parsed)
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return AttachmentDownload{}, fmt.Errorf("unsupported attachment URL scheme %q", parsed.Scheme)
+	}
+	parsed.Fragment = ""
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, parsed.String(), nil)
+	if err != nil {
+		return AttachmentDownload{}, err
+	}
+	request.Header.Set("Accept", "application/octet-stream")
+	request.Header.Set("User-Agent", "taiga-cli/0.1")
+	started := time.Now()
+	response, err := c.httpClient.Do(request)
+	if err != nil {
+		return AttachmentDownload{}, &Error{Kind: KindTransport, Operation: "GET " + parsed.Path, Message: "download attachment", Retryable: true, Cause: err}
+	}
+	c.log(http.MethodGet, parsed.Path, response.StatusCode, time.Since(started))
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		data, _ := io.ReadAll(io.LimitReader(response.Body, maxResponseBytes))
+		_ = response.Body.Close()
+		return AttachmentDownload{}, decodeAPIError("GET "+parsed.Path, response.StatusCode, data)
+	}
+	sha1Hash := sha1.New() // #nosec G401 -- compatibility check against Taiga's stored digest.
+	sha256Hash := sha256.New()
+	written, copyErr := io.Copy(io.MultiWriter(destination, sha1Hash, sha256Hash), response.Body)
+	closeErr := response.Body.Close()
+	if copyErr != nil || closeErr != nil {
+		if copyErr == nil {
+			copyErr = closeErr
+		}
+		return AttachmentDownload{}, &Error{Kind: KindTransport, Operation: "GET " + parsed.Path, Message: "stream attachment download", Retryable: true, Cause: copyErr}
+	}
+	result := AttachmentDownload{Bytes: written, SHA1: hex.EncodeToString(sha1Hash.Sum(nil)), SHA256: hex.EncodeToString(sha256Hash.Sum(nil))}
+	if attachment.Size > 0 && written != attachment.Size {
+		return result, &Error{Kind: KindTransport, Operation: "GET " + parsed.Path, Message: fmt.Sprintf("attachment size mismatch: expected %d bytes, received %d", attachment.Size, written), Retryable: true}
+	}
+	if attachment.SHA1 != "" && !strings.EqualFold(attachment.SHA1, result.SHA1) {
+		return result, &Error{Kind: KindTransport, Operation: "GET " + parsed.Path, Message: "attachment SHA-1 mismatch", Retryable: true}
+	}
+	return result, nil
 }
 
 func NormalizeAttachmentResource(value string) (string, error) {

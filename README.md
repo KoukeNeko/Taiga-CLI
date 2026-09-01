@@ -14,15 +14,16 @@
 - Project member/invitation 與 Role/permission 管理。
 - Webhook list、view、create、edit、test、delete，secret 永不回顯。
 - Epic、Story、Task、Issue 的 Custom field definition 與 OCC value merge。
-- Epic list、view、create、edit、close、跨專案 Story link/unlink、watch 與 history。
-- Issue list、view、create、edit、close、assign、comment。
-- User Story list、view、create、edit、close、move、assign、comment。
-- Task list、view、create、edit、done、assign、comment。
+- Epic list、view、create、edit、close、delete、跨專案 Story link/unlink、watch 與 history。
+- Issue list、view、create、edit、close、assign、comment、delete。
+- User Story list、view、create、edit、close、move、assign、comment、delete。
+- Task list、view、create、edit、done、assign、comment、delete。
 - Sprint list、view、create、edit、close、reopen。
-- Issue、Story、Task、Epic 的 vote、unvote，以及 watch、unwatch、activity/comment history。
+- Issue、Story、Task、Epic 的 vote/unvote、voter list，以及 watch/unwatch、watcher list、activity/comment history。
 - Project timeline，以及 Project backlog/velocity、Issue 趨勢、Member 貢獻與 Sprint burndown stats。
-- Issue、Story、Task、Epic、Wiki 的附件 streaming upload、list、view、edit、delete。
+- Issue、Story、Task、Epic、Wiki 的附件 streaming upload/download、list、view、edit、delete。
 - Wiki list、view、create、edit、delete、watch 與 history。
+- Comment edit/delete、Wiki navigation link CRUD，以及八類 Workflow metadata CRUD。
 - Taiga optimistic concurrency control（OCC）與 `--base-version`。
 - Human output、versioned JSON、`--fields`、structured error 與固定 exit code。
 - `--dry-run`、`--no-input`、redacted verbose logging。
@@ -256,13 +257,14 @@ taiga attachment list issue 42
 taiga attachment add issue 42 ./error.log --description "Build failure"
 cat error.log | taiga attachment add issue 42 - --name error.log
 taiga attachment view issue 17
+taiga attachment download issue 17 --output ./error.log
 taiga attachment edit issue 17 --description "Resolved" --deprecated
 taiga attachment delete issue 17 --yes
 taiga attachment add epic 8 ./proposal.pdf
 taiga attachment add wiki api-guide ./diagram.png
 ```
 
-Attachment 支援 issue、story、task、epic、wiki。Wiki 使用 slug，其餘資源使用 ref。非互動刪除必須明確提供 `--yes`；upload 採 streaming，不會先把整個檔案載入記憶體。
+Attachment 支援 issue、story、task、epic、wiki。Wiki 使用 slug，其餘資源使用 ref。非互動刪除必須明確提供 `--yes`；upload/download 都採 streaming。Download 不會把 API bearer token 傳到 media URL，會核對 Taiga SHA-1 與本機 SHA-256，使用 `0600` 暫存檔後原子落盤，且預設不覆寫既有檔案。
 
 關注工作項目與查看歷史：
 
@@ -271,6 +273,10 @@ taiga issue watch 42
 taiga issue vote 42
 taiga issue history 42
 taiga issue history 42 --type comment
+taiga comment edit issue 42 <history-id> --body "Corrected comment"
+taiga comment delete issue 42 <history-id> --yes
+taiga issue watchers 42
+taiga issue voters 42
 taiga issue unvote 42
 taiga issue unwatch 42
 
@@ -278,7 +284,7 @@ taiga story history 51 --type activity
 taiga task history 72 --page 2 --limit 20
 ```
 
-Watch/unwatch 支援 issue、story、task、wiki、epic；vote/unvote 支援 issue、story、task、epic。命令會在 mutation 後分別回讀 `is_watcher` 或 `is_voter` 確認狀態。History 的 `--type` 可用 `all`、`activity`、`comment`。
+Watch/unwatch 與 watcher list 支援 issue、story、task、wiki、epic；vote/unvote 與 voter list 支援 issue、story、task、epic。Comment edit/delete 以 history entry ID 定位並在 mutation 後回讀確認。History 的 `--type` 可用 `all`、`activity`、`comment`。
 
 管理 Wiki：
 
@@ -294,6 +300,28 @@ taiga wiki delete api-guide --yes
 ```
 
 Wiki identifier 支援裸 slug、`project#slug` 與 Taiga Wiki URL。Edit 使用 OCC；非互動刪除必須提供 `--yes`。
+
+Wiki navigation link：
+
+```sh
+taiga wiki-link list
+taiga wiki-link create --title "API Guide"
+taiga wiki-link edit api-guide --title "Public API Guide"
+taiga wiki-link delete api-guide --yes
+```
+
+Taiga 由 title 產生 immutable `href`；建立 link 時在權限允許下也會建立對應 Wiki page。刪除 link 不會刪除 page。
+
+Workflow metadata：
+
+```sh
+taiga metadata list issue-status
+taiga metadata create issue-status --name Review --color '#4A90E2'
+taiga metadata edit issue-status Review --closed=true
+taiga metadata delete issue-status Review --move-to New --yes
+```
+
+支援 `epic-status`、`story-status`、`task-status`、`issue-status`、`points`、`priority`、`severity`、`issue-type`。刪除必須提供同 kind 的 `--move-to`；Taiga 會先搬移關聯工作項目與 Project default，再刪除 metadata。
 
 管理 Epic 與跨專案 Story 關聯：
 

@@ -48,10 +48,12 @@ func (a *App) issueCommand() *cobra.Command {
 		a.issueCloseCommand(),
 		a.issueAssignCommand(),
 		a.issueCommentCommand(),
+		a.deleteWorkItemCommand("issue"),
 		a.watchCommand("issue", true),
 		a.watchCommand("issue", false),
 		a.historyCommand("issue"),
 		a.voteCommand("issue", true), a.voteCommand("issue", false),
+		a.participantCommand("issue", "watchers"), a.participantCommand("issue", "voters"),
 	)
 	return command
 }

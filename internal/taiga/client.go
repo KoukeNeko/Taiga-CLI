@@ -121,6 +121,10 @@ func (c *Client) Post(ctx context.Context, path string, body, out any) (http.Hea
 	return c.doJSON(ctx, http.MethodPost, path, nil, body, out, false, false)
 }
 
+func (c *Client) PostQuery(ctx context.Context, path string, query url.Values, body, out any) (http.Header, error) {
+	return c.doJSON(ctx, http.MethodPost, path, query, body, out, false, false)
+}
+
 func (c *Client) Patch(ctx context.Context, path string, body, out any) (http.Header, error) {
 	return c.doJSON(ctx, http.MethodPatch, path, nil, body, out, false, false)
 }
