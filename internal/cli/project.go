@@ -16,7 +16,8 @@ func (a *App) projectCommand() *cobra.Command {
 	command := &cobra.Command{Use: "project", Short: "Work with Taiga projects"}
 	command.AddCommand(
 		a.projectListCommand(), a.projectViewCommand(), a.projectUseCommand(), a.projectCreateCommand(),
-		a.projectEditCommand(), a.projectArchiveCommand(true), a.projectArchiveCommand(false), a.projectDeleteCommand(),
+		a.projectEditCommand(), a.projectExportCommand(), a.projectImportCommand(),
+		a.projectArchiveCommand(true), a.projectArchiveCommand(false), a.projectDeleteCommand(),
 	)
 	return command
 }

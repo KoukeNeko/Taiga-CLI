@@ -10,6 +10,7 @@
 - 互動式帳密登入、stdin token 登入、OS keyring 與 `TAIGA_TOKEN`。
 - 多 profile、profile 預設 project 與 Git-local project mapping。
 - Project list、view、use、create、edit、delete。
+- Project portable dump export/import，支援 plain JSON 與 gzip、串流上傳及非同步狀態。
 - Project member/invitation 與 Role/permission 管理。
 - Webhook list、view、create、edit、test、delete，secret 永不回顯。
 - Epic、Story、Task、Issue 的 Custom field definition 與 OCC value merge。
@@ -94,6 +95,17 @@ taiga project delete mobile-app --yes
 ```
 
 Project 預設建立為 private；使用 `--public` 明確建立公開專案。永久刪除由 Taiga 非同步執行且不可還原，非互動模式必須提供 `--yes`。目前 Taiga 6 REST API 將 `archived_code` 設為唯讀且沒有 archive action，因此 `project archive|unarchive` 會清楚回報 `unsupported_capability`，需由站台管理者處理。
+
+匯出與匯入 Project dump：
+
+```sh
+taiga project export example-project --format gzip --json
+taiga project import ./example-project-export.json.gz --dry-run --json
+taiga project import ./example-project-export.json.gz --yes --json
+cat example-project-export.json | taiga project import - --yes --json
+```
+
+Taiga production deployment 通常以背景工作產生 export／執行 import。此時 CLI 會回報 `status: "accepted"`、task ID 與 `verified: false`；完成或失敗結果由 Taiga 寄送 email。停用 Celery 的同步部署則會直接回傳 `status: "ready"` 加下載 URL，或 `status: "created"` 加已建立的 Project。Export request 雖使用 Taiga 的 GET endpoint，但會建立背景工作，因此 CLI 刻意不自動 retry。Import 會先在本機串流驗證 JSON／gzip 格式，不會把整份 dump 載入記憶體；非互動模式必須明確提供 `--yes`。
 
 管理成員與 Role：
 

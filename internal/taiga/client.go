@@ -108,23 +108,29 @@ func (c *Client) APIURL() string { return c.baseURL.String() }
 func (c *Client) SetToken(token string) { c.token = strings.TrimSpace(token) }
 
 func (c *Client) Get(ctx context.Context, path string, query url.Values, out any) (http.Header, error) {
-	return c.doJSON(ctx, http.MethodGet, path, query, nil, out)
+	return c.doJSON(ctx, http.MethodGet, path, query, nil, out, true, false)
+}
+
+// GetOnce performs a GET without automatic retries. It is reserved for Taiga
+// endpoints that use GET to enqueue work and are therefore not idempotent.
+func (c *Client) GetOnce(ctx context.Context, path string, query url.Values, out any) (http.Header, error) {
+	return c.doJSON(ctx, http.MethodGet, path, query, nil, out, false, true)
 }
 
 func (c *Client) Post(ctx context.Context, path string, body, out any) (http.Header, error) {
-	return c.doJSON(ctx, http.MethodPost, path, nil, body, out)
+	return c.doJSON(ctx, http.MethodPost, path, nil, body, out, false, false)
 }
 
 func (c *Client) Patch(ctx context.Context, path string, body, out any) (http.Header, error) {
-	return c.doJSON(ctx, http.MethodPatch, path, nil, body, out)
+	return c.doJSON(ctx, http.MethodPatch, path, nil, body, out, false, false)
 }
 
 func (c *Client) Delete(ctx context.Context, path string) error {
-	_, err := c.doJSON(ctx, http.MethodDelete, path, nil, nil, nil)
+	_, err := c.doJSON(ctx, http.MethodDelete, path, nil, nil, nil, false, false)
 	return err
 }
 
-func (c *Client) doJSON(ctx context.Context, method, path string, query url.Values, body, out any) (http.Header, error) {
+func (c *Client) doJSON(ctx context.Context, method, path string, query url.Values, body, out any, retryGET, ambiguousGET bool) (http.Header, error) {
 	var payload []byte
 	var err error
 	if body != nil {
@@ -136,7 +142,7 @@ func (c *Client) doJSON(ctx context.Context, method, path string, query url.Valu
 	endpoint := c.baseURL.ResolveReference(&url.URL{Path: strings.TrimPrefix(path, "/")})
 	endpoint.RawQuery = query.Encode()
 	attempts := 1
-	if method == http.MethodGet {
+	if method == http.MethodGet && retryGET {
 		attempts = c.maxRetries
 		if attempts < 1 {
 			attempts = 1
@@ -167,7 +173,7 @@ func (c *Client) doJSON(ctx context.Context, method, path string, query url.Valu
 				return nil, ctx.Err()
 			}
 			c.log(method, endpoint.Path, 0, time.Since(started))
-			if method != http.MethodGet {
+			if method != http.MethodGet || ambiguousGET {
 				return nil, &Error{Kind: KindAmbiguousCommit, Operation: method + " " + endpoint.Path, Message: "request may have been committed; verify before retrying", Retryable: false, Cause: err}
 			}
 			if attempt < attempts {
@@ -182,13 +188,13 @@ func (c *Client) doJSON(ctx context.Context, method, path string, query url.Valu
 		data, readErr := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
 		closeErr := resp.Body.Close()
 		if readErr != nil {
-			if method != http.MethodGet {
+			if method != http.MethodGet || ambiguousGET {
 				return nil, &Error{Kind: KindAmbiguousCommit, Operation: method + " " + endpoint.Path, Message: "request may have been committed; verify before retrying", Retryable: false, Cause: readErr}
 			}
 			return nil, &Error{Kind: KindTransport, Operation: method + " " + endpoint.Path, Message: "read Taiga API response", Retryable: method == http.MethodGet, Cause: readErr}
 		}
 		if closeErr != nil {
-			if method != http.MethodGet {
+			if method != http.MethodGet || ambiguousGET {
 				return nil, &Error{Kind: KindAmbiguousCommit, Operation: method + " " + endpoint.Path, Message: "request may have been committed; verify before retrying", Retryable: false, Cause: closeErr}
 			}
 			return nil, &Error{Kind: KindTransport, Operation: method + " " + endpoint.Path, Message: "close Taiga API response", Retryable: false, Cause: closeErr}
@@ -212,7 +218,7 @@ func (c *Client) doJSON(ctx context.Context, method, path string, query url.Valu
 		}
 		if out != nil && len(bytes.TrimSpace(data)) > 0 {
 			if err := json.Unmarshal(data, out); err != nil {
-				if method != http.MethodGet {
+				if method != http.MethodGet || ambiguousGET {
 					return resp.Header, &Error{Kind: KindAmbiguousCommit, Operation: method + " " + endpoint.Path, Message: "request was accepted but its result could not be decoded; verify before retrying", Retryable: false, Cause: err}
 				}
 				return resp.Header, &Error{Kind: KindTransport, Operation: method + " " + endpoint.Path, Message: "decode Taiga API response", Retryable: false, Cause: err}

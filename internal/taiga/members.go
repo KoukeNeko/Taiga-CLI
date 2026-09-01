@@ -54,6 +54,6 @@ func (c *Client) DeleteRole(ctx context.Context, id int64, moveTo *int64) error 
 	if moveTo != nil {
 		query.Set("moveTo", fmt.Sprint(*moveTo))
 	}
-	_, err := c.doJSON(ctx, http.MethodDelete, fmt.Sprintf("roles/%d", id), query, nil, nil)
+	_, err := c.doJSON(ctx, http.MethodDelete, fmt.Sprintf("roles/%d", id), query, nil, nil, false, false)
 	return err
 }

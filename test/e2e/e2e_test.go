@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -34,7 +35,8 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 	verifyEmail(t, username)
 	memberUsername := "member_" + strconv.FormatInt(time.Now().UnixNano(), 36)
 	memberEmail := memberUsername + "@localhost.invalid"
-	_ = register(t, baseURL, memberUsername, password)
+	memberToken := register(t, baseURL, memberUsername, password)
+	verifyEmail(t, memberUsername)
 	project := createProject(t, baseURL, token)
 	projectID := int64(project["id"].(float64))
 	projectSlug := project["slug"].(string)
@@ -627,6 +629,29 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 		t.Fatalf("task search returned no tasks: %#v", taskSearch.Items)
 	}
 
+	exportResult := runner.jsonOK("project", "export", projectSlug, "--format", "gzip")
+	if exportResult.Data["status"] != "accepted" || exportResult.Data["verified"] != false {
+		t.Fatalf("async project export=%#v", exportResult.Data)
+	}
+	exportID, _ := exportResult.Data["export_id"].(string)
+	if exportID == "" {
+		t.Fatalf("project export missing export_id: %#v", exportResult.Data)
+	}
+	dumpPath := filepath.Join(runner.dir, "project-export.json.gz")
+	dumpURL := fmt.Sprintf("%smedia/exports/%d/%s-%s.json.gz", host, projectID, projectSlug, exportID)
+	waitForProjectDump(t, dumpURL, dumpPath)
+	importRunner := runner
+	importRunner.env = replaceEnv(runner.env, "TAIGA_TOKEN", memberToken)
+	importResult := importRunner.jsonOK("project", "import", dumpPath, "--yes")
+	if importResult.Data["status"] != "accepted" || importResult.Data["verified"] != false {
+		t.Fatalf("async project import=%#v", importResult.Data)
+	}
+	if importID, _ := importResult.Data["import_id"].(string); importID == "" {
+		t.Fatalf("project import missing import_id: %#v", importResult.Data)
+	}
+	importedProjectID := waitForImportedProject(t, baseURL, memberToken, project["name"].(string), projectID, secondaryProjectID)
+	apiRequest(t, http.MethodDelete, baseURL+"projects/"+strconv.FormatInt(importedProjectID, 10), memberToken, nil, nil)
+
 	invalidRunner := runner
 	invalidRunner.env = replaceEnv(runner.env, "TAIGA_TOKEN", "token-that-must-never-appear")
 	stdout, stderr, code = invalidRunner.run("--verbose", "auth", "status")
@@ -739,6 +764,55 @@ func createProject(t *testing.T, baseURL, token string) map[string]any {
 	var project map[string]any
 	apiRequest(t, http.MethodPost, baseURL+"projects", token, body, &project)
 	return project
+}
+
+func waitForProjectDump(t *testing.T, rawURL, path string) {
+	t.Helper()
+	deadline := time.Now().Add(90 * time.Second)
+	for time.Now().Before(deadline) {
+		response, err := http.Get(rawURL)
+		if err == nil && response.StatusCode == http.StatusOK {
+			file, createErr := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+			if createErr != nil {
+				_ = response.Body.Close()
+				t.Fatal(createErr)
+			}
+			_, copyErr := io.Copy(file, response.Body)
+			closeErr := file.Close()
+			bodyCloseErr := response.Body.Close()
+			if copyErr != nil || closeErr != nil || bodyCloseErr != nil {
+				t.Fatalf("download project dump: copy=%v close=%v body_close=%v", copyErr, closeErr, bodyCloseErr)
+			}
+			return
+		}
+		if response != nil {
+			_ = response.Body.Close()
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	t.Fatalf("project dump was not ready before timeout: %s", rawURL)
+}
+
+func waitForImportedProject(t *testing.T, baseURL, token, name string, excludedIDs ...int64) int64 {
+	t.Helper()
+	excluded := map[int64]bool{}
+	for _, id := range excludedIDs {
+		excluded[id] = true
+	}
+	deadline := time.Now().Add(90 * time.Second)
+	for time.Now().Before(deadline) {
+		var projects []map[string]any
+		apiRequest(t, http.MethodGet, baseURL+"projects?page_size=1000", token, nil, &projects)
+		for _, project := range projects {
+			id := int64(project["id"].(float64))
+			if project["name"] == name && !excluded[id] {
+				return id
+			}
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	t.Fatalf("imported project %q was not visible before timeout", name)
+	return 0
 }
 
 func firstProjectTemplate(t *testing.T, baseURL, token string) string {
