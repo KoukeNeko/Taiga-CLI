@@ -8,11 +8,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/KoukeNeko/taiga-cli/internal/atomicfile"
 )
 
 const schemaVersion = 1
@@ -118,41 +119,8 @@ func (s *Store) save(cache file) error {
 	if err != nil {
 		return fmt.Errorf("encode completion cache: %w", err)
 	}
-	dir := filepath.Dir(s.path)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return fmt.Errorf("create completion cache directory: %w", err)
-	}
-	tmp, err := os.CreateTemp(dir, ".completion-cache-*.tmp")
-	if err != nil {
-		return fmt.Errorf("create completion cache temporary file: %w", err)
-	}
-	tmpName := tmp.Name()
-	defer func() { _ = os.Remove(tmpName) }()
-	if err := tmp.Chmod(0o600); err != nil {
-		_ = tmp.Close()
-		return fmt.Errorf("protect completion cache: %w", err)
-	}
-	if _, err := tmp.Write(data); err != nil {
-		_ = tmp.Close()
-		return fmt.Errorf("write completion cache: %w", err)
-	}
-	if err := tmp.Sync(); err != nil {
-		_ = tmp.Close()
-		return fmt.Errorf("sync completion cache: %w", err)
-	}
-	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("close completion cache: %w", err)
-	}
-	if err := os.Rename(tmpName, s.path); err != nil {
-		if runtime.GOOS != "windows" {
-			return fmt.Errorf("replace completion cache: %w", err)
-		}
-		if removeErr := os.Remove(s.path); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
-			return fmt.Errorf("remove previous completion cache: %w", removeErr)
-		}
-		if renameErr := os.Rename(tmpName, s.path); renameErr != nil {
-			return fmt.Errorf("replace completion cache: %w", renameErr)
-		}
+	if err := atomicfile.Write(s.path, data); err != nil {
+		return fmt.Errorf("save completion cache %q: %w", s.path, err)
 	}
 	return nil
 }

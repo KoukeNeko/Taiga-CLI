@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 
+	"github.com/KoukeNeko/taiga-cli/internal/atomicfile"
 	"github.com/pelletier/go-toml/v2"
 )
 
@@ -73,41 +73,8 @@ func (s *Store) Save(cfg File) error {
 	if err != nil {
 		return fmt.Errorf("encode config: %w", err)
 	}
-	dir := filepath.Dir(s.path)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return fmt.Errorf("create config directory: %w", err)
-	}
-	tmp, err := os.CreateTemp(dir, ".config-*.tmp")
-	if err != nil {
-		return fmt.Errorf("create temporary config: %w", err)
-	}
-	tmpName := tmp.Name()
-	defer func() { _ = os.Remove(tmpName) }()
-	if err := tmp.Chmod(0o600); err != nil {
-		_ = tmp.Close()
-		return fmt.Errorf("protect temporary config: %w", err)
-	}
-	if _, err := tmp.Write(data); err != nil {
-		_ = tmp.Close()
-		return fmt.Errorf("write temporary config: %w", err)
-	}
-	if err := tmp.Sync(); err != nil {
-		_ = tmp.Close()
-		return fmt.Errorf("sync temporary config: %w", err)
-	}
-	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("close temporary config: %w", err)
-	}
-	if err := os.Rename(tmpName, s.path); err != nil {
-		if runtime.GOOS != "windows" {
-			return fmt.Errorf("replace config: %w", err)
-		}
-		if removeErr := os.Remove(s.path); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
-			return fmt.Errorf("remove previous config: %w", removeErr)
-		}
-		if renameErr := os.Rename(tmpName, s.path); renameErr != nil {
-			return fmt.Errorf("replace config: %w", renameErr)
-		}
+	if err := atomicfile.Write(s.path, data); err != nil {
+		return fmt.Errorf("save config %q: %w", s.path, err)
 	}
 	return nil
 }
