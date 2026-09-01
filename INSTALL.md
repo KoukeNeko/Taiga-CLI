@@ -27,6 +27,25 @@ shasum -a 256 --check SHA256SUMS
 
 Windows PowerShell 可用 `Get-FileHash -Algorithm SHA256 <archive>`，並與 `SHA256SUMS` 對照。驗證後解壓縮，將 `taiga`（Windows 為 `taiga.exe`）移到 `PATH` 中的目錄。每個 archive 也包含 README、相容性文件、SPDX SBOM 與四種 shell completion。
 
+## macOS Gatekeeper
+
+Release binary 目前**未經 Apple 簽署與 notarization**。以瀏覽器下載 archive 時，macOS 會加上
+`com.apple.quarantine` 屬性，解壓後執行會被 Gatekeeper 擋下並顯示無法驗證開發者。
+
+移除隔離屬性後即可執行：
+
+```sh
+xattr -d com.apple.quarantine ./taiga
+```
+
+以 `curl` 或 `wget` 下載則不會被加上隔離屬性，不需要這個步驟：
+
+```sh
+curl -fLO https://github.com/KoukeNeko/Taiga-CLI/releases/download/<version>/taiga_<version>_darwin_arm64.tar.gz
+```
+
+無論哪種方式，都應先用 `SHA256SUMS` 驗證檔案完整性再執行。
+
 ## Shell completion
 
 Archive 的 `completions/` 包含：
