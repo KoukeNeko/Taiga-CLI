@@ -20,6 +20,7 @@
 - Task list、view、create、edit、done、assign、comment。
 - Sprint list、view、create、edit、close、reopen。
 - Issue、Story、Task、Epic 的 vote、unvote，以及 watch、unwatch、activity/comment history。
+- Project timeline，以及 Project backlog/velocity、Issue 趨勢、Member 貢獻與 Sprint burndown stats。
 - Issue、Story、Task、Epic、Wiki 的附件 streaming upload、list、view、edit、delete。
 - Wiki list、view、create、edit、delete、watch 與 history。
 - Taiga optimistic concurrency control（OCC）與 `--base-version`。
@@ -202,6 +203,22 @@ taiga search "API tests" --type task --json --fields kind,ref,subject
 ```
 
 Search 支援 epic、story、task、issue、wiki；Taiga server 每次最多回傳 150 筆。
+
+查看跨資源 Timeline 與統計：
+
+```sh
+taiga timeline
+taiga timeline --only-relevant=false --page 2 --limit 50
+
+taiga stats project
+taiga stats issues example-project
+taiga stats members
+taiga stats sprint sprint-27
+taiga stats discover
+taiga stats system
+```
+
+`timeline` 使用目前選取的 Project，預設排除低訊號 change/delete；輸出會將 Taiga event 正規化為 resource、action、ref/slug、subject、user、comment 與 changes。`stats project|issues|members` 可省略 project slug 並使用目前 Project；`stats sprint` 使用目前 Project 解析 Sprint。`stats discover` 可查公開可探索的 Project 數量。`stats system` 只有站台管理者啟用 Taiga `STATS_ENABLED` 時才存在，未啟用的標準部署會回報 `not_found`。
 
 管理附件：
 

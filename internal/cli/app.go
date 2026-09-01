@@ -141,6 +141,8 @@ func (a *App) rootCommand() *cobra.Command {
 		a.sprintCommand(),
 		a.wikiCommand(),
 		a.searchCommand(),
+		a.timelineCommand(),
+		a.statsCommand(),
 		a.attachmentCommand(),
 		a.schemaCommand(),
 		a.completionCommand(root),

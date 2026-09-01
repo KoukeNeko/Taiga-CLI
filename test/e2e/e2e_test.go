@@ -629,6 +629,31 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 		t.Fatalf("task search returned no tasks: %#v", taskSearch.Items)
 	}
 
+	timeline := runner.jsonOK("timeline", "--limit", "100", "--fields", "id,resource,action,ref,slug,subject,username,created")
+	if len(timeline.Items) == 0 || !containsTimelineResource(timeline.Items, "issue") || !containsTimelineResource(timeline.Items, "story") {
+		t.Fatalf("project timeline missing expected resources: %#v", timeline.Items)
+	}
+	projectStats := runner.jsonOK("stats", "project", projectSlug, "--fields", "project,name,defined_points,assigned_points,closed_points,speed,milestones")
+	if projectStats.Data["project"] != projectSlug || projectStats.Data["name"] != project["name"] {
+		t.Fatalf("project stats=%#v", projectStats.Data)
+	}
+	issueStats := runner.jsonOK("stats", "issues", projectSlug, "--fields", "project,total_issues,opened_issues,closed_issues,last_four_weeks_days")
+	if issueStats.Data["total_issues"].(float64) < 1 || issueStats.Data["project"] != projectSlug {
+		t.Fatalf("issue stats=%#v", issueStats.Data)
+	}
+	memberStats := runner.jsonOK("stats", "members", projectSlug, "--fields", "id,username,created_bugs,closed_bugs,closed_tasks,wiki_changes")
+	if !containsUsername(memberStats.Items, username) {
+		t.Fatalf("member stats missing owner %q: %#v", username, memberStats.Items)
+	}
+	sprintStats := runner.jsonOK("stats", "sprint", milestoneSlug, "--fields", "project,slug,name,total_userstories,completed_userstories,total_tasks,completed_tasks,days")
+	if sprintStats.Data["project"] != projectSlug || sprintStats.Data["slug"] != milestoneSlug {
+		t.Fatalf("sprint stats=%#v", sprintStats.Data)
+	}
+	discoverStats := runner.jsonOK("stats", "discover", "--fields", "projects")
+	if discoverStats.Data["projects"] == nil {
+		t.Fatalf("discover stats=%#v", discoverStats.Data)
+	}
+
 	exportResult := runner.jsonOK("project", "export", projectSlug, "--format", "gzip")
 	if exportResult.Data["status"] != "accepted" || exportResult.Data["verified"] != false {
 		t.Fatalf("async project export=%#v", exportResult.Data)
@@ -969,6 +994,24 @@ func containsSlug(items []map[string]any, slug string) bool {
 func containsKind(items []map[string]any, kind string) bool {
 	for _, item := range items {
 		if item["kind"] == kind {
+			return true
+		}
+	}
+	return false
+}
+
+func containsTimelineResource(items []map[string]any, resource string) bool {
+	for _, item := range items {
+		if item["resource"] == resource {
+			return true
+		}
+	}
+	return false
+}
+
+func containsUsername(items []map[string]any, username string) bool {
+	for _, item := range items {
+		if item["username"] == username {
 			return true
 		}
 	}
