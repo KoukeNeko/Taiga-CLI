@@ -1,6 +1,9 @@
 package taiga
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestParseItemRef(t *testing.T) {
 	tests := []struct {
@@ -52,5 +55,31 @@ func TestParseTaskRefURL(t *testing.T) {
 	}
 	if got != (ItemRef{Project: "demo", Ref: 21}) {
 		t.Fatalf("ParseTaskRef() = %#v", got)
+	}
+}
+
+func TestParseRefErrorsNameTheWorkItemKind(t *testing.T) {
+	tests := []struct {
+		name  string
+		parse func(string, string) (ItemRef, error)
+		label string
+	}{
+		{name: "issue", parse: ParseItemRef, label: "issue"},
+		{name: "story", parse: ParseStoryRef, label: "story"},
+		{name: "task", parse: ParseTaskRef, label: "task"},
+		{name: "epic", parse: ParseEpicRef, label: "epic"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			for _, input := range []string{"", "not-a-ref", "demo#0", "https://example.test/project/demo/issue/x"} {
+				_, err := test.parse(input, "fallback")
+				if err == nil {
+					t.Fatalf("parse(%q) succeeded", input)
+				}
+				if !strings.Contains(err.Error(), test.label) {
+					t.Fatalf("parse(%q) error = %q, want it to name %q", input, err, test.label)
+				}
+			}
+		})
 	}
 }

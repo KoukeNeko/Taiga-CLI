@@ -13,25 +13,28 @@ type ItemRef struct {
 }
 
 func ParseItemRef(value, defaultProject string) (ItemRef, error) {
-	return parseTypedItemRef(value, defaultProject, map[string]struct{}{"issue": {}})
+	return parseTypedItemRef(value, defaultProject, "issue", map[string]struct{}{"issue": {}})
 }
 
 func ParseStoryRef(value, defaultProject string) (ItemRef, error) {
-	return parseTypedItemRef(value, defaultProject, map[string]struct{}{"us": {}, "story": {}, "userstory": {}, "user-story": {}})
+	return parseTypedItemRef(value, defaultProject, "story", map[string]struct{}{"us": {}, "story": {}, "userstory": {}, "user-story": {}})
 }
 
 func ParseTaskRef(value, defaultProject string) (ItemRef, error) {
-	return parseTypedItemRef(value, defaultProject, map[string]struct{}{"task": {}})
+	return parseTypedItemRef(value, defaultProject, "task", map[string]struct{}{"task": {}})
 }
 
 func ParseEpicRef(value, defaultProject string) (ItemRef, error) {
-	return parseTypedItemRef(value, defaultProject, map[string]struct{}{"epic": {}})
+	return parseTypedItemRef(value, defaultProject, "epic", map[string]struct{}{"epic": {}})
 }
 
-func parseTypedItemRef(value, defaultProject string, kinds map[string]struct{}) (ItemRef, error) {
+// parseTypedItemRef accepts a bare ref, a project#ref pair, or a Taiga web URL.
+// label names the work item kind so that failures point at the command the
+// caller actually ran rather than at a generic item.
+func parseTypedItemRef(value, defaultProject, label string, kinds map[string]struct{}) (ItemRef, error) {
 	value = strings.TrimSpace(value)
 	if value == "" {
-		return ItemRef{}, fmt.Errorf("item reference cannot be empty")
+		return ItemRef{}, fmt.Errorf("%s reference cannot be empty", label)
 	}
 	if parsed, err := url.Parse(value); err == nil && parsed.Scheme != "" && parsed.Host != "" {
 		parts := splitPath(parsed.Path)
@@ -40,23 +43,23 @@ func parseTypedItemRef(value, defaultProject string, kinds map[string]struct{}) 
 			if parts[index] == "project" && kindMatches {
 				ref, err := strconv.Atoi(parts[index+3])
 				if err != nil || ref <= 0 {
-					return ItemRef{}, fmt.Errorf("invalid issue ref in URL %q", value)
+					return ItemRef{}, fmt.Errorf("invalid %s ref in URL %q", label, value)
 				}
 				return ItemRef{Project: parts[index+1], Ref: ref}, nil
 			}
 		}
-		return ItemRef{}, fmt.Errorf("URL %q is not a supported Taiga item URL", value)
+		return ItemRef{}, fmt.Errorf("URL %q is not a supported Taiga %s URL", value, label)
 	}
 	if project, rawRef, ok := strings.Cut(value, "#"); ok {
 		ref, err := strconv.Atoi(rawRef)
 		if strings.TrimSpace(project) == "" || err != nil || ref <= 0 {
-			return ItemRef{}, fmt.Errorf("invalid issue reference %q", value)
+			return ItemRef{}, fmt.Errorf("invalid %s reference %q", label, value)
 		}
 		return ItemRef{Project: strings.TrimSpace(project), Ref: ref}, nil
 	}
 	ref, err := strconv.Atoi(value)
 	if err != nil || ref <= 0 {
-		return ItemRef{}, fmt.Errorf("invalid issue reference %q", value)
+		return ItemRef{}, fmt.Errorf("invalid %s reference %q", label, value)
 	}
 	if strings.TrimSpace(defaultProject) == "" {
 		return ItemRef{}, fmt.Errorf("no project selected; run `taiga project use <slug>` or pass --project")
