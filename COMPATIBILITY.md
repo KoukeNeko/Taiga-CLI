@@ -35,3 +35,5 @@ CI 會在 Ubuntu、macOS、Windows 編譯，並在 Linux 驗證完整 release ar
 ## Machine contract migration
 
 CLI JSON contract 目前為 `meta.contract: 1`。同一 contract 版本內只新增 optional field；移除、重新命名或改變既有欄位型別時，必須提升 contract version 並在 Release Notes 提供 migration 說明。
+
+Diagnostic bundle format 目前為 `manifest.format: 1`，與 CLI JSON contract 分開演進。Bundle 不含 runtime identifier 或 secret，且永遠只在本機建立、不主動上傳。

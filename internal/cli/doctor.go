@@ -98,5 +98,6 @@ func (a *App) doctorCommand() *cobra.Command {
 		},
 	}
 	command.Flags().StringVar(&host, "host", "", "Taiga frontend URL used to discover conf.json")
+	command.AddCommand(a.doctorBundleCommand())
 	return command
 }

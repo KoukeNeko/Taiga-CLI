@@ -417,6 +417,14 @@ taiga doctor --api-url http://localhost:9000/taiga/api/v1/ --json
 
 `doctor` 分別檢查 frontend discovery、API、authentication 與預設 project，不會輸出 token。
 
+建立可主動分享的 redacted diagnostic bundle：
+
+```sh
+taiga doctor bundle ./taiga-diagnostics.zip --json
+```
+
+Bundle 只包含 CLI/Go/OS 版本、設定是否存在的布林值與數量，以及 API/authentication/Project 的 ok/pending/error code。它不包含 URL、hostname、username、Project/profile 名稱、cwd、環境變數值、request/response body、原始 log 或 credential，也不會自動上傳。輸出與 zip entry 權限為 `0600`；既有檔案預設不覆寫，需要明確 `--force`。
+
 ## 測試
 
 快速測試不啟動 Docker：

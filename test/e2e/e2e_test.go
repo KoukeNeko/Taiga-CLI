@@ -3,6 +3,7 @@
 package e2e
 
 import (
+	"archive/zip"
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
@@ -59,6 +60,17 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 	}}
 
 	runner.jsonOK("doctor", "--host", host)
+	diagnosticPath := filepath.Join(runner.dir, "taiga-diagnostics.zip")
+	diagnostic := runner.jsonOK("doctor", "bundle", diagnosticPath)
+	if diagnostic.Data["redacted"] != true || diagnostic.Data["uploaded"] != false {
+		t.Fatalf("diagnostic bundle result=%#v", diagnostic.Data)
+	}
+	diagnosticContents := readDiagnosticZip(t, diagnosticPath)
+	for _, forbidden := range []string{token, username, projectSlug, baseURL, host, runner.dir, home} {
+		if bytes.Contains(diagnosticContents, []byte(forbidden)) {
+			t.Fatalf("diagnostic bundle leaked %q: %s", forbidden, diagnosticContents)
+		}
+	}
 	runner.jsonOK("auth", "status")
 	runner.jsonOK("project", "list", "--limit", "10")
 	runner.jsonOK("project", "view", projectSlug)
@@ -852,6 +864,28 @@ func validGzip(data []byte) bool {
 	_, copyErr := io.Copy(io.Discard, reader)
 	closeErr := reader.Close()
 	return copyErr == nil && closeErr == nil
+}
+
+func readDiagnosticZip(t *testing.T, path string) []byte {
+	t.Helper()
+	reader, err := zip.OpenReader(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = reader.Close() }()
+	var contents bytes.Buffer
+	for _, entry := range reader.File {
+		part, err := entry.Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, copyErr := io.Copy(&contents, part)
+		closeErr := part.Close()
+		if copyErr != nil || closeErr != nil {
+			t.Fatalf("read diagnostic entry %s: copy=%v close=%v", entry.Name, copyErr, closeErr)
+		}
+	}
+	return contents.Bytes()
 }
 
 func waitForImportedProject(t *testing.T, baseURL, token, name string, excludedIDs ...int64) int64 {

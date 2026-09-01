@@ -41,6 +41,7 @@ func descriptors() map[string]Descriptor {
 	return map[string]Descriptor{
 		"version":             {Command: "version", Description: "Show CLI build information", Safety: SafetyRead, Idempotency: Idempotent, Input: objectSchema(map[string]any{}), Output: commonOutput},
 		"doctor":              {Command: "doctor", Description: "Diagnose a Taiga endpoint and current context", Safety: SafetyRead, Idempotency: Idempotent, Input: objectSchema(map[string]any{"host": stringProperty, "api_url": stringProperty}), Output: commonOutput},
+		"doctor bundle":       {Command: "doctor bundle", Description: "Create a redacted local diagnostic bundle", Safety: SafetyLocal, Idempotency: NonIdempotent, Input: objectSchema(map[string]any{"output": stringProperty, "force": booleanProperty}, "output"), Output: commonOutput},
 		"auth login":          {Command: "auth login", Description: "Authenticate and save credentials", Safety: SafetyLocal, Idempotency: NonIdempotent, Input: objectSchema(map[string]any{"host": stringProperty, "api_url": stringProperty, "profile": stringProperty, "with_token": booleanProperty}), Output: commonOutput},
 		"auth logout":         {Command: "auth logout", Description: "Remove saved credentials", Safety: SafetyLocal, Idempotency: Idempotent, Input: objectSchema(map[string]any{"profile": stringProperty}), Output: commonOutput},
 		"auth status":         {Command: "auth status", Description: "Show current authentication status", Safety: SafetyRead, Idempotency: Idempotent, Input: objectSchema(map[string]any{}), Output: commonOutput},
