@@ -359,3 +359,47 @@ func TestAttachmentResourcePaths(t *testing.T) {
 		})
 	}
 }
+
+func TestRetryDelayHonoursRetryAfter(t *testing.T) {
+	if got := retryDelay(1, "5"); got != 5*time.Second {
+		t.Fatalf("retryDelay(1, \"5\") = %v, want 5s", got)
+	}
+	if got := retryDelay(1, "120"); got != maxRetryAfter {
+		t.Fatalf("retryDelay(1, \"120\") = %v, want %v", got, maxRetryAfter)
+	}
+	past := time.Now().Add(-time.Hour).UTC().Format(http.TimeFormat)
+	if got := retryDelay(1, past); got != 0 {
+		t.Fatalf("retryDelay(1, past) = %v, want 0", got)
+	}
+	future := time.Now().Add(time.Hour).UTC().Format(http.TimeFormat)
+	if got := retryDelay(1, future); got != maxRetryAfter {
+		t.Fatalf("retryDelay(1, future) = %v, want %v", got, maxRetryAfter)
+	}
+}
+
+func TestRetryDelayBackoffIsBoundedAndJittered(t *testing.T) {
+	const samples = 200
+	for attempt := 1; attempt <= 4; attempt++ {
+		base := backoffBase(attempt)
+		distinct := map[time.Duration]struct{}{}
+		for sample := 0; sample < samples; sample++ {
+			delay := retryDelay(attempt, "")
+			if delay < base || delay >= base+jitterWindow {
+				t.Fatalf("retryDelay(%d, \"\") = %v, want [%v, %v)", attempt, delay, base, base+jitterWindow)
+			}
+			distinct[delay] = struct{}{}
+		}
+		if len(distinct) < 2 {
+			t.Fatalf("attempt %d produced a single delay across %d samples; jitter is not random", attempt, samples)
+		}
+	}
+}
+
+func TestBackoffBaseDoublesWithoutOverflowing(t *testing.T) {
+	if backoffBase(1) != backoffStep || backoffBase(3) != 4*backoffStep {
+		t.Fatalf("backoffBase(1) = %v, backoffBase(3) = %v", backoffBase(1), backoffBase(3))
+	}
+	if got := backoffBase(1000); got <= 0 {
+		t.Fatalf("backoffBase(1000) = %v, want a positive delay", got)
+	}
+}

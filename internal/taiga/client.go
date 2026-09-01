@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -15,6 +16,17 @@ import (
 )
 
 const maxResponseBytes = 16 << 20
+
+const (
+	backoffStep = 100 * time.Millisecond
+	// jitterWindow spreads retries so that CLI invocations throttled by the
+	// same response do not resend in lockstep.
+	jitterWindow = 100 * time.Millisecond
+	// maxBackoffShift keeps the doubling below the point where the shift would
+	// overflow time.Duration and produce a negative delay.
+	maxBackoffShift = 20
+	maxRetryAfter   = 30 * time.Second
+)
 
 type Client struct {
 	baseURL      *url.URL
@@ -324,24 +336,19 @@ func retryableStatus(status int) bool {
 
 func retryDelay(attempt int, retryAfter string) time.Duration {
 	if seconds, err := strconv.Atoi(strings.TrimSpace(retryAfter)); err == nil && seconds > 0 {
-		if seconds > 30 {
-			seconds = 30
-		}
-		return time.Duration(seconds) * time.Second
+		return min(time.Duration(seconds)*time.Second, maxRetryAfter)
 	}
 	if date, err := http.ParseTime(strings.TrimSpace(retryAfter)); err == nil {
-		delay := time.Until(date)
-		if delay < 0 {
-			return 0
-		}
-		if delay > 30*time.Second {
-			return 30 * time.Second
-		}
-		return delay
+		return min(max(time.Until(date), 0), maxRetryAfter)
 	}
-	base := 100 * time.Millisecond * time.Duration(1<<(attempt-1))
-	jitter := time.Duration((attempt*37)%100) * time.Millisecond
-	return base + jitter
+	return backoffBase(attempt) + rand.N(jitterWindow)
+}
+
+func backoffBase(attempt int) time.Duration {
+	if attempt > maxBackoffShift {
+		attempt = maxBackoffShift
+	}
+	return backoffStep * time.Duration(1<<(attempt-1))
 }
 
 func (c *Client) log(method, path string, status int, elapsed time.Duration) {
