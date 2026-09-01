@@ -56,3 +56,31 @@ jobs:
           go-version: "1.26.x"
           cache: true
       - run: go build ./cmd/taiga
+
+  release-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version: "1.26.x"
+          cache: true
+      - name: Build release archives
+        run: make release VERSION=v0.0.0-ci COMMIT="$GITHUB_SHA" SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)"
+      - name: Verify checksums and metadata
+        run: |
+          cd dist/v0.0.0-ci
+          sha256sum --check SHA256SUMS
+          tar -xzf taiga_0.0.0-ci_linux_amd64.tar.gz
+          ./taiga_0.0.0-ci_linux_amd64/taiga version --json | grep '"version":"v0.0.0-ci"'
+          grep '"spdxVersion": "SPDX-2.3"' taiga_0.0.0-ci_sbom.spdx.json
+      - name: Verify reproducible Linux archive
+        run: |
+          go run ./cmd/releasepack \
+            --version v0.0.0-ci \
+            --commit "$GITHUB_SHA" \
+            --source-date-epoch "$(git show -s --format=%ct HEAD)" \
+            --output /tmp/taiga-repro \
+            --targets linux/amd64
+          cmp dist/v0.0.0-ci/taiga_0.0.0-ci_linux_amd64.tar.gz /tmp/taiga-repro/taiga_0.0.0-ci_linux_amd64.tar.gz
+          cmp dist/v0.0.0-ci/taiga_0.0.0-ci_sbom.spdx.json /tmp/taiga-repro/taiga_0.0.0-ci_sbom.spdx.json

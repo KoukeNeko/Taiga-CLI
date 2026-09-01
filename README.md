@@ -2,7 +2,7 @@
 
 以 Go 實作的 [Taiga 6](https://taiga.io/) 命令列工具。它提供適合人類閱讀的終端介面，以及給 Shell、CI 與 LLM／Agent 使用的穩定 JSON contract。
 
-目前狀態：**Phase 1–3 operator workflows 已實作，尚未發布正式版本。**
+目前狀態：**Phase 1–3 與 reproducible release packaging 已實作，尚未發布正式版本。**
 
 ## 功能
 
@@ -31,6 +31,7 @@
 - 依 profile、API 與 project 隔離的 completion metadata cache，支援 stale-on-error。
 - `httptest` 單元測試和隔離的真實 Taiga Docker E2E。
 - `taiga version` 顯示版本、commit、建置時間與平台。
+- 六平台 deterministic archives、四種 completion、SHA-256 與 SPDX 2.3 SBOM。
 
 ## 建置
 
@@ -52,6 +53,19 @@ make install
 ```sh
 make install PREFIX=/usr/local
 ```
+
+正式 release archive 的下載、checksum、completion 與升級方式見 [INSTALL.md](INSTALL.md)；已驗證的 Taiga／平台／authentication 範圍見 [COMPATIBILITY.md](COMPATIBILITY.md)。維護者流程見 [RELEASING.md](RELEASING.md)。
+
+重建跨平台 release artifacts：
+
+```sh
+make release \
+  VERSION=v0.1.0 \
+  COMMIT="$(git rev-parse HEAD)" \
+  SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)"
+```
+
+輸出位於 `dist/v0.1.0/`。相同 source、Go toolchain、version、commit 與 epoch 應產生相同 archive bytes。
 
 ## 快速開始
 

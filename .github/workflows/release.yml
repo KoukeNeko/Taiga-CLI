@@ -1,0 +1,47 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version: "1.26.x"
+          cache: true
+      - name: Require a GitHub-verified annotated tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag_object="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$GITHUB_REF_NAME" --jq '.object.type + " " + .object.sha')"
+          test "${tag_object%% *}" = tag
+          tag_sha="${tag_object#* }"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$tag_sha" --jq '.verification.verified')" = true
+          commit_sha="$(git rev-parse HEAD)"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/commits/$commit_sha" --jq '.commit.verification.verified')" = true
+      - name: Verify source
+        run: |
+          test -f LICENSE || (echo "LICENSE is required before the first public release" >&2; exit 1)
+          make test
+      - name: Package release
+        run: make release VERSION="$GITHUB_REF_NAME" COMMIT="$(git rev-parse HEAD)" SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)"
+      - name: Verify release assets
+        run: |
+          cd "dist/$GITHUB_REF_NAME"
+          sha256sum --check SHA256SUMS
+          tar -xzf "taiga_${GITHUB_REF_NAME#v}_linux_amd64.tar.gz"
+          "./taiga_${GITHUB_REF_NAME#v}_linux_amd64/taiga" version --json | grep "\"version\":\"$GITHUB_REF_NAME\""
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" "dist/$GITHUB_REF_NAME"/* --verify-tag --generate-notes --title "$GITHUB_REF_NAME"
