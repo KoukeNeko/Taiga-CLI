@@ -1,410 +1,44 @@
-# Taiga CLI
-
-以 Go 實作的 [Taiga 6](https://taiga.io/) 命令列工具。它提供適合人類閱讀的終端介面，以及給 Shell、CI 與 LLM／Agent 使用的穩定 JSON contract。
-
-目前狀態：**Phase 1–3 與 reproducible release packaging 已實作，尚未發布正式版本。**
-
-## 功能
-
-- 自動從 Taiga frontend `conf.json` 發現 API，包括 `/taiga/` 子路徑部署。
-- 互動式帳密登入、stdin token 登入、OS keyring 與 `TAIGA_TOKEN`。
-- 多 profile、profile 預設 project 與 Git-local project mapping。
-- Project list、view、use、create、edit、delete。
-- Project portable dump export/import，支援 plain JSON 與 gzip、串流上傳及非同步狀態。
-- Project member/invitation 與 Role/permission 管理。
-- Webhook list、view、create、edit、test、delete，secret 永不回顯。
-- Epic、Story、Task、Issue 的 Custom field definition 與 OCC value merge。
-- Epic list、view、create、edit、close、delete、跨專案 Story link/unlink、watch 與 history。
-- Issue list、view、create、edit、close、assign、comment、delete。
-- User Story list、view、create、edit、close、move、assign、comment、delete。
-- Task list、view、create、edit、done、assign、comment、delete。
-- Sprint list、view、create、edit、close、reopen、delete。
-- Issue、Story、Task、Epic 的 vote/unvote、voter list，以及 watch/unwatch、watcher list、activity/comment history。
-- Project timeline，以及 Project backlog/velocity、Issue 趨勢、Member 貢獻與 Sprint burndown stats。
-- Issue、Story、Task、Epic、Wiki 的附件 streaming upload/download、list、view、edit、delete。
-- Wiki list、view、create、edit、delete、watch 與 history。
-- Comment edit/delete/undelete/version history、Wiki navigation link CRUD，以及八類 Workflow metadata CRUD。
-- Due-date preset CRUD、Swimlane CRUD／per-column WIP、Project tag create/edit/delete/mix。
-- Notification policy、web notification、application token revocation 與 current-user JSON storage。
-- Project ownership transfer、like/unlike/fans 與 temporary-token CSV export。
-- GitHub、GitLab、Jira、Trello、Asana、Pivotal 的 server-capability-aware importer gateway。
-- Taiga optimistic concurrency control（OCC）與 `--base-version`。
-- Human output、versioned JSON、`--fields`、structured error 與固定 exit code。
-- `--dry-run`、`--no-input`、redacted verbose logging。
-- Epic、Story、Issue、Task 的 bounded native bulk create，以及 Story/Task/Issue 的 native batch move/reorder。
-- JSON Schema command descriptors 與四種 shell completion。
-- 依 profile、API 與 project 隔離的 completion metadata cache，支援 stale-on-error。
-- `httptest` 單元測試和隔離的真實 Taiga Docker E2E。
-- `taiga version` 顯示版本、commit、建置時間與平台。
-- 六平台 deterministic archives、四種 completion、SHA-256 與 SPDX 2.3 SBOM。
-
-## 建置
-
-需要 Go 1.25 或更新版本。
-
-```sh
-make build
-./bin/taiga version
-```
-
-安裝到 `~/.local/bin`：
-
-```sh
-make install
-```
-
-自訂安裝位置：
-
-```sh
-make install PREFIX=/usr/local
-```
-
-正式 release archive 的下載、checksum、completion 與升級方式見 [INSTALL.md](INSTALL.md)；已驗證的 Taiga／平台／authentication 範圍見 [COMPATIBILITY.md](COMPATIBILITY.md)。維護者流程見 [RELEASING.md](RELEASING.md)。
-
-重建跨平台 release artifacts：
-
-```sh
-make release \
-  VERSION=v0.1.0 \
-  COMMIT="$(git rev-parse HEAD)" \
-  SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)"
-```
-
-輸出位於 `dist/v0.1.0/`。相同 source、Go toolchain、version、commit 與 epoch 應產生相同 archive bytes。
-
-## 快速開始
-
-互動登入會要求 username 與 no-echo password，並將 token 存入 OS keyring：
-
-```sh
-taiga auth login \
-  --host https://taiga.example.com/taiga/ \
-  --profile company
-```
-
-從 stdin 匯入既有 token：
-
-```sh
-printf '%s\n' "$TOKEN" |
-  taiga auth login \
-    --api-url https://taiga.example.com/taiga/api/v1/ \
-    --profile company \
-    --with-token
-```
-
-選擇專案並操作 Issue：
-
-```sh
-taiga project list
-taiga project use example-project
-
-taiga issue list
-taiga issue view 42
-taiga issue create --subject "Fix token refresh" --type Bug
-taiga issue edit 42 --status "In progress"
-taiga issue assign 42 --to alice
-taiga issue comment 42 --body "Ready for verification"
-taiga issue close 42 --status Closed
-```
-
-管理 Project：
-
-```sh
-taiga project create --name "Mobile App" --template scrum
-taiga project edit mobile-app --description "Product delivery" --kanban=true
-taiga project delete mobile-app --yes
-```
-
-Project 預設建立為 private；使用 `--public` 明確建立公開專案。永久刪除由 Taiga 非同步執行且不可還原，非互動模式必須提供 `--yes`。目前 Taiga 6 REST API 將 `archived_code` 設為唯讀且沒有 archive action，因此 `project archive|unarchive` 會清楚回報 `unsupported_capability`，需由站台管理者處理。
-
-匯出與匯入 Project dump：
-
-```sh
-taiga project export example-project --format gzip --json
-taiga project import ./example-project-export.json.gz --dry-run --json
-taiga project import ./example-project-export.json.gz --yes --json
-cat example-project-export.json | taiga project import - --yes --json
-```
-
-Taiga production deployment 通常以背景工作產生 export／執行 import。此時 CLI 會回報 `status: "accepted"`、task ID 與 `verified: false`；完成或失敗結果由 Taiga 寄送 email。停用 Celery 的同步部署則會直接回傳 `status: "ready"` 加下載 URL，或 `status: "created"` 加已建立的 Project。Export request 雖使用 Taiga 的 GET endpoint，但會建立背景工作，因此 CLI 刻意不自動 retry。Import 會先在本機串流驗證 JSON／gzip 格式，不會把整份 dump 載入記憶體；非互動模式必須明確提供 `--yes`。
-
-管理成員與 Role：
-
-```sh
-taiga role list
-taiga role create --name Reviewer --computable=false
-taiga role edit reviewer --permission view_us --permission comment_us
-taiga member add alice@example.com --role reviewer
-taiga member edit alice@example.com --role ux --admin=false
-taiga member remove alice@example.com --yes
-taiga role delete reviewer --move-to ux --yes
-```
-
-`member add` 可加入既有 username/email，或為未知 email 建立 invitation。Taiga 會保護 owner 與最後一位 active admin；CLI 不會繞過這些限制。刪除仍有 members 的 Role 必須明確提供 `--move-to`。
-
-管理 Webhook：
-
-```sh
-taiga webhook create --name CI --url https://ci.example.com/taiga --secret "$WEBHOOK_SECRET"
-taiga webhook list
-taiga webhook test CI
-taiga webhook edit CI --url https://ci.example.com/hooks/taiga
-taiga webhook delete CI --yes
-```
-
-Webhook signing secret 只會送往 Taiga API，不會出現在成功輸出或 dry-run。`webhook test` 要求 Taiga server 自己發送測試事件，CLI 不會直接連第三方 URL。
-
-管理 Custom fields：
-
-```sh
-taiga custom-field create issue --name Environment --type dropdown --option staging --option production
-taiga custom-field list issue
-taiga custom-field set issue 42 --value Environment='"staging"' --value Attempts=3
-taiga custom-field values issue 42
-taiga custom-field set issue 42 --unset Environment
-taiga custom-field delete issue Environment --yes
-```
-
-`--value` 的右側會先按 JSON 解析，因此字串可加 JSON 引號，boolean/number/null 會保留型別；無法解析的值視為普通字串。更新前會 GET 現值並 merge，再以 custom-values version 執行 OCC PATCH，避免覆蓋其他欄位。
-
-操作 User Story：
-
-```sh
-taiga story list --sprint backlog
-taiga story view 51
-taiga story create --subject "Add refresh-token rotation"
-taiga story edit 51 --status "In progress"
-taiga story assign 51 --to alice --to bob
-taiga story move 51 --sprint sprint-27
-taiga story comment 51 --body "Ready for review"
-taiga story close 51 --status Closed
-```
-
-`story` 也可寫成 `userstory` 或 `us`。`story move --sprint backlog` 會把 Story 移回 backlog。
-
-操作 Task：
-
-```sh
-taiga task list --story 51
-taiga task view 72
-taiga task create --story 51 --subject "Add API tests"
-taiga task edit 72 --status "In progress"
-taiga task assign 72 --to alice
-taiga task unassign 72
-taiga task comment 72 --body "Tests added"
-taiga task done 72 --status Closed
-taiga task reopen 72 --status New
-taiga task move 72 --story 51
-taiga task move 72 --sprint sprint-27
-taiga task move 72 --sprint backlog
-```
-
-Task 可以不屬於 Story；若指定 `--story`，Task 會自動繼承該 Story 的 Sprint。`--sprint backlog` 會同時解除 parent Story 與 Sprint。
-
-管理 Sprint：
-
-```sh
-taiga sprint list --state open
-taiga sprint view sprint-27
-taiga sprint create --name "Sprint 27" --start 2026-09-01 --finish 2026-09-14
-taiga sprint edit sprint-27 --finish 2026-09-16
-taiga sprint close sprint-27
-taiga sprint reopen sprint-27
-taiga sprint delete sprint-27 --yes
-```
-
-Sprint 日期使用 `YYYY-MM-DD`；`sprint` 也可寫成 `milestone`。
-
-搜尋目前專案：
-
-```sh
-taiga search "token refresh"
-taiga search "login" --type issue
-taiga search "API tests" --type task --json --fields kind,ref,subject
-```
-
-Search 支援 epic、story、task、issue、wiki；Taiga server 每次最多回傳 150 筆。
-
-查看跨資源 Timeline 與統計：
-
-```sh
-taiga timeline
-taiga timeline --only-relevant=false --page 2 --limit 50
-
-taiga stats project
-taiga stats issues example-project
-taiga stats members
-taiga stats sprint sprint-27
-taiga stats discover
-taiga stats system
-```
-
-`timeline` 使用目前選取的 Project，預設排除低訊號 change/delete；輸出會將 Taiga event 正規化為 resource、action、ref/slug、subject、user、comment 與 changes。`stats project|issues|members` 可省略 project slug 並使用目前 Project；`stats sprint` 使用目前 Project 解析 Sprint。`stats discover` 可查公開可探索的 Project 數量。`stats system` 只有站台管理者啟用 Taiga `STATS_ENABLED` 時才存在，未啟用的標準部署會回報 `not_found`。
-
-批次建立工作項目：
-
-```sh
-printf '%s\n' "First issue" "Second issue" > issues.txt
-taiga batch create issue issues.txt --sprint sprint-27 --dry-run --json
-taiga batch create issue issues.txt --sprint sprint-27 --yes --json
-
-cat stories.txt | taiga batch create story - --status New --yes
-taiga batch create task tasks.txt --story 51 --yes
-taiga batch create epic epics.txt --yes
-taiga batch move story --id 101,102 --sprint sprint-28 --yes
-taiga batch reorder story --view kanban --id 102,101 --status "In progress" --swimlane Backend --yes
-taiga batch reorder task --view taskboard --order 501=1 --order 502=2 --status "In progress" --yes
-```
-
-Batch input 每個非空白行是一個 subject，上限 1000 筆與 4 MiB；同一批可套用共同 `--status`。Issue 可指定共同 `--sprint`；Task 必須指定 `--sprint`，或以 `--story` 從 parent Story 推導 Sprint。Taiga 原生 bulk endpoint 不支援每筆不同 description/assignee，也不保證跨資源原子交易。CLI 在成功回應後核對回傳筆數；若不一致會回報 `ambiguous_commit`，要求先 list 確認，避免盲目重送。非互動執行必須提供 `--yes`。
-
-管理附件：
-
-```sh
-taiga attachment list issue 42
-taiga attachment add issue 42 ./error.log --description "Build failure"
-cat error.log | taiga attachment add issue 42 - --name error.log
-taiga attachment view issue 17
-taiga attachment download issue 17 --output ./error.log
-taiga attachment edit issue 17 --description "Resolved" --deprecated
-taiga attachment delete issue 17 --yes
-taiga attachment add epic 8 ./proposal.pdf
-taiga attachment add wiki api-guide ./diagram.png
-```
-
-Attachment 支援 issue、story、task、epic、wiki。Wiki 使用 slug，其餘資源使用 ref。非互動刪除必須明確提供 `--yes`；upload/download 都採 streaming。Download 不會把 API bearer token 傳到 media URL，會核對 Taiga SHA-1 與本機 SHA-256，使用 `0600` 暫存檔後原子落盤，且預設不覆寫既有檔案。
-
-關注工作項目與查看歷史：
-
-```sh
-taiga issue watch 42
-taiga issue vote 42
-taiga issue history 42
-taiga issue history 42 --type comment
-taiga comment edit issue 42 <history-id> --body "Corrected comment"
-taiga comment delete issue 42 <history-id> --yes
-taiga comment undelete issue 42 <history-id>
-taiga comment versions issue 42 <history-id>
-taiga issue watchers 42
-taiga issue voters 42
-taiga issue unvote 42
-taiga issue unwatch 42
-
-taiga story history 51 --type activity
-taiga task history 72 --page 2 --limit 20
-```
-
-Watch/unwatch 與 watcher list 支援 issue、story、task、wiki、epic；vote/unvote 與 voter list 支援 issue、story、task、epic。Comment edit/delete/undelete 以 history entry ID 定位並在 mutation 後回讀確認。History 的 `--type` 可用 `all`、`activity`、`comment`。
-
-管理 Wiki：
-
-```sh
-taiga wiki list
-taiga wiki view api-guide
-taiga wiki create --slug api-guide --body-file guide.md
-printf '%s\n' '# Updated guide' | taiga wiki edit api-guide --body-file -
-taiga wiki watch api-guide
-taiga wiki history api-guide --type activity
-taiga wiki unwatch api-guide
-taiga wiki delete api-guide --yes
-```
-
-Wiki identifier 支援裸 slug、`project#slug` 與 Taiga Wiki URL。Edit 使用 OCC；非互動刪除必須提供 `--yes`。
-
-Wiki navigation link：
-
-```sh
-taiga wiki-link list
-taiga wiki-link create --title "API Guide"
-taiga wiki-link edit api-guide --title "Public API Guide"
-taiga wiki-link delete api-guide --yes
-```
-
-Taiga 由 title 產生 immutable `href`；建立 link 時在權限允許下也會建立對應 Wiki page。刪除 link 不會刪除 page。
-
-Workflow metadata：
-
-```sh
-taiga metadata list issue-status
-taiga metadata create issue-status --name Review --color '#4A90E2'
-taiga metadata edit issue-status Review --closed=true
-taiga metadata delete issue-status Review --move-to New --yes
-```
-
-支援 `epic-status`、`story-status`、`task-status`、`issue-status`、`points`、`priority`、`severity`、`issue-type`。刪除必須提供同 kind 的 `--move-to`；Taiga 會先搬移關聯工作項目與 Project default，再刪除 metadata。
-
-管理其他 Project metadata 與個人設定：
-
-```sh
-taiga due-date create story --name "One week" --days 7 --color '#4A90E2'
-taiga due-date edit story "One week" --days 5
-taiga due-date delete story "One week" --yes
-
-taiga swimlane create --name Backend --order 2
-taiga swimlane wip Backend "In progress" --limit 3
-taiga swimlane delete Backend --move-to Default --yes
-
-taiga tag create backend --color '#4A90E2'
-taiga tag edit backend --name platform
-taiga tag mix platform --from api --from database
-taiga tag delete platform --yes
-
-taiga notification policy list --json
-taiga notification policy edit 17 --email involved --live all --web=true
-taiga notification web list --unread --json
-taiga notification web read --all
-
-taiga application list --json
-taiga application tokens --json
-taiga application revoke 9 --yes
-taiga storage set dashboard --value '{"compact":true}'
-taiga storage get dashboard --json
-```
-
-`application list` 會從目前使用者已授權的 application tokens 去重列出應用程式，因 Taiga 6 沒有 applications collection-list endpoint。Application ID 是 UUID 字串；token 的 auth code 與帶 auth code 的 callback URL 都不會出現在輸出。User storage key 不可包含 `.` 或 `/`，這兩個字元由 Taiga 的 URL router 保留。
-
-Taiga 會在列出 notification policies 時自動為 Project membership 建立缺少的 policy，因此 `notification policy create` 會先觸發該 provisioning，再以 PATCH 套用指定層級；這避開 Taiga 6 直接 POST 時遺失 `user_id` 的上游問題。當 `custom-field set --unset` 清除最後一個值時，CLI 會送出 Taiga 接受的 `null`，避免空 object 被 validator 判定為 blank。
-
-Project social、ownership transfer 與 CSV：
-
-```sh
-taiga project like
-taiga project fans --json
-taiga project transfer start --user 27 --reason "New maintainer" --yes
-taiga project transfer validate-token --token "$TRANSFER_TOKEN"
-taiga project transfer accept --token "$TRANSFER_TOKEN" --yes
-taiga csv export issue --output ./issues.csv
-```
-
-CSV 先建立短期 server UUID，再串流下載至 `0600` 暫存檔、計算 SHA-256、原子替換目的檔，最後撤銷 UUID。Application token 的 auth code 永不出現在 list 輸出；ownership transfer token 也不會出現在 dry-run 或結果。
-
-第三方 importer gateway：
-
-```sh
-taiga integration providers --json
-taiga integration call github list-projects --input ./github-import.json --json
-taiga integration call jira import-project --input ./jira-import.json --yes --json
-```
-
-`--input` 必須是 JSON object，適合以 `0600` 檔案傳入 token/code；`--field key=JSON` 適合非敏感欄位。實際 provider/action 是否可用由 Taiga server 設定決定；CLI 會保留 server 的 `not_found`／validation 回應。GitLab 與 Pivotal 在 upstream Taiga 預設可能未啟用，但 gateway 可直接支援提供相容 route 的部署。
-
-管理 Epic 與跨專案 Story 關聯：
-
-```sh
-taiga epic list
-taiga epic create --subject "Unify authentication"
-taiga epic edit 8 --status "In progress" --assignee alice
-taiga epic link 8 --story mobile-app#42
-taiga epic stories 8
-taiga epic unlink 8 --story mobile-app#42
-taiga epic watch 8
-taiga epic history 8 --type activity
-taiga epic close 8
-```
-
-Epic 與 Story 是多對多關聯；`link`／`unlink` 接受其他專案的 Story ref 或 URL，不會把 Story 視為 Epic 的單一 parent。
-
-Issue identifier 可以是裸 ref、`project#ref` 或 Taiga URL：
+<h1 align="center">Taiga CLI</h1>
+
+<p align="center">
+  <strong>把 Taiga 帶到命令列。</strong><br>
+  給人閱讀的終端輸出，以及給 Shell、CI 與 Agent 使用的穩定 JSON contract。
+</p>
+
+<p align="center">
+  <img alt="Go 1.25+" src="https://img.shields.io/badge/GO-1.25%2B-00ADD8?style=for-the-badge&logo=go&logoColor=white">
+  <img alt="Taiga 6.10.2 verified" src="https://img.shields.io/badge/TAIGA-6.10.2_VERIFIED-00A5A5?style=for-the-badge">
+  <img alt="macOS, Linux, Windows" src="https://img.shields.io/badge/PLATFORMS-MACOS_·_LINUX_·_WINDOWS-4CAF50?style=for-the-badge">
+  <img alt="JSON contract v1" src="https://img.shields.io/badge/JSON_CONTRACT-V1-2196F3?style=for-the-badge">
+</p>
+
+<p align="center">
+  <a href="INSTALL.md">安裝</a>
+  · <a href="#快速開始">快速開始</a>
+  · <a href="https://github.com/KoukeNeko/Taiga-CLI/wiki">使用手冊</a>
+  · <a href="COMPATIBILITY.md">相容性</a>
+</p>
+
+Taiga CLI 讓你不必離開終端機就能操作 [Taiga 6](https://taiga.io/) 的專案、敏捷流程與 Wiki。它會自動從
+frontend 的 `conf.json` 找出 API 位置，包括部署在 `/taiga/` 子路徑的站台，登入後把 token 交給作業系統
+keyring 保管，不寫進設定檔。
+
+**同一個指令同時服務人與程式。** 直接執行時輸出對齊的表格；加上 `--json` 就得到帶版本號的 contract，
+搭配固定 exit code 與 JSON Schema descriptor，可以放心讓 Shell script、CI job 或 LLM agent 驅動。輸出格式
+不會因為被 pipe 就偷偷改變 —— 要 JSON 就得明講。
+
+**寫入行為可預測。** 所有 mutation 都走 Taiga 的樂觀鎖，衝突時停下來而不是覆蓋；只有 idempotent 的 GET
+會自動重試；連線在寫入途中斷掉時回報 `ambiguous_commit`，要求你先確認，而不是盲目重送。
+
+## 能做什麼
+
+### 完整的 Taiga 工作流
+
+Project、Epic、User Story、Task、Issue、Sprint 與 Wiki 的日常操作都在裡面：列表、檢視、建立、編輯、
+指派、留言、關閉、刪除。加上成員與角色權限、Webhook、Custom field、八類 workflow metadata、Swimlane、
+Tag、Due-date preset，以及跨專案的 Epic ↔ Story 關聯。
+
+工作項目可以用裸 ref、`project#ref` 或直接貼 Taiga 網址來指定，三種寫法都通：
 
 ```text
 42
@@ -412,9 +46,105 @@ example-project#42
 https://taiga.example.com/taiga/project/example-project/issue/42
 ```
 
-## Profile 與設定
+### 給自動化的穩定介面
 
-一般設定使用作業系統的使用者設定目錄；token 不會寫入設定檔。
+`--json` 輸出 `meta.contract` 版本號，`--fields` 挑選欄位，`taiga schema <command>` 給出該指令的
+input/output JSON Schema 與 safety/idempotency 標註 —— agent 可以據此判斷一個指令能不能自動執行。
+Exit code 依錯誤種類固定分流，`--dry-run` 會完整解析並顯示將送出的變更，但保證不發出任何寫入請求。
+
+### 不會意外破壞資料
+
+刪除工作項目與 metadata 後會回讀確認；附件與 CSV 下載走 streaming、核對雜湊、以 `0600` 暫存檔原子落盤，
+且預設不覆寫既有檔案。非互動模式下的破壞性操作一律要求明確的 `--yes`。Webhook secret、application
+token 的 auth code 與 ownership transfer token 都不會出現在任何輸出或 dry-run 裡。
+
+### 多站台與多專案
+
+Profile 讓你在不同 Taiga 站台之間切換，各自記住 API URL 與預設專案。也可以把 profile 與 project 綁在
+單一 Git repository 上，存進 `.git/config` 而不會被 commit：
+
+```sh
+taiga project use example-project --local
+```
+
+### 出事的時候查得出來
+
+`taiga doctor` 逐項檢查 frontend discovery、API、authentication 與預設專案。需要求助時，
+`taiga doctor bundle` 產生一份可以安心分享的診斷包 —— 只有版本資訊、設定「是否存在」的布林值與
+狀態碼，不含任何 URL、使用者名稱、專案名稱或憑證，而且只在本機建立、不會自動上傳。
+
+## 快速開始
+
+1. **建置**（需要 Go 1.25 以上）：
+
+   ```sh
+   make build
+   ./bin/taiga version
+   ```
+
+2. **登入**，token 會存進 OS keyring：
+
+   ```sh
+   taiga auth login --host https://taiga.example.com/taiga/ --profile company
+   ```
+
+3. **選定專案**：
+
+   ```sh
+   taiga project list
+   taiga project use example-project
+   ```
+
+4. **開始操作**：
+
+   ```sh
+   taiga issue list
+   taiga issue create --subject "Fix token refresh" --type Bug
+   taiga issue assign 42 --to alice
+   taiga issue close 42 --status Closed
+   ```
+
+5. **接上自動化**：
+
+   ```sh
+   taiga issue view 42 --json --fields id,ref,subject,status,version --no-input
+   ```
+
+完整的指令參考、旗標說明與各子系統的行為細節，見
+[使用手冊 Wiki](https://github.com/KoukeNeko/Taiga-CLI/wiki)。
+
+## 相容性
+
+- Taiga 6.10.2 已透過固定 image digest 的 Docker E2E 驗證
+- macOS、Linux、Windows 的 `amd64` 與 `arm64`，純 Go 建置（`CGO_ENABLED=0`）
+- 帳密登入、既有 bearer token 與 refresh token rotation
+
+詳細矩陣與已知限制見 [COMPATIBILITY.md](COMPATIBILITY.md)。
+
+## 取得工具
+
+目前尚未發布正式版本。從原始碼安裝到 `~/.local/bin`：
+
+```sh
+make install
+```
+
+或自訂位置：
+
+```sh
+make install PREFIX=/usr/local
+```
+
+Release archive 的下載、checksum 驗證、shell completion 安裝與升級方式見 [INSTALL.md](INSTALL.md)；
+維護者的發布流程見 [RELEASING.md](RELEASING.md)。
+
+---
+
+## Technical reference
+
+### 設定優先序
+
+一般設定放在作業系統的使用者設定目錄，token 不會寫入設定檔：
 
 ```toml
 current_profile = "company"
@@ -424,7 +154,7 @@ api_url = "https://taiga.example.com/taiga/api/v1/"
 project = "example-project"
 ```
 
-設定優先序：
+解析順序由高到低：
 
 ```text
 command flag
@@ -434,50 +164,20 @@ command flag
 → safe defaults
 ```
 
-將 profile／project mapping 限定在目前 Git repository：
+### JSON contract
 
-```sh
-taiga project use example-project --local
-taiga config list --local
-```
-
-這些值保存在 `.git/config`，不會被 commit。
-
-## Machine contract
-
-Agent 必須明確要求 JSON；pipe 不會偷偷改變輸出格式：
-
-```sh
-taiga issue view example-project#42 \
-  --json \
-  --fields id,ref,subject,status,version \
-  --no-input
-```
+成功資料只寫 stdout，錯誤只寫 stderr。單筆用 `data`，列表用 `items` 與 `page`，兩者都帶 `meta.contract`：
 
 ```json
 {
-  "data": {
-    "id": 123,
-    "ref": 42,
-    "subject": "Fix token refresh",
-    "status": "In progress",
-    "version": 7
-  },
-  "meta": {
-    "contract": 1
-  }
+  "data": { "id": 123, "ref": 42, "subject": "Fix token refresh", "version": 7 },
+  "meta": { "contract": 1 }
 }
 ```
 
-List 使用 `items` 與 `page`；錯誤只寫 stderr，成功資料只寫 stdout。可用下列命令取得 input/output schema：
+同一個 contract 版本內只會新增 optional 欄位；移除、改名或改變既有欄位型別必須提升版本並附遷移說明。
 
-```sh
-taiga schema issue view --json
-```
-
-Exit codes：
-
-| Code | Meaning |
+| Exit code | 意義 |
 | ---: | --- |
 | 0 | success |
 | 2 | usage / schema |
@@ -491,36 +191,19 @@ Exit codes：
 | 10 | confirmation required |
 | 11 | ambiguous commit |
 
-Mutation 支援 dry run；它可以查詢與解析資料，但保證不送出 POST、PATCH 或 DELETE：
+### 安全原則
 
-```sh
-taiga issue edit 42 \
-  --subject "New subject" \
-  --dry-run \
-  --json \
-  --no-input
-```
+- 不接受 command-line password
+- Authorization、password、token 不會出現在 verbose log
+- 只有 GET 會進行有上限的自動重試，POST／PATCH 不會盲目重送
+- 寫入途中連線中斷且結果不明時回報 `ambiguous_commit`
+- OCC conflict 不會自動 merge 或覆寫
+- 附件下載不會把 API bearer token 送往 media URL
+- TLS verification 預設永遠開啟
 
-## 診斷
+### 開發與測試
 
-```sh
-taiga doctor --host http://localhost:9000/taiga/
-taiga doctor --api-url http://localhost:9000/taiga/api/v1/ --json
-```
-
-`doctor` 分別檢查 frontend discovery、API、authentication 與預設 project，不會輸出 token。
-
-建立可主動分享的 redacted diagnostic bundle：
-
-```sh
-taiga doctor bundle ./taiga-diagnostics.zip --json
-```
-
-Bundle 只包含 CLI/Go/OS 版本、設定是否存在的布林值與數量，以及 API/authentication/Project 的 ok/pending/error code。它不包含 URL、hostname、username、Project/profile 名稱、cwd、環境變數值、request/response body、原始 log 或 credential，也不會自動上傳。輸出與 zip entry 權限為 `0600`；既有檔案預設不覆寫，需要明確 `--force`。
-
-## 測試
-
-快速測試不啟動 Docker：
+不需要 Docker 的快速迴圈：
 
 ```sh
 make test
@@ -528,30 +211,41 @@ make test-race
 make lint
 ```
 
-真實 Taiga integration test：
+對真實 Taiga server 的 integration test：
 
 ```sh
 make test-integration
 ```
 
-Integration harness 使用獨立的 `taiga-cli-e2e` Compose project 與 `localhost:19000`，建立臨時帳號、Project 與 Issue，測完後刪除自己的 containers 和 volumes。它不會存取或清除日常使用的 `localhost:9000` Taiga。
+Integration harness 使用獨立的 `taiga-cli-e2e` Compose project 與 `localhost:19000`，自行建立臨時帳號、
+專案與 Issue，結束後只清除自己的 container 與 volume，不會動到日常使用的 Taiga 實例。
 
-## Shell completion
+重建跨平台 release artifacts：
 
 ```sh
-taiga completion bash
-taiga completion zsh
-taiga completion fish
-taiga completion powershell
+make release \
+  VERSION=v0.1.0 \
+  COMMIT="$(git rev-parse HEAD)" \
+  SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)"
 ```
 
-Completion 會在 2 秒 timeout 內提供 Project、work item ref、status、member、Sprint 與 Issue metadata 候選。成功結果以 `0600` 權限快取 5 分鐘；網路失敗時可使用 24 小時內的 stale cache，不儲存 token，且 cache 損壞不影響 shell。
+相同的 source、Go toolchain、version、commit 與 epoch 會產生位元完全相同的 archive。
 
-## 安全原則
+<p>
+  <img alt="Cobra" src="https://img.shields.io/badge/COBRA-CLI-00ADD8?style=for-the-badge&logo=go&logoColor=white">
+  <img alt="Reproducible builds" src="https://img.shields.io/badge/BUILDS-REPRODUCIBLE-4CAF50?style=for-the-badge">
+  <img alt="SPDX 2.3 SBOM" src="https://img.shields.io/badge/SBOM-SPDX_2.3-2196F3?style=for-the-badge">
+</p>
 
-- 不接受 command-line password。
-- Authorization、password、token 不會出現在 verbose log。
-- GET 才會進行 bounded automatic retry；POST／PATCH 不會盲目重送。
-- Mutation 連線中斷且結果不明時回 `ambiguous_commit`。
-- OCC conflict 不會自動 merge 或 overwrite。
-- TLS verification 預設永遠開啟。
+## 文件
+
+| 文件 | 內容 |
+| --- | --- |
+| [使用手冊 Wiki](https://github.com/KoukeNeko/Taiga-CLI/wiki) | 每個指令群組的完整參考與行為說明 |
+| [INSTALL.md](INSTALL.md) | 下載、checksum、completion 與升級 |
+| [COMPATIBILITY.md](COMPATIBILITY.md) | 已驗證的 Taiga 版本、平台與登入方式 |
+| [RELEASING.md](RELEASING.md) | 維護者發布流程 |
+
+## License
+
+尚未選定授權條款。在 repository 加入 LICENSE 之前，請勿公開散布建置產物。
