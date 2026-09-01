@@ -98,9 +98,7 @@ func (a *App) authLoginCommand() *cobra.Command {
 				tokens = credential.Tokens{AuthToken: response.AuthToken, RefreshToken: response.RefreshToken}
 				user = taiga.User{ID: response.ID, Username: response.Username, FullName: response.FullName}
 			}
-			profile := cfg.Profiles[settings.Profile]
-			profile.APIURL = apiURL
-			cfg.Profiles[settings.Profile] = profile
+			updateProfile(&cfg, settings.Profile, func(profile *config.Profile) { profile.APIURL = apiURL })
 			cfg.CurrentProfile = settings.Profile
 			if err := a.Config.Save(cfg); err != nil {
 				return err
@@ -210,13 +208,22 @@ func (a *App) readPassword(prompt string) (string, error) {
 	return password, nil
 }
 
-func ensureProfile(cfg *config.File, name string) config.Profile {
+// ensureProfile creates the named profile when it is absent so that selecting a
+// profile records it even before any of its settings are known.
+func ensureProfile(cfg *config.File, name string) {
 	if cfg.Profiles == nil {
 		cfg.Profiles = map[string]config.Profile{}
 	}
-	profile, ok := cfg.Profiles[name]
-	if !ok {
+	if _, ok := cfg.Profiles[name]; !ok {
 		cfg.Profiles[name] = config.Profile{}
 	}
-	return profile
+}
+
+// updateProfile applies change to the named profile and stores the result,
+// creating the profile when it is absent.
+func updateProfile(cfg *config.File, name string, change func(*config.Profile)) {
+	ensureProfile(cfg, name)
+	profile := cfg.Profiles[name]
+	change(&profile)
+	cfg.Profiles[name] = profile
 }

@@ -97,19 +97,15 @@ func (a *App) configSetCommand(local *bool) *cobra.Command {
 						return validationError("invalid_profile", err.Error())
 					}
 					cfg.CurrentProfile = name
-					_ = ensureProfile(&cfg, name)
+					ensureProfile(&cfg, name)
 				case "api-url":
 					normalized, err := taiga.NormalizeAPIURL(value)
 					if err != nil {
 						return validationError("invalid_api_url", err.Error())
 					}
-					profile := ensureProfile(&cfg, settings.Profile)
-					profile.APIURL = normalized
-					cfg.Profiles[settings.Profile] = profile
+					updateProfile(&cfg, settings.Profile, func(profile *config.Profile) { profile.APIURL = normalized })
 				case "project":
-					profile := ensureProfile(&cfg, settings.Profile)
-					profile.Project = value
-					cfg.Profiles[settings.Profile] = profile
+					updateProfile(&cfg, settings.Profile, func(profile *config.Profile) { profile.Project = value })
 				default:
 					return usageError("config key must be profile, api-url, or project")
 				}

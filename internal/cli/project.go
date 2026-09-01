@@ -333,9 +333,7 @@ func (a *App) projectUseCommand() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				profile := ensureProfile(&cfg, settings.Profile)
-				profile.Project = project.Slug
-				cfg.Profiles[settings.Profile] = profile
+				updateProfile(&cfg, settings.Profile, func(profile *config.Profile) { profile.Project = project.Slug })
 				if err := a.Config.Save(cfg); err != nil {
 					return err
 				}
