@@ -253,6 +253,7 @@ The same source, Go toolchain, version, commit, and epoch produce byte-identical
   <img alt="Cobra" src="https://img.shields.io/badge/COBRA-CLI-00ADD8?style=for-the-badge&logo=go&logoColor=white">
   <img alt="Reproducible builds" src="https://img.shields.io/badge/BUILDS-REPRODUCIBLE-4CAF50?style=for-the-badge">
   <img alt="SPDX 2.3 SBOM" src="https://img.shields.io/badge/SBOM-SPDX_2.3-2196F3?style=for-the-badge">
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/LICENSE-MIT-4CAF50?style=for-the-badge&logo=github"></a>
 </p>
 
 ## Documentation
@@ -266,5 +267,4 @@ The same source, Go toolchain, version, commit, and epoch produce byte-identical
 
 ## License
 
-No license has been chosen yet. Please do not distribute builds publicly until a LICENSE is added to
-the repository.
+[MIT](LICENSE) © KoukeNeko

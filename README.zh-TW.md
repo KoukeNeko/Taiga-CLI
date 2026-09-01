@@ -239,6 +239,7 @@ make release \
   <img alt="Cobra" src="https://img.shields.io/badge/COBRA-CLI-00ADD8?style=for-the-badge&logo=go&logoColor=white">
   <img alt="Reproducible builds" src="https://img.shields.io/badge/BUILDS-REPRODUCIBLE-4CAF50?style=for-the-badge">
   <img alt="SPDX 2.3 SBOM" src="https://img.shields.io/badge/SBOM-SPDX_2.3-2196F3?style=for-the-badge">
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/LICENSE-MIT-4CAF50?style=for-the-badge&logo=github"></a>
 </p>
 
 ## 文件
@@ -252,4 +253,4 @@ make release \
 
 ## License
 
-尚未選定授權條款。在 repository 加入 LICENSE 之前，請勿公開散布建置產物。
+[MIT](LICENSE) © KoukeNeko

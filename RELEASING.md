@@ -6,7 +6,7 @@
 - Release commit 已用 Git config 的 signing key 簽署，`git verify-commit HEAD` 與 `git log --format='%H %G? %s' -1` 都通過。
 - `make verify` 與 `make test-integration` 通過。
 - Version 使用 `vMAJOR.MINOR.PATCH`；pre-release 可使用 SemVer suffix。
-- Repository 已有經 owner 選定的 `LICENSE`。目前尚未選擇授權，因此首次公開 release 在此項完成前仍是 blocked；workflow 也會主動拒絕發布。
+- Repository 已有經 owner 選定的 `LICENSE`（目前為 MIT）；workflow 會在缺少此檔時主動拒絕發布。
 
 ## 本機重建套件
 
