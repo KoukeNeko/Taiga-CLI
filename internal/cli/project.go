@@ -18,6 +18,7 @@ func (a *App) projectCommand() *cobra.Command {
 		a.projectListCommand(), a.projectViewCommand(), a.projectUseCommand(), a.projectCreateCommand(),
 		a.projectEditCommand(), a.projectExportCommand(), a.projectImportCommand(),
 		a.projectArchiveCommand(true), a.projectArchiveCommand(false), a.projectDeleteCommand(),
+		a.projectLikeCommand(true), a.projectLikeCommand(false), a.projectFansCommand(), a.projectTransferCommand(),
 	)
 	return command
 }

@@ -251,6 +251,14 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 	if deletedIssueComment.Data["verified"] != true {
 		t.Fatalf("deleted issue comment=%#v", deletedIssueComment.Data)
 	}
+	commentVersions := runner.jsonOK("comment", "versions", "issue", target, issueCommentID)
+	if len(commentVersions.Items) == 0 {
+		t.Fatalf("comment versions=%#v", commentVersions.Items)
+	}
+	restoredIssueComment := runner.jsonOK("comment", "undelete", "issue", target, issueCommentID)
+	if restoredIssueComment.Data["verified"] != true {
+		t.Fatalf("restored issue comment=%#v", restoredIssueComment.Data)
+	}
 	unwatchedIssue := runner.jsonOK("issue", "unwatch", target)
 	if unwatchedIssue.Data["watching"] != false || unwatchedIssue.Data["verified"] != true {
 		t.Fatalf("issue unwatch was not verified: %#v", unwatchedIssue.Data)
@@ -589,6 +597,8 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 	if batchDryRun.Plan["performed"] != false || batchDryRun.Plan["would_write"] != true {
 		t.Fatalf("batch dry-run plan=%#v", batchDryRun.Plan)
 	}
+	var batchStoryIDs []string
+	var batchTaskOrders []string
 	for _, batch := range []struct {
 		resource string
 		args     []string
@@ -606,8 +616,30 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 			if item["resource"] != batch.resource || item["project"] != projectSlug {
 				t.Fatalf("%s batch item=%#v", batch.resource, item)
 			}
+			id := int64(item["id"].(float64))
+			if batch.resource == "story" {
+				batchStoryIDs = append(batchStoryIDs, strconv.FormatInt(id, 10))
+			}
+			if batch.resource == "task" {
+				batchTaskOrders = append(batchTaskOrders, fmt.Sprintf("%d=%d", id, len(batchTaskOrders)+1))
+			}
 		}
 	}
+	moveArgs := []string{"batch", "move", "story", "--sprint", milestoneSlug, "--yes"}
+	for _, id := range batchStoryIDs {
+		moveArgs = append(moveArgs, "--id", id)
+	}
+	runner.jsonOK(moveArgs...)
+	reorderStoryArgs := []string{"batch", "reorder", "story", "--view", "backlog", "--sprint", milestoneSlug, "--yes"}
+	for _, id := range batchStoryIDs {
+		reorderStoryArgs = append(reorderStoryArgs, "--id", id)
+	}
+	runner.jsonOK(reorderStoryArgs...)
+	reorderTaskArgs := []string{"batch", "reorder", "task", "--view", "taskboard", "--sprint", milestoneSlug, "--yes"}
+	for _, order := range batchTaskOrders {
+		reorderTaskArgs = append(reorderTaskArgs, "--order", order)
+	}
+	runner.jsonOK(reorderTaskArgs...)
 
 	for _, metadata := range []struct {
 		kind       string
@@ -642,6 +674,105 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 		if deleted.Data["deleted"] != true || deleted.Data["verified"] != true {
 			t.Fatalf("%s metadata delete=%#v", metadata.kind, deleted.Data)
 		}
+	}
+
+	dueDate := runner.jsonOK("due-date", "create", "story", "--name", "E2E due date", "--days", "5", "--color", "#123456")
+	dueDateID := int64(dueDate.Data["id"].(float64))
+	dueDateUpdated := runner.jsonOK("due-date", "edit", "story", strconv.FormatInt(dueDateID, 10), "--days", "7")
+	if dueDateUpdated.Data["days_to_due"] != float64(7) {
+		t.Fatalf("due-date edit=%#v", dueDateUpdated.Data)
+	}
+	dueDateDeleted := runner.jsonOK("due-date", "delete", "story", strconv.FormatInt(dueDateID, 10), "--yes")
+	if dueDateDeleted.Data["verified"] != true {
+		t.Fatalf("due-date delete=%#v", dueDateDeleted.Data)
+	}
+
+	tag := runner.jsonOK("tag", "create", "e2e-source", "--color", "#123456")
+	if tag.Data["name"] != "e2e-source" {
+		t.Fatalf("tag create=%#v", tag.Data)
+	}
+	runner.jsonOK("tag", "create", "e2e-target", "--color", "#654321")
+	runner.jsonOK("tag", "mix", "e2e-target", "--from", "e2e-source")
+	tags := runner.jsonOK("tag", "list")
+	if len(tags.Items) == 0 {
+		t.Fatalf("tag list=%#v", tags.Items)
+	}
+	runner.jsonOK("tag", "delete", "e2e-target", "--yes")
+
+	storage := runner.jsonOK("storage", "set", "e2e-settings", "--value", `{"compact":true}`)
+	if storage.Data["key"] != "e2e-settings" {
+		t.Fatalf("storage set=%#v", storage.Data)
+	}
+	storage = runner.jsonOK("storage", "get", "e2e-settings")
+	if storage.Data["value"].(map[string]any)["compact"] != true {
+		t.Fatalf("storage get=%#v", storage.Data)
+	}
+	runner.jsonOK("storage", "delete", "e2e-settings", "--yes")
+
+	policies := runner.jsonOK("notification", "policy", "list")
+	var projectPolicyID int64
+	for _, policy := range policies.Items {
+		if int64(policy["project"].(float64)) == projectID {
+			projectPolicyID = int64(policy["id"].(float64))
+			break
+		}
+	}
+	if projectPolicyID == 0 {
+		t.Fatalf("project notification policy missing: %#v", policies.Items)
+	}
+	policy := runner.jsonOK("notification", "policy", "edit", strconv.FormatInt(projectPolicyID, 10), "--email", "involved", "--live", "all", "--web=true")
+	if policy.Data["notify_level"] != float64(1) || policy.Data["live_notify_level"] != float64(2) {
+		t.Fatalf("notification policy edit=%#v", policy.Data)
+	}
+	runner.jsonOK("notification", "web", "list", "--unread")
+	runner.jsonOK("notification", "web", "read", "--all")
+	for _, args := range [][]string{{"--json", "application", "list"}, {"--json", "application", "tokens"}} {
+		stdout, stderr, code = runner.run(args...)
+		if code != 0 && (code != 5 || !strings.Contains(stderr, "not_found")) {
+			t.Fatalf("application capability exit=%d stdout=%s stderr=%s", code, stdout, stderr)
+		}
+	}
+
+	liked := runner.jsonOK("project", "like")
+	if liked.Data["liked"] != true {
+		t.Fatalf("project like=%#v", liked.Data)
+	}
+	fans := runner.jsonOK("project", "fans")
+	if !containsUsername(fans.Items, username) {
+		t.Fatalf("project fans=%#v", fans.Items)
+	}
+	runner.jsonOK("project", "unlike")
+
+	csvPath := filepath.Join(runner.dir, "issues.csv")
+	csvExport := runner.jsonOK("csv", "export", "issue", "--output", csvPath)
+	if csvExport.Data["token_revoked"] != true || csvExport.Data["verified"] != true {
+		t.Fatalf("csv export=%#v", csvExport.Data)
+	}
+	if stat, err := os.Stat(csvPath); err != nil || stat.Mode().Perm() != 0o600 {
+		t.Fatalf("csv file stat=%v err=%v", stat, err)
+	}
+
+	lane := runner.jsonOK("swimlane", "create", "--name", "E2E lane", "--order", "5")
+	laneID := int64(lane.Data["id"].(float64))
+	lanes := runner.jsonOK("swimlane", "list")
+	if !containsID(lanes.Items, laneID) {
+		t.Fatalf("swimlane list=%#v", lanes.Items)
+	}
+	storyStatuses := runner.jsonOK("metadata", "list", "story-status")
+	statusName := storyStatuses.Items[0]["name"].(string)
+	wip := runner.jsonOK("swimlane", "wip", strconv.FormatInt(laneID, 10), statusName, "--limit", "3")
+	if wip.Data["wip_limit"] != float64(3) {
+		t.Fatalf("swimlane WIP=%#v", wip.Data)
+	}
+	laneDeleted := runner.jsonOK("swimlane", "delete", strconv.FormatInt(laneID, 10), "--yes")
+	if laneDeleted.Data["verified"] != true {
+		t.Fatalf("swimlane delete=%#v", laneDeleted.Data)
+	}
+
+	deleteSprint := runner.jsonOK("sprint", "create", "--name", "Delete E2E Sprint", "--start", "2026-09-10", "--finish", "2026-09-12")
+	deleteSprintResult := runner.jsonOK("sprint", "delete", deleteSprint.Data["slug"].(string), "--yes")
+	if deleteSprintResult.Data["verified"] != true {
+		t.Fatalf("sprint delete=%#v", deleteSprintResult.Data)
 	}
 
 	for _, deletion := range []struct {

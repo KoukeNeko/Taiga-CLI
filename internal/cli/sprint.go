@@ -26,7 +26,47 @@ type sprintView struct {
 
 func (a *App) sprintCommand() *cobra.Command {
 	command := &cobra.Command{Use: "sprint", Aliases: []string{"milestone"}, Short: "Work with Taiga sprints"}
-	command.AddCommand(a.sprintListCommand(), a.sprintViewCommand(), a.sprintCreateCommand(), a.sprintEditCommand(), a.sprintStateCommand(true), a.sprintStateCommand(false))
+	command.AddCommand(a.sprintListCommand(), a.sprintViewCommand(), a.sprintCreateCommand(), a.sprintEditCommand(), a.sprintStateCommand(true), a.sprintStateCommand(false), a.sprintDeleteCommand())
+	return command
+}
+
+func (a *App) sprintDeleteCommand() *cobra.Command {
+	var yes, dryRun bool
+	command := &cobra.Command{Use: "delete <name|slug>", Short: "Permanently delete a Sprint", Args: exactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+		client, _, project, sprint, err := a.loadSprint(cmd, args[0])
+		if err != nil {
+			return err
+		}
+		if dryRun {
+			return a.renderDryRun("delete Sprint", project.Slug+"#"+sprint.Slug, map[string]any{"id": sprint.ID, "name": sprint.Name, "permanent": true})
+		}
+		if !yes {
+			if a.global.NoInput || !a.stdinTTY() {
+				return confirmationRequired("Sprint deletion requires --yes in non-interactive mode")
+			}
+			answer, err := a.readLine(fmt.Sprintf("Type %s to permanently delete the Sprint: ", sprint.Slug))
+			if err != nil {
+				return err
+			}
+			if answer != sprint.Slug {
+				return confirmationRequired("Sprint deletion was not confirmed")
+			}
+		}
+		if err := client.DeleteMilestone(cmd.Context(), sprint.ID); err != nil {
+			return err
+		}
+		result := map[string]any{"id": sprint.ID, "project": project.Slug, "slug": sprint.Slug, "name": sprint.Name, "deleted": true, "verified": true}
+		if a.global.JSON {
+			return a.renderer().Data(result)
+		}
+		if !a.global.Quiet {
+			_, _ = fmt.Fprintf(a.Out, "Deleted Sprint %s#%s\n", project.Slug, sprint.Slug)
+		}
+		return nil
+	}}
+	command.Flags().BoolVar(&yes, "yes", false, "confirm permanent Sprint deletion")
+	command.Flags().BoolVar(&dryRun, "dry-run", false, "resolve and display the deletion without writing")
+	command.ValidArgsFunction = a.completeSprintNames
 	return command
 }
 

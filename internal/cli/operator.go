@@ -87,8 +87,68 @@ func (a *App) participantCommand(resource, kind string) *cobra.Command {
 
 func (a *App) commentCommand() *cobra.Command {
 	command := &cobra.Command{Use: "comment", Short: "Edit or delete work item comments by history entry ID"}
-	command.AddCommand(a.commentEditCommand(), a.commentDeleteCommand())
+	command.AddCommand(a.commentEditCommand(), a.commentDeleteCommand(), a.commentUndeleteCommand(), a.commentVersionsCommand())
 	return command
+}
+
+func (a *App) commentUndeleteCommand() *cobra.Command {
+	var dryRun bool
+	command := &cobra.Command{Use: "undelete <epic|story|task|issue|wiki> <ref|slug|url> <history-id>", Short: "Restore a deleted comment", Args: exactArgs(3), ValidArgs: []string{"epic", "story", "task", "issue", "wiki"}, RunE: func(cmd *cobra.Command, args []string) error {
+		resource, err := normalizeActivityResource(args[0])
+		if err != nil {
+			return err
+		}
+		target, err := a.loadActivityTarget(cmd.Context(), resource, args[1])
+		if err != nil {
+			return err
+		}
+		entry, err := target.Client.FindHistoryEntry(cmd.Context(), resource, target.ID, args[2])
+		if err != nil {
+			return err
+		}
+		if entry.Comment == "" {
+			return validationError("not_comment", "history entry does not contain a comment")
+		}
+		if entry.DeleteCommentDate == "" {
+			return a.renderCommentMutation("Restored", resource, target.reference(), entry)
+		}
+		if dryRun {
+			return a.renderDryRun("restore comment", target.reference(), map[string]any{"history_id": entry.ID, "comment": entry.Comment})
+		}
+		restored, err := target.Client.UndeleteComment(cmd.Context(), resource, target.ID, entry.ID)
+		if err != nil {
+			return err
+		}
+		return a.renderCommentMutation("Restored", resource, target.reference(), restored)
+	}}
+	command.Flags().BoolVar(&dryRun, "dry-run", false, "resolve and display the restore without writing")
+	return command
+}
+
+func (a *App) commentVersionsCommand() *cobra.Command {
+	return &cobra.Command{Use: "versions <epic|story|task|issue|wiki> <ref|slug|url> <history-id>", Short: "List previous versions of an edited comment", Args: exactArgs(3), ValidArgs: []string{"epic", "story", "task", "issue", "wiki"}, RunE: func(cmd *cobra.Command, args []string) error {
+		resource, err := normalizeActivityResource(args[0])
+		if err != nil {
+			return err
+		}
+		target, err := a.loadActivityTarget(cmd.Context(), resource, args[1])
+		if err != nil {
+			return err
+		}
+		versions, err := target.Client.CommentVersions(cmd.Context(), resource, target.ID, args[2])
+		if err != nil {
+			return err
+		}
+		if a.global.JSON {
+			return a.renderer().List(versions, map[string]any{"resource": resource, "reference": target.reference(), "history_id": args[2], "total": len(versions)})
+		}
+		writer := tabwriter.NewWriter(a.Out, 0, 4, 2, ' ', 0)
+		_, _ = fmt.Fprintln(writer, "DATE\tCOMMENT")
+		for _, version := range versions {
+			_, _ = fmt.Fprintf(writer, "%s\t%s\n", version.Date, version.Comment)
+		}
+		return writer.Flush()
+	}}
 }
 
 func (a *App) commentEditCommand() *cobra.Command {

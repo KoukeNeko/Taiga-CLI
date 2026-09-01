@@ -13,6 +13,13 @@ type Participant struct {
 	FullName string `json:"full_name,omitempty"`
 }
 
+type CommentVersion struct {
+	Date        string         `json:"date"`
+	Comment     string         `json:"comment"`
+	CommentHTML string         `json:"comment_html,omitempty"`
+	User        map[string]any `json:"user,omitempty"`
+}
+
 func (c *Client) DeleteWorkItem(ctx context.Context, resource string, id int64) error {
 	path, err := workItemPath(resource)
 	if err != nil {
@@ -112,4 +119,35 @@ func (c *Client) DeleteComment(ctx context.Context, resource string, objectID in
 		return entry, &Error{Kind: KindAmbiguousCommit, Operation: "POST " + operation, Message: "Taiga did not confirm the deleted comment", Retryable: false}
 	}
 	return entry, nil
+}
+
+func (c *Client) UndeleteComment(ctx context.Context, resource string, objectID int64, historyID string) (HistoryEntry, error) {
+	path, err := historyPath(resource)
+	if err != nil {
+		return HistoryEntry{}, err
+	}
+	operation := fmt.Sprintf("%s/%d/undelete_comment", path, objectID)
+	query := url.Values{"id": []string{historyID}}
+	if _, err := c.PostQuery(ctx, operation, query, nil, nil); err != nil {
+		return HistoryEntry{}, err
+	}
+	entry, err := c.FindHistoryEntry(ctx, resource, objectID, historyID)
+	if err != nil {
+		return HistoryEntry{}, &Error{Kind: KindAmbiguousCommit, Operation: "POST " + operation, Message: "comment may have been restored but could not be verified", Retryable: false, Cause: err}
+	}
+	if entry.DeleteCommentDate != "" {
+		return entry, &Error{Kind: KindAmbiguousCommit, Operation: "POST " + operation, Message: "Taiga did not confirm the restored comment", Retryable: false}
+	}
+	return entry, nil
+}
+
+func (c *Client) CommentVersions(ctx context.Context, resource string, objectID int64, historyID string) ([]CommentVersion, error) {
+	path, err := historyPath(resource)
+	if err != nil {
+		return nil, err
+	}
+	query := url.Values{"id": []string{historyID}}
+	var versions []CommentVersion
+	_, err = c.Get(ctx, fmt.Sprintf("%s/%d/comment_versions", path, objectID), query, &versions)
+	return versions, err
 }

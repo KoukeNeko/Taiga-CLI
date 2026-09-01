@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 
@@ -38,8 +39,195 @@ type batchCreateOptions struct {
 
 func (a *App) batchCommand() *cobra.Command {
 	command := &cobra.Command{Use: "batch", Short: "Perform bounded bulk operations"}
-	command.AddCommand(a.batchCreateCommand())
+	command.AddCommand(a.batchCreateCommand(), a.batchMoveCommand(), a.batchReorderCommand())
 	return command
+}
+
+func (a *App) batchMoveCommand() *cobra.Command {
+	var ids []int64
+	var sprint string
+	var yes, dryRun bool
+	command := &cobra.Command{Use: "move <story|task|issue>", Short: "Move multiple work items to a Sprint", Args: exactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+		resource := strings.ToLower(args[0])
+		if resource != "story" && resource != "task" && resource != "issue" {
+			return usageError("resource must be story, task, or issue")
+		}
+		if len(ids) == 0 {
+			return usageError("at least one --id is required")
+		}
+		if len(ids) > maxBatchItems {
+			return validationError("batch_too_large", fmt.Sprintf("batch contains more than %d items", maxBatchItems))
+		}
+		seen := map[int64]bool{}
+		for _, id := range ids {
+			if id <= 0 {
+				return usageError("--id values must be positive")
+			}
+			if seen[id] {
+				return usageError("duplicate --id value")
+			}
+			seen[id] = true
+		}
+		if strings.TrimSpace(sprint) == "" {
+			return usageError("--sprint is required")
+		}
+		client, project, err := a.selectedProject(cmd.Context())
+		if err != nil {
+			return err
+		}
+		milestone, err := a.resolveMilestone(cmd.Context(), client, project.ID, sprint)
+		if err != nil {
+			return err
+		}
+		if dryRun {
+			return a.renderDryRun("batch move "+resource, project.Slug+"#"+milestone.Slug, map[string]any{"ids": ids, "milestone_id": milestone.ID})
+		}
+		if !yes {
+			return confirmationRequired("batch move requires --yes")
+		}
+		if err := client.BulkMoveToMilestone(cmd.Context(), resource, project.ID, milestone.ID, ids); err != nil {
+			return err
+		}
+		return a.renderAdminMutation("Moved", resource+" batch", map[string]any{"resource": resource, "ids": ids, "sprint": milestone.Slug, "moved": true})
+	}}
+	command.Flags().Int64SliceVar(&ids, "id", nil, "internal work-item ID (comma-separated or repeatable)")
+	command.Flags().StringVar(&sprint, "sprint", "", "target Sprint ID, name, or slug")
+	command.Flags().BoolVar(&yes, "yes", false, "confirm moving every item")
+	command.Flags().BoolVar(&dryRun, "dry-run", false, "resolve and display without writing")
+	return command
+}
+
+func (a *App) batchReorderCommand() *cobra.Command {
+	var ids []int64
+	var orders []string
+	var view, status, swimlane, sprint string
+	var after, before int64
+	var yes, dryRun bool
+	command := &cobra.Command{Use: "reorder <story|task>", Short: "Reorder Story or Task batches", Args: exactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+		resource := strings.ToLower(args[0])
+		if resource != "story" && resource != "task" {
+			return usageError("resource must be story or task")
+		}
+		if after > 0 && before > 0 {
+			return usageError("--after and --before are mutually exclusive")
+		}
+		client, project, err := a.selectedProject(cmd.Context())
+		if err != nil {
+			return err
+		}
+		options := map[string]any{}
+		if sprint != "" {
+			milestone, resolveErr := a.resolveMilestone(cmd.Context(), client, project.ID, sprint)
+			if resolveErr != nil {
+				return resolveErr
+			}
+			options["milestone_id"] = milestone.ID
+		}
+		if resource == "story" {
+			if len(ids) == 0 {
+				return usageError("at least one --id is required for Story reorder")
+			}
+			if view != "backlog" && view != "kanban" {
+				return usageError("Story --view must be backlog or kanban")
+			}
+			if after > 0 {
+				options["after_userstory_id"] = after
+			}
+			if before > 0 {
+				options["before_userstory_id"] = before
+			}
+			if view == "kanban" {
+				if status == "" {
+					return usageError("Kanban reorder requires --status")
+				}
+				_, _, resolved, resolveErr := a.resolveWorkflowMetadata(cmd.Context(), "story-status", status)
+				if resolveErr != nil {
+					return resolveErr
+				}
+				options["status_id"] = resolved.ID
+				if swimlane != "" {
+					_, _, lane, laneErr := a.resolveSwimlane(cmd.Context(), swimlane)
+					if laneErr != nil {
+						return laneErr
+					}
+					options["swimlane_id"] = lane.ID
+				}
+			}
+			if dryRun {
+				return a.renderDryRun("batch reorder story", project.Slug, map[string]any{"view": view, "ids": ids, "options": options})
+			}
+			if !yes {
+				return confirmationRequired("batch reorder requires --yes")
+			}
+			result, callErr := client.BulkOrderStories(cmd.Context(), project.ID, view, ids, options)
+			if callErr != nil {
+				return callErr
+			}
+			return a.renderAdminMutation("Reordered", "story batch", map[string]any{"ids": ids, "view": view, "result": result})
+		}
+		if view != "taskboard" && view != "us" {
+			return usageError("Task --view must be taskboard or us")
+		}
+		parsed, parseErr := parseBatchOrders(orders)
+		if parseErr != nil {
+			return parseErr
+		}
+		if status != "" {
+			_, _, resolved, resolveErr := a.resolveWorkflowMetadata(cmd.Context(), "task-status", status)
+			if resolveErr != nil {
+				return resolveErr
+			}
+			options["status_id"] = resolved.ID
+		}
+		if dryRun {
+			return a.renderDryRun("batch reorder task", project.Slug, map[string]any{"view": view, "orders": parsed, "options": options})
+		}
+		if !yes {
+			return confirmationRequired("batch reorder requires --yes")
+		}
+		result, callErr := client.BulkOrderTasks(cmd.Context(), project.ID, view, parsed, options)
+		if callErr != nil {
+			return callErr
+		}
+		return a.renderAdminMutation("Reordered", "task batch", map[string]any{"orders": parsed, "view": view, "result": result})
+	}}
+	command.Flags().Int64SliceVar(&ids, "id", nil, "Story internal ID in desired order")
+	command.Flags().StringArrayVar(&orders, "order", nil, "Task internal ID and order as id=order (repeatable)")
+	command.Flags().StringVar(&view, "view", "", "Story: backlog|kanban; Task: taskboard|us")
+	command.Flags().StringVar(&status, "status", "", "target status ID, name, or slug")
+	command.Flags().StringVar(&swimlane, "swimlane", "", "target swimlane ID or name")
+	command.Flags().StringVar(&sprint, "sprint", "", "Sprint ID, name, or slug")
+	command.Flags().Int64Var(&after, "after", 0, "place Story batch after this internal Story ID")
+	command.Flags().Int64Var(&before, "before", 0, "place Story batch before this internal Story ID")
+	command.Flags().BoolVar(&yes, "yes", false, "confirm reordering every item")
+	command.Flags().BoolVar(&dryRun, "dry-run", false, "resolve and display without writing")
+	return command
+}
+
+func parseBatchOrders(values []string) (map[int64]int, error) {
+	if len(values) == 0 {
+		return nil, usageError("at least one --order id=order is required for Task reorder")
+	}
+	if len(values) > maxBatchItems {
+		return nil, validationError("batch_too_large", fmt.Sprintf("batch contains more than %d items", maxBatchItems))
+	}
+	result := map[int64]int{}
+	for _, value := range values {
+		left, right, ok := strings.Cut(value, "=")
+		if !ok {
+			return nil, usageError("--order must use id=order")
+		}
+		id, idErr := strconv.ParseInt(strings.TrimSpace(left), 10, 64)
+		order, orderErr := strconv.Atoi(strings.TrimSpace(right))
+		if idErr != nil || id <= 0 || orderErr != nil || order < 0 {
+			return nil, usageError("--order requires a positive ID and non-negative order")
+		}
+		if _, exists := result[id]; exists {
+			return nil, usageError("duplicate Task ID in --order")
+		}
+		result[id] = order
+	}
+	return result, nil
 }
 
 func (a *App) batchCreateCommand() *cobra.Command {

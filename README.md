@@ -18,16 +18,20 @@
 - Issue list、view、create、edit、close、assign、comment、delete。
 - User Story list、view、create、edit、close、move、assign、comment、delete。
 - Task list、view、create、edit、done、assign、comment、delete。
-- Sprint list、view、create、edit、close、reopen。
+- Sprint list、view、create、edit、close、reopen、delete。
 - Issue、Story、Task、Epic 的 vote/unvote、voter list，以及 watch/unwatch、watcher list、activity/comment history。
 - Project timeline，以及 Project backlog/velocity、Issue 趨勢、Member 貢獻與 Sprint burndown stats。
 - Issue、Story、Task、Epic、Wiki 的附件 streaming upload/download、list、view、edit、delete。
 - Wiki list、view、create、edit、delete、watch 與 history。
-- Comment edit/delete、Wiki navigation link CRUD，以及八類 Workflow metadata CRUD。
+- Comment edit/delete/undelete/version history、Wiki navigation link CRUD，以及八類 Workflow metadata CRUD。
+- Due-date preset CRUD、Swimlane CRUD／per-column WIP、Project tag create/edit/delete/mix。
+- Notification policy、web notification、application token revocation 與 current-user JSON storage。
+- Project ownership transfer、like/unlike/fans 與 temporary-token CSV export。
+- GitHub、GitLab、Jira、Trello、Asana、Pivotal 的 server-capability-aware importer gateway。
 - Taiga optimistic concurrency control（OCC）與 `--base-version`。
 - Human output、versioned JSON、`--fields`、structured error 與固定 exit code。
 - `--dry-run`、`--no-input`、redacted verbose logging。
-- Epic、Story、Issue、Task 的 bounded native bulk create，支援檔案/stdin、共同 metadata 與完整 dry-run。
+- Epic、Story、Issue、Task 的 bounded native bulk create，以及 Story/Task/Issue 的 native batch move/reorder。
 - JSON Schema command descriptors 與四種 shell completion。
 - 依 profile、API 與 project 隔離的 completion metadata cache，支援 stale-on-error。
 - `httptest` 單元測試和隔離的真實 Taiga Docker E2E。
@@ -206,6 +210,7 @@ taiga sprint create --name "Sprint 27" --start 2026-09-01 --finish 2026-09-14
 taiga sprint edit sprint-27 --finish 2026-09-16
 taiga sprint close sprint-27
 taiga sprint reopen sprint-27
+taiga sprint delete sprint-27 --yes
 ```
 
 Sprint 日期使用 `YYYY-MM-DD`；`sprint` 也可寫成 `milestone`。
@@ -246,6 +251,9 @@ taiga batch create issue issues.txt --sprint sprint-27 --yes --json
 cat stories.txt | taiga batch create story - --status New --yes
 taiga batch create task tasks.txt --story 51 --yes
 taiga batch create epic epics.txt --yes
+taiga batch move story --id 101,102 --sprint sprint-28 --yes
+taiga batch reorder story --view kanban --id 102,101 --status "In progress" --swimlane Backend --yes
+taiga batch reorder task --view taskboard --order 501=1 --order 502=2 --status "In progress" --yes
 ```
 
 Batch input 每個非空白行是一個 subject，上限 1000 筆與 4 MiB；同一批可套用共同 `--status`。Issue 可指定共同 `--sprint`；Task 必須指定 `--sprint`，或以 `--story` 從 parent Story 推導 Sprint。Taiga 原生 bulk endpoint 不支援每筆不同 description/assignee，也不保證跨資源原子交易。CLI 在成功回應後核對回傳筆數；若不一致會回報 `ambiguous_commit`，要求先 list 確認，避免盲目重送。非互動執行必須提供 `--yes`。
@@ -275,6 +283,8 @@ taiga issue history 42
 taiga issue history 42 --type comment
 taiga comment edit issue 42 <history-id> --body "Corrected comment"
 taiga comment delete issue 42 <history-id> --yes
+taiga comment undelete issue 42 <history-id>
+taiga comment versions issue 42 <history-id>
 taiga issue watchers 42
 taiga issue voters 42
 taiga issue unvote 42
@@ -284,7 +294,7 @@ taiga story history 51 --type activity
 taiga task history 72 --page 2 --limit 20
 ```
 
-Watch/unwatch 與 watcher list 支援 issue、story、task、wiki、epic；vote/unvote 與 voter list 支援 issue、story、task、epic。Comment edit/delete 以 history entry ID 定位並在 mutation 後回讀確認。History 的 `--type` 可用 `all`、`activity`、`comment`。
+Watch/unwatch 與 watcher list 支援 issue、story、task、wiki、epic；vote/unvote 與 voter list 支援 issue、story、task、epic。Comment edit/delete/undelete 以 history entry ID 定位並在 mutation 後回讀確認。History 的 `--type` 可用 `all`、`activity`、`comment`。
 
 管理 Wiki：
 
@@ -322,6 +332,57 @@ taiga metadata delete issue-status Review --move-to New --yes
 ```
 
 支援 `epic-status`、`story-status`、`task-status`、`issue-status`、`points`、`priority`、`severity`、`issue-type`。刪除必須提供同 kind 的 `--move-to`；Taiga 會先搬移關聯工作項目與 Project default，再刪除 metadata。
+
+管理其他 Project metadata 與個人設定：
+
+```sh
+taiga due-date create story --name "One week" --days 7 --color '#4A90E2'
+taiga due-date edit story "One week" --days 5
+taiga due-date delete story "One week" --yes
+
+taiga swimlane create --name Backend --order 2
+taiga swimlane wip Backend "In progress" --limit 3
+taiga swimlane delete Backend --move-to Default --yes
+
+taiga tag create backend --color '#4A90E2'
+taiga tag edit backend --name platform
+taiga tag mix platform --from api --from database
+taiga tag delete platform --yes
+
+taiga notification policy list --json
+taiga notification policy edit 17 --email involved --live all --web=true
+taiga notification web list --unread --json
+taiga notification web read --all
+
+taiga application list --json
+taiga application tokens --json
+taiga application revoke 9 --yes
+taiga storage set dashboard --value '{"compact":true}'
+taiga storage get dashboard --json
+```
+
+Project social、ownership transfer 與 CSV：
+
+```sh
+taiga project like
+taiga project fans --json
+taiga project transfer start --user 27 --reason "New maintainer" --yes
+taiga project transfer validate-token --token "$TRANSFER_TOKEN"
+taiga project transfer accept --token "$TRANSFER_TOKEN" --yes
+taiga csv export issue --output ./issues.csv
+```
+
+CSV 先建立短期 server UUID，再串流下載至 `0600` 暫存檔、計算 SHA-256、原子替換目的檔，最後撤銷 UUID。Application token 的 auth code 永不出現在 list 輸出；ownership transfer token 也不會出現在 dry-run 或結果。
+
+第三方 importer gateway：
+
+```sh
+taiga integration providers --json
+taiga integration call github list-projects --input ./github-import.json --json
+taiga integration call jira import-project --input ./jira-import.json --yes --json
+```
+
+`--input` 必須是 JSON object，適合以 `0600` 檔案傳入 token/code；`--field key=JSON` 適合非敏感欄位。實際 provider/action 是否可用由 Taiga server 設定決定；CLI 會保留 server 的 `not_found`／validation 回應。GitLab 與 Pivotal 在 upstream Taiga 預設可能未啟用，但 gateway 可直接支援提供相容 route 的部署。
 
 管理 Epic 與跨專案 Story 關聯：
 
