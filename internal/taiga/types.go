@@ -223,6 +223,7 @@ type Issue struct {
 	AssignedToExtraInfo *ExtraInfo `json:"assigned_to_extra_info,omitempty"`
 	IsClosed            bool       `json:"is_closed"`
 	IsWatcher           bool       `json:"is_watcher"`
+	IsVoter             bool       `json:"is_voter"`
 	CreatedDate         string     `json:"created_date,omitempty"`
 	ModifiedDate        string     `json:"modified_date,omitempty"`
 }
@@ -281,6 +282,7 @@ type UserStory struct {
 	Points          map[string]int64 `json:"points,omitempty"`
 	IsClosed        bool             `json:"is_closed"`
 	IsWatcher       bool             `json:"is_watcher"`
+	IsVoter         bool             `json:"is_voter"`
 	IsBlocked       bool             `json:"is_blocked"`
 	BlockedNote     string           `json:"blocked_note,omitempty"`
 	BacklogOrder    int64            `json:"backlog_order"`
@@ -367,6 +369,7 @@ type Task struct {
 	AssignedToExtraInfo *ExtraInfo     `json:"assigned_to_extra_info,omitempty"`
 	IsClosed            bool           `json:"is_closed"`
 	IsWatcher           bool           `json:"is_watcher"`
+	IsVoter             bool           `json:"is_voter"`
 	IsBlocked           bool           `json:"is_blocked"`
 	BlockedNote         string         `json:"blocked_note,omitempty"`
 	CreatedDate         string         `json:"created_date,omitempty"`
@@ -446,6 +449,7 @@ type Epic struct {
 	IsBlocked           bool           `json:"is_blocked"`
 	BlockedNote         string         `json:"blocked_note,omitempty"`
 	IsWatcher           bool           `json:"is_watcher"`
+	IsVoter             bool           `json:"is_voter"`
 	UserStoriesCounts   map[string]any `json:"user_stories_counts,omitempty"`
 	CreatedDate         string         `json:"created_date,omitempty"`
 	ModifiedDate        string         `json:"modified_date,omitempty"`

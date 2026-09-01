@@ -21,6 +21,10 @@ func attachmentPath(resource string) (string, error) {
 		return "userstories/attachments", nil
 	case "task":
 		return "tasks/attachments", nil
+	case "epic":
+		return "epics/attachments", nil
+	case "wiki":
+		return "wiki/attachments", nil
 	default:
 		return "", fmt.Errorf("unsupported attachment resource %q", resource)
 	}
@@ -153,7 +157,11 @@ func NormalizeAttachmentResource(value string) (string, error) {
 		return "story", nil
 	case "task", "tasks":
 		return "task", nil
+	case "epic", "epics":
+		return "epic", nil
+	case "wiki", "wikis":
+		return "wiki", nil
 	default:
-		return "", fmt.Errorf("resource must be issue, story, or task")
+		return "", fmt.Errorf("resource must be epic, story, task, issue, or wiki")
 	}
 }

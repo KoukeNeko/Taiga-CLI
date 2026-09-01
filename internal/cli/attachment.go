@@ -14,28 +14,28 @@ import (
 )
 
 type attachmentTarget struct {
-	Client   *taiga.Client
-	Project  taiga.Project
-	Resource string
-	ObjectID int64
-	Ref      int
+	Client    *taiga.Client
+	ProjectID int64
+	Resource  string
+	ObjectID  int64
+	Reference string
 }
 
 func (a *App) attachmentCommand() *cobra.Command {
-	command := &cobra.Command{Use: "attachment", Aliases: []string{"attach"}, Short: "Work with Issue, Story, and Task attachments"}
+	command := &cobra.Command{Use: "attachment", Aliases: []string{"attach"}, Short: "Work with Epic, Story, Task, Issue, and Wiki attachments"}
 	command.AddCommand(a.attachmentListCommand(), a.attachmentViewCommand(), a.attachmentAddCommand(), a.attachmentEditCommand(), a.attachmentDeleteCommand())
 	return command
 }
 
 func (a *App) attachmentListCommand() *cobra.Command {
 	return &cobra.Command{
-		Use: "list <issue|story|task> <ref>", Short: "List work item attachments", Args: exactArgs(2), ValidArgs: []string{"issue", "story", "task"},
+		Use: "list <epic|story|task|issue|wiki> <ref|slug>", Short: "List work item attachments", Args: exactArgs(2), ValidArgs: []string{"epic", "story", "task", "issue", "wiki"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			target, err := a.loadAttachmentTarget(cmd.Context(), args[0], args[1])
 			if err != nil {
 				return err
 			}
-			attachments, err := target.Client.ListAttachments(cmd.Context(), target.Resource, target.Project.ID, target.ObjectID)
+			attachments, err := target.Client.ListAttachments(cmd.Context(), target.Resource, target.ProjectID, target.ObjectID)
 			if err != nil {
 				return err
 			}
@@ -54,7 +54,7 @@ func (a *App) attachmentListCommand() *cobra.Command {
 
 func (a *App) attachmentViewCommand() *cobra.Command {
 	return &cobra.Command{
-		Use: "view <issue|story|task> <id>", Short: "View attachment metadata", Args: exactArgs(2), ValidArgs: []string{"issue", "story", "task"},
+		Use: "view <epic|story|task|issue|wiki> <id>", Short: "View attachment metadata", Args: exactArgs(2), ValidArgs: []string{"epic", "story", "task", "issue", "wiki"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			resource, id, err := parseAttachmentIdentity(args)
 			if err != nil {
@@ -81,7 +81,7 @@ func (a *App) attachmentAddCommand() *cobra.Command {
 	var name, description string
 	var deprecated, dryRun bool
 	command := &cobra.Command{
-		Use: "add <issue|story|task> <ref> <file|->", Short: "Upload a work item attachment", Args: exactArgs(3), ValidArgs: []string{"issue", "story", "task"},
+		Use: "add <epic|story|task|issue|wiki> <ref|slug> <file|->", Short: "Upload a work item attachment", Args: exactArgs(3), ValidArgs: []string{"epic", "story", "task", "issue", "wiki"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			target, err := a.loadAttachmentTarget(cmd.Context(), args[0], args[1])
 			if err != nil {
@@ -107,9 +107,9 @@ func (a *App) attachmentAddCommand() *cobra.Command {
 				}
 			}
 			if dryRun {
-				return a.renderDryRun("upload attachment", fmt.Sprintf("%s#%d", target.Resource, target.Ref), map[string]any{"name": fileName, "description": description, "deprecated": deprecated})
+				return a.renderDryRun("upload attachment", target.Reference, map[string]any{"name": fileName, "description": description, "deprecated": deprecated})
 			}
-			attachment, err := target.Client.CreateAttachment(cmd.Context(), target.Resource, target.Project.ID, target.ObjectID, fileName, description, deprecated, source)
+			attachment, err := target.Client.CreateAttachment(cmd.Context(), target.Resource, target.ProjectID, target.ObjectID, fileName, description, deprecated, source)
 			if err != nil {
 				return err
 			}
@@ -127,7 +127,7 @@ func (a *App) attachmentEditCommand() *cobra.Command {
 	var description string
 	var deprecated, dryRun bool
 	command := &cobra.Command{
-		Use: "edit <issue|story|task> <id>", Short: "Edit attachment metadata", Args: exactArgs(2), ValidArgs: []string{"issue", "story", "task"},
+		Use: "edit <epic|story|task|issue|wiki> <id>", Short: "Edit attachment metadata", Args: exactArgs(2), ValidArgs: []string{"epic", "story", "task", "issue", "wiki"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !cmd.Flags().Changed("description") && !cmd.Flags().Changed("deprecated") {
 				return usageError("--description or --deprecated is required")
@@ -166,7 +166,7 @@ func (a *App) attachmentEditCommand() *cobra.Command {
 func (a *App) attachmentDeleteCommand() *cobra.Command {
 	var yes, dryRun bool
 	command := &cobra.Command{
-		Use: "delete <issue|story|task> <id>", Short: "Delete an attachment", Args: exactArgs(2), ValidArgs: []string{"issue", "story", "task"},
+		Use: "delete <epic|story|task|issue|wiki> <id>", Short: "Delete an attachment", Args: exactArgs(2), ValidArgs: []string{"epic", "story", "task", "issue", "wiki"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			resource, id, err := parseAttachmentIdentity(args)
 			if err != nil {
@@ -218,48 +218,11 @@ func (a *App) loadAttachmentTarget(ctx context.Context, resourceValue, refValue 
 	if err != nil {
 		return attachmentTarget{}, usageError(err.Error())
 	}
-	client, settings, err := a.client(ctx, true)
+	target, err := a.loadActivityTarget(ctx, resource, refValue)
 	if err != nil {
 		return attachmentTarget{}, err
 	}
-	var ref taiga.ItemRef
-	switch resource {
-	case "issue":
-		ref, err = taiga.ParseItemRef(refValue, settings.Project)
-	case "story":
-		ref, err = taiga.ParseStoryRef(refValue, settings.Project)
-	case "task":
-		ref, err = taiga.ParseTaskRef(refValue, settings.Project)
-	}
-	if err != nil {
-		return attachmentTarget{}, validationError("invalid_ref", err.Error())
-	}
-	project, err := client.GetProjectBySlug(ctx, ref.Project)
-	if err != nil {
-		return attachmentTarget{}, err
-	}
-	var objectID int64
-	switch resource {
-	case "issue":
-		item, err := client.GetIssueByRef(ctx, project.Slug, ref.Ref)
-		if err != nil {
-			return attachmentTarget{}, err
-		}
-		objectID = item.ID
-	case "story":
-		item, err := client.GetUserStoryByRef(ctx, project.Slug, ref.Ref)
-		if err != nil {
-			return attachmentTarget{}, err
-		}
-		objectID = item.ID
-	case "task":
-		item, err := client.GetTaskByRef(ctx, project.Slug, ref.Ref)
-		if err != nil {
-			return attachmentTarget{}, err
-		}
-		objectID = item.ID
-	}
-	return attachmentTarget{Client: client, Project: project, Resource: resource, ObjectID: objectID, Ref: ref.Ref}, nil
+	return attachmentTarget{Client: target.Client, ProjectID: target.ProjectID, Resource: resource, ObjectID: target.ID, Reference: target.reference()}, nil
 }
 
 func parseAttachmentIdentity(args []string) (string, int64, error) {

@@ -226,6 +226,14 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 	if unwatchedIssue.Data["watching"] != false || unwatchedIssue.Data["verified"] != true {
 		t.Fatalf("issue unwatch was not verified: %#v", unwatchedIssue.Data)
 	}
+	votedIssue := runner.jsonOK("issue", "vote", target)
+	if votedIssue.Data["voting"] != true || votedIssue.Data["verified"] != true {
+		t.Fatalf("issue vote was not verified: %#v", votedIssue.Data)
+	}
+	unvotedIssue := runner.jsonOK("issue", "unvote", target)
+	if unvotedIssue.Data["voting"] != false || unvotedIssue.Data["verified"] != true {
+		t.Fatalf("issue unvote was not verified: %#v", unvotedIssue.Data)
+	}
 	closedStatus := firstClosedStatus(t, baseURL, token, projectID)
 	closed := runner.jsonOK("issue", "close", target, "--status", closedStatus, "--base-version", strconv.Itoa(version))
 	if closed.Data["is_closed"] != true {
@@ -340,6 +348,14 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 	if unwatchedStory.Data["watching"] != false || unwatchedStory.Data["verified"] != true {
 		t.Fatalf("story unwatch was not verified: %#v", unwatchedStory.Data)
 	}
+	votedStory := runner.jsonOK("story", "vote", storyTarget)
+	if votedStory.Data["voting"] != true || votedStory.Data["verified"] != true {
+		t.Fatalf("story vote was not verified: %#v", votedStory.Data)
+	}
+	unvotedStory := runner.jsonOK("story", "unvote", storyTarget)
+	if unvotedStory.Data["voting"] != false || unvotedStory.Data["verified"] != true {
+		t.Fatalf("story unvote was not verified: %#v", unvotedStory.Data)
+	}
 	closedStoryStatus := firstClosedStoryStatus(t, baseURL, token, projectID)
 	closedStory := runner.jsonOK("story", "close", storyTarget, "--status", closedStoryStatus, "--base-version", strconv.Itoa(storyVersion))
 	if closedStory.Data["is_closed"] != true {
@@ -365,6 +381,16 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 	}
 	epicEdited := runner.jsonOK("epic", "edit", epicTarget, "--subject", "E2E epic updated", "--base-version", strconv.Itoa(epicVersion))
 	epicVersion = int(epicEdited.Data["version"].(float64))
+	epicAttachment := runner.jsonOK("attachment", "add", "epic", epicTarget, attachmentPath, "--description", "Epic evidence")
+	epicAttachmentID := int64(epicAttachment.Data["id"].(float64))
+	epicAttachments := runner.jsonOK("attachment", "list", "epic", epicTarget, "--fields", "id,name,description")
+	if !containsID(epicAttachments.Items, epicAttachmentID) {
+		t.Fatalf("epic attachment %d missing from list", epicAttachmentID)
+	}
+	deletedEpicAttachment := runner.jsonOK("attachment", "delete", "epic", strconv.FormatInt(epicAttachmentID, 10), "--yes")
+	if deletedEpicAttachment.Data["deleted"] != true {
+		t.Fatalf("epic attachment not deleted: %#v", deletedEpicAttachment.Data)
+	}
 	var externalEpicUpdate map[string]any
 	apiRequest(t, http.MethodPatch, baseURL+"epics/"+strconv.FormatInt(epicID, 10), token, map[string]any{"subject": "external epic edit", "version": epicVersion}, &externalEpicUpdate)
 	stdout, stderr, code = runner.run("--json", "epic", "edit", epicTarget, "--subject", "must conflict", "--base-version", strconv.Itoa(epicVersion))
@@ -390,6 +416,14 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 	unwatchedEpic := runner.jsonOK("epic", "unwatch", epicTarget)
 	if unwatchedEpic.Data["watching"] != false || unwatchedEpic.Data["verified"] != true {
 		t.Fatalf("epic unwatch was not verified: %#v", unwatchedEpic.Data)
+	}
+	votedEpic := runner.jsonOK("epic", "vote", epicTarget)
+	if votedEpic.Data["voting"] != true || votedEpic.Data["verified"] != true {
+		t.Fatalf("epic vote was not verified: %#v", votedEpic.Data)
+	}
+	unvotedEpic := runner.jsonOK("epic", "unvote", epicTarget)
+	if unvotedEpic.Data["voting"] != false || unvotedEpic.Data["verified"] != true {
+		t.Fatalf("epic unvote was not verified: %#v", unvotedEpic.Data)
 	}
 	unlinkedStory := runner.jsonOK("epic", "unlink", epicTarget, "--story", secondaryStoryTarget)
 	if unlinkedStory.Data["linked"] != false {
@@ -446,6 +480,14 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 	unwatchedTask := runner.jsonOK("task", "unwatch", taskTarget)
 	if unwatchedTask.Data["watching"] != false || unwatchedTask.Data["verified"] != true {
 		t.Fatalf("task unwatch was not verified: %#v", unwatchedTask.Data)
+	}
+	votedTask := runner.jsonOK("task", "vote", taskTarget)
+	if votedTask.Data["voting"] != true || votedTask.Data["verified"] != true {
+		t.Fatalf("task vote was not verified: %#v", votedTask.Data)
+	}
+	unvotedTask := runner.jsonOK("task", "unvote", taskTarget)
+	if unvotedTask.Data["voting"] != false || unvotedTask.Data["verified"] != true {
+		t.Fatalf("task unvote was not verified: %#v", unvotedTask.Data)
 	}
 	stdout, stderr, code = runner.run("story", "close", strconv.Itoa(storyWithTaskRef), "--status", closedStoryStatus, "--base-version", strconv.Itoa(storyWithTaskVersion))
 	if code != 0 || !strings.Contains(stderr, "open tasks keep this story active") {
@@ -534,6 +576,16 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 	wikiVersion = int(wikiEdited.Data["version"].(float64))
 	if wikiEdited.Data["content"] != "# E2E guide\nUpdated from stdin" {
 		t.Fatalf("wiki stdin update=%#v", wikiEdited.Data)
+	}
+	wikiAttachment := runner.jsonOK("attachment", "add", "wiki", wikiSlug, attachmentPath, "--description", "Wiki evidence")
+	wikiAttachmentID := int64(wikiAttachment.Data["id"].(float64))
+	wikiAttachments := runner.jsonOK("attachment", "list", "wiki", wikiSlug, "--fields", "id,name,description")
+	if !containsID(wikiAttachments.Items, wikiAttachmentID) {
+		t.Fatalf("wiki attachment %d missing from list", wikiAttachmentID)
+	}
+	deletedWikiAttachment := runner.jsonOK("attachment", "delete", "wiki", strconv.FormatInt(wikiAttachmentID, 10), "--yes")
+	if deletedWikiAttachment.Data["deleted"] != true {
+		t.Fatalf("wiki attachment not deleted: %#v", deletedWikiAttachment.Data)
 	}
 	var externalWikiUpdate map[string]any
 	apiRequest(t, http.MethodPatch, baseURL+"wiki/"+strconv.FormatInt(wikiID, 10), token, map[string]any{"content": "external wiki edit", "version": wikiVersion}, &externalWikiUpdate)

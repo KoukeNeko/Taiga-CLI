@@ -54,6 +54,7 @@ func (a *App) storyCommand() *cobra.Command {
 		a.watchCommand("story", true),
 		a.watchCommand("story", false),
 		a.historyCommand("story"),
+		a.voteCommand("story", true), a.voteCommand("story", false),
 	)
 	return command
 }

@@ -301,3 +301,61 @@ func TestWatchAndHistoryEndpoints(t *testing.T) {
 		t.Fatalf("entries=%#v page=%#v", entries, page)
 	}
 }
+
+func TestVotingEndpoints(t *testing.T) {
+	voting := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/epics/7/upvote":
+			voting = true
+			w.WriteHeader(http.StatusCreated)
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/epics/7/downvote":
+			voting = false
+			w.WriteHeader(http.StatusNoContent)
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/epics/7":
+			_, _ = fmt.Fprintf(w, `{"is_voter":%t}`, voting)
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+	client, _ := NewClient(server.URL + "/api/v1/")
+	for _, expected := range []bool{true, false} {
+		verified, err := client.SetVoting(context.Background(), "epic", 7, expected)
+		if err != nil || verified != expected {
+			t.Fatalf("expected=%t verified=%t err=%v", expected, verified, err)
+		}
+	}
+}
+
+func TestAttachmentResourcePaths(t *testing.T) {
+	tests := []struct {
+		resource string
+		path     string
+	}{
+		{resource: "epic", path: "/api/v1/epics/attachments"},
+		{resource: "wiki", path: "/api/v1/wiki/attachments"},
+	}
+	for _, test := range tests {
+		t.Run(test.resource, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodGet || r.URL.Path != test.path {
+					t.Fatalf("request = %s %s", r.Method, r.URL.Path)
+				}
+				if r.URL.Query().Get("project") != "1" || r.URL.Query().Get("object_id") != "2" {
+					t.Fatalf("query = %s", r.URL.RawQuery)
+				}
+				_, _ = io.WriteString(w, `[{"id":3,"project":1,"object_id":2,"name":"note.txt"}]`)
+			}))
+			defer server.Close()
+			client, _ := NewClient(server.URL + "/api/v1/")
+			attachments, err := client.ListAttachments(context.Background(), test.resource, 1, 2)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(attachments) != 1 || attachments[0].ID != 3 {
+				t.Fatalf("attachments = %#v", attachments)
+			}
+		})
+	}
+}

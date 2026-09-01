@@ -328,6 +328,10 @@ func TestStoryAndTaskCommandReadAndDryRunContracts(t *testing.T) {
 			_, _ = io.WriteString(w, `[{"id":13,"project":1,"object_id":2,"name":"note.txt","size":5}]`)
 		case "/api/v1/issues/attachments/13":
 			_, _ = io.WriteString(w, `{"id":13,"project":1,"object_id":2,"name":"note.txt","size":5}`)
+		case "/api/v1/epics/attachments":
+			_, _ = io.WriteString(w, `[{"id":16,"project":1,"object_id":15,"name":"epic.txt","size":5}]`)
+		case "/api/v1/wiki/attachments":
+			_, _ = io.WriteString(w, `[{"id":17,"project":1,"object_id":14,"name":"wiki.txt","size":5}]`)
 		case "/api/v1/history/issue/2", "/api/v1/history/userstory/2", "/api/v1/history/task/9", "/api/v1/history/epic/15":
 			w.Header().Set("X-Pagination-Count", "1")
 			_, _ = io.WriteString(w, `[{"id":"entry-1","created_at":"2026-08-31T00:00:00Z","type":1,"user":{"pk":8,"username":"demo","name":"Demo User"},"comment":"note"}]`)
@@ -377,14 +381,24 @@ func TestStoryAndTaskCommandReadAndDryRunContracts(t *testing.T) {
 		{"--json", "attachment", "add", "issue", "3", "-", "--name", "note.txt", "--dry-run"},
 		{"--json", "attachment", "edit", "issue", "13", "--description", "updated", "--dry-run"},
 		{"--json", "attachment", "delete", "issue", "13", "--dry-run"},
+		{"--json", "attachment", "list", "epic", "8"},
+		{"--json", "attachment", "add", "epic", "8", "-", "--name", "epic.txt", "--dry-run"},
+		{"--json", "attachment", "list", "wiki", "guide"},
+		{"--json", "attachment", "add", "wiki", "guide", "-", "--name", "wiki.txt", "--dry-run"},
 		{"--json", "issue", "watch", "3", "--dry-run"},
 		{"--json", "issue", "unwatch", "3", "--dry-run"},
+		{"--json", "issue", "vote", "3", "--dry-run"},
+		{"--json", "issue", "unvote", "3", "--dry-run"},
 		{"--json", "issue", "history", "3", "--type", "comment"},
 		{"--json", "story", "watch", "3", "--dry-run"},
 		{"--json", "story", "unwatch", "3", "--dry-run"},
+		{"--json", "story", "vote", "3", "--dry-run"},
+		{"--json", "story", "unvote", "3", "--dry-run"},
 		{"--json", "story", "history", "3", "--type", "activity"},
 		{"--json", "task", "watch", "10", "--dry-run"},
 		{"--json", "task", "unwatch", "10", "--dry-run"},
+		{"--json", "task", "vote", "10", "--dry-run"},
+		{"--json", "task", "unvote", "10", "--dry-run"},
 		{"--json", "task", "history", "10"},
 		{"--json", "wiki", "list"},
 		{"--json", "wiki", "view", "guide"},
@@ -404,6 +418,8 @@ func TestStoryAndTaskCommandReadAndDryRunContracts(t *testing.T) {
 		{"--json", "epic", "unlink", "8", "--story", "3", "--dry-run"},
 		{"--json", "epic", "watch", "8", "--dry-run"},
 		{"--json", "epic", "unwatch", "8", "--dry-run"},
+		{"--json", "epic", "vote", "8", "--dry-run"},
+		{"--json", "epic", "unvote", "8", "--dry-run"},
 		{"--json", "epic", "history", "8", "--type", "activity"},
 	}
 	for _, args := range commands {
@@ -467,6 +483,59 @@ func TestWatchCommandsVerifyServerState(t *testing.T) {
 	}
 	if posts != 2 {
 		t.Fatalf("posts=%d", posts)
+	}
+}
+
+func TestVoteCommandsVerifyServerState(t *testing.T) {
+	voting := false
+	posts := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/projects/by_slug":
+			_, _ = io.WriteString(w, `{"id":1,"name":"Demo","slug":"demo"}`)
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/issues/by_ref":
+			_, _ = fmt.Fprintf(w, `{"id":2,"ref":3,"project":1,"subject":"Issue","version":1,"is_voter":%t}`, voting)
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/issues/2/upvote":
+			posts++
+			voting = true
+			w.WriteHeader(http.StatusCreated)
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/issues/2/downvote":
+			posts++
+			voting = false
+			w.WriteHeader(http.StatusNoContent)
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/issues/2":
+			_, _ = fmt.Fprintf(w, `{"is_voter":%t}`, voting)
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	for _, test := range []struct {
+		command  string
+		expected bool
+	}{
+		{command: "vote", expected: true},
+		{command: "vote", expected: true},
+		{command: "unvote", expected: false},
+	} {
+		app, out, stderr, _ := testApp(t, server)
+		code := app.Execute(context.Background(), []string{"--json", "issue", test.command, "3"})
+		if code != ExitSuccess {
+			t.Fatalf("%s exit=%d stderr=%s", test.command, code, stderr.String())
+		}
+		var envelope struct {
+			Data voteView `json:"data"`
+		}
+		if err := json.Unmarshal(out.Bytes(), &envelope); err != nil {
+			t.Fatal(err)
+		}
+		if envelope.Data.Voting != test.expected || !envelope.Data.Verified {
+			t.Fatalf("%s data=%#v", test.command, envelope.Data)
+		}
+	}
+	if posts != 2 {
+		t.Fatalf("posts=%d, want idempotent commands to send two mutations", posts)
 	}
 }
 

@@ -75,6 +75,41 @@ func (c *Client) Watching(ctx context.Context, resource string, id int64) (bool,
 	return result.IsWatcher, err
 }
 
+func (c *Client) SetVoting(ctx context.Context, resource string, id int64, voting bool) (bool, error) {
+	path, err := workItemPath(resource)
+	if err != nil {
+		return false, err
+	}
+	action := "downvote"
+	if voting {
+		action = "upvote"
+	}
+	operation := fmt.Sprintf("%s/%d/%s", path, id, action)
+	if _, err := c.Post(ctx, operation, nil, nil); err != nil {
+		return false, err
+	}
+	verified, err := c.Voting(ctx, resource, id)
+	if err != nil {
+		return false, &Error{Kind: KindAmbiguousCommit, Operation: "POST " + operation, Message: "vote state changed but could not be verified", Retryable: false, Cause: err}
+	}
+	if verified != voting {
+		return verified, &Error{Kind: KindAmbiguousCommit, Operation: "POST " + operation, Message: "Taiga did not confirm the requested vote state", Retryable: false}
+	}
+	return verified, nil
+}
+
+func (c *Client) Voting(ctx context.Context, resource string, id int64) (bool, error) {
+	path, err := workItemPath(resource)
+	if err != nil {
+		return false, err
+	}
+	var result struct {
+		IsVoter bool `json:"is_voter"`
+	}
+	_, err = c.Get(ctx, fmt.Sprintf("%s/%d", path, id), nil, &result)
+	return result.IsVoter, err
+}
+
 func (c *Client) History(ctx context.Context, resource string, id int64, historyType string, pageNumber, limit int) ([]HistoryEntry, Page, error) {
 	path, err := historyPath(resource)
 	if err != nil {

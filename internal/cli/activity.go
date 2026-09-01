@@ -20,6 +20,7 @@ type activityTarget struct {
 	Slug      string
 	Subject   string
 	IsWatcher bool
+	IsVoter   bool
 }
 
 type watchView struct {
@@ -137,19 +138,19 @@ func (a *App) loadActivityTarget(ctx context.Context, resource, value string) (a
 		if err != nil {
 			return activityTarget{}, err
 		}
-		return activityTarget{Client: target.Client, Project: target.Project.Slug, ProjectID: target.Project.ID, ID: target.Issue.ID, Ref: target.Issue.Ref, Subject: target.Issue.Subject, IsWatcher: target.Issue.IsWatcher}, nil
+		return activityTarget{Client: target.Client, Project: target.Project.Slug, ProjectID: target.Project.ID, ID: target.Issue.ID, Ref: target.Issue.Ref, Subject: target.Issue.Subject, IsWatcher: target.Issue.IsWatcher, IsVoter: target.Issue.IsVoter}, nil
 	case "story":
 		target, err := a.loadStoryTarget(ctx, value)
 		if err != nil {
 			return activityTarget{}, err
 		}
-		return activityTarget{Client: target.Client, Project: target.Project.Slug, ProjectID: target.Project.ID, ID: target.Story.ID, Ref: target.Story.Ref, Subject: target.Story.Subject, IsWatcher: target.Story.IsWatcher}, nil
+		return activityTarget{Client: target.Client, Project: target.Project.Slug, ProjectID: target.Project.ID, ID: target.Story.ID, Ref: target.Story.Ref, Subject: target.Story.Subject, IsWatcher: target.Story.IsWatcher, IsVoter: target.Story.IsVoter}, nil
 	case "task":
 		target, err := a.loadTaskTarget(ctx, value)
 		if err != nil {
 			return activityTarget{}, err
 		}
-		return activityTarget{Client: target.Client, Project: target.Project.Slug, ProjectID: target.Project.ID, ID: target.Task.ID, Ref: target.Task.Ref, Subject: target.Task.Subject, IsWatcher: target.Task.IsWatcher}, nil
+		return activityTarget{Client: target.Client, Project: target.Project.Slug, ProjectID: target.Project.ID, ID: target.Task.ID, Ref: target.Task.Ref, Subject: target.Task.Subject, IsWatcher: target.Task.IsWatcher, IsVoter: target.Task.IsVoter}, nil
 	case "wiki":
 		target, err := a.loadWikiTarget(ctx, value)
 		if err != nil {
@@ -161,7 +162,7 @@ func (a *App) loadActivityTarget(ctx context.Context, resource, value string) (a
 		if err != nil {
 			return activityTarget{}, err
 		}
-		return activityTarget{Client: target.Client, Project: target.Project.Slug, ProjectID: target.Project.ID, ID: target.Epic.ID, Ref: target.Epic.Ref, Subject: target.Epic.Subject, IsWatcher: target.Epic.IsWatcher}, nil
+		return activityTarget{Client: target.Client, Project: target.Project.Slug, ProjectID: target.Project.ID, ID: target.Epic.ID, Ref: target.Epic.Ref, Subject: target.Epic.Subject, IsWatcher: target.Epic.IsWatcher, IsVoter: target.Epic.IsVoter}, nil
 	default:
 		return activityTarget{}, usageError("resource must be issue, story, task, wiki, or epic")
 	}

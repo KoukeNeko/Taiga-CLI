@@ -18,8 +18,8 @@
 - User Story list、view、create、edit、close、move、assign、comment。
 - Task list、view、create、edit、done、assign、comment。
 - Sprint list、view、create、edit、close、reopen。
-- Issue、Story、Task 的 watch、unwatch、activity/comment history。
-- Issue、Story、Task 的附件 streaming upload、list、view、edit、delete。
+- Issue、Story、Task、Epic 的 vote、unvote，以及 watch、unwatch、activity/comment history。
+- Issue、Story、Task、Epic、Wiki 的附件 streaming upload、list、view、edit、delete。
 - Wiki list、view、create、edit、delete、watch 與 history。
 - Taiga optimistic concurrency control（OCC）與 `--base-version`。
 - Human output、versioned JSON、`--fields`、structured error 與固定 exit code。
@@ -200,23 +200,27 @@ cat error.log | taiga attachment add issue 42 - --name error.log
 taiga attachment view issue 17
 taiga attachment edit issue 17 --description "Resolved" --deprecated
 taiga attachment delete issue 17 --yes
+taiga attachment add epic 8 ./proposal.pdf
+taiga attachment add wiki api-guide ./diagram.png
 ```
 
-Attachment 支援 issue、story、task。非互動刪除必須明確提供 `--yes`；upload 採 streaming，不會先把整個檔案載入記憶體。
+Attachment 支援 issue、story、task、epic、wiki。Wiki 使用 slug，其餘資源使用 ref。非互動刪除必須明確提供 `--yes`；upload 採 streaming，不會先把整個檔案載入記憶體。
 
 關注工作項目與查看歷史：
 
 ```sh
 taiga issue watch 42
+taiga issue vote 42
 taiga issue history 42
 taiga issue history 42 --type comment
+taiga issue unvote 42
 taiga issue unwatch 42
 
 taiga story history 51 --type activity
 taiga task history 72 --page 2 --limit 20
 ```
 
-Watch/unwatch 支援 issue、story、task、wiki，命令會在 mutation 後回讀 `is_watcher` 確認狀態。History 的 `--type` 可用 `all`、`activity`、`comment`。
+Watch/unwatch 支援 issue、story、task、wiki、epic；vote/unvote 支援 issue、story、task、epic。命令會在 mutation 後分別回讀 `is_watcher` 或 `is_voter` 確認狀態。History 的 `--type` 可用 `all`、`activity`、`comment`。
 
 管理 Wiki：
 

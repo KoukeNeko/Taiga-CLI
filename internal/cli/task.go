@@ -45,6 +45,7 @@ func (a *App) taskCommand() *cobra.Command {
 		a.taskEditCommand(), a.taskDoneCommand(), a.taskReopenCommand(),
 		a.taskAssignCommand(), a.taskUnassignCommand(), a.taskMoveCommand(), a.taskCommentCommand(),
 		a.watchCommand("task", true), a.watchCommand("task", false), a.historyCommand("task"),
+		a.voteCommand("task", true), a.voteCommand("task", false),
 	)
 	return command
 }

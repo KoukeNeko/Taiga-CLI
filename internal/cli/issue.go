@@ -51,6 +51,7 @@ func (a *App) issueCommand() *cobra.Command {
 		a.watchCommand("issue", true),
 		a.watchCommand("issue", false),
 		a.historyCommand("issue"),
+		a.voteCommand("issue", true), a.voteCommand("issue", false),
 	)
 	return command
 }
