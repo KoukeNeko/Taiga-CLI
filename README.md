@@ -1,8 +1,8 @@
 <h1 align="center">Taiga CLI</h1>
 
 <p align="center">
-  <strong>把 Taiga 帶到命令列。</strong><br>
-  給人閱讀的終端輸出，以及給 Shell、CI 與 Agent 使用的穩定 JSON contract。
+  <strong>Bring Taiga to the command line.</strong><br>
+  Readable terminal output for people, and a stable JSON contract for shells, CI, and agents.
 </p>
 
 <p align="center">
@@ -13,32 +13,40 @@
 </p>
 
 <p align="center">
-  <a href="INSTALL.md">安裝</a>
-  · <a href="#快速開始">快速開始</a>
-  · <a href="https://github.com/KoukeNeko/Taiga-CLI/wiki">使用手冊</a>
-  · <a href="COMPATIBILITY.md">相容性</a>
+  <strong>English</strong> · <a href="README.zh-TW.md">繁體中文</a>
 </p>
 
-Taiga CLI 讓你不必離開終端機就能操作 [Taiga 6](https://taiga.io/) 的專案、敏捷流程與 Wiki。它會自動從
-frontend 的 `conf.json` 找出 API 位置，包括部署在 `/taiga/` 子路徑的站台，登入後把 token 交給作業系統
-keyring 保管，不寫進設定檔。
+<p align="center">
+  <a href="INSTALL.md">Install</a>
+  · <a href="#getting-started">Getting started</a>
+  · <a href="https://github.com/KoukeNeko/Taiga-CLI/wiki">Handbook</a>
+  · <a href="COMPATIBILITY.md">Compatibility</a>
+</p>
 
-**同一個指令同時服務人與程式。** 直接執行時輸出對齊的表格；加上 `--json` 就得到帶版本號的 contract，
-搭配固定 exit code 與 JSON Schema descriptor，可以放心讓 Shell script、CI job 或 LLM agent 驅動。輸出格式
-不會因為被 pipe 就偷偷改變 —— 要 JSON 就得明講。
+Taiga CLI lets you drive [Taiga 6](https://taiga.io/) projects, agile workflows, and wikis without
+leaving the terminal. It discovers the API from the frontend's `conf.json`, including sites deployed
+under a `/taiga/` subpath, and hands the token to your operating system keyring instead of writing it
+into a config file.
 
-**寫入行為可預測。** 所有 mutation 都走 Taiga 的樂觀鎖，衝突時停下來而不是覆蓋；只有 idempotent 的 GET
-會自動重試；連線在寫入途中斷掉時回報 `ambiguous_commit`，要求你先確認，而不是盲目重送。
+**One command serves both people and programs.** Run it directly and you get aligned tables; add
+`--json` and you get a versioned contract, backed by fixed exit codes and JSON Schema descriptors, so
+a shell script, a CI job, or an LLM agent can drive it safely. The output format never changes just
+because it was piped — if you want JSON, you ask for it.
 
-## 能做什麼
+**Writes behave predictably.** Every mutation goes through Taiga's optimistic concurrency control and
+stops on conflict instead of overwriting. Only idempotent GETs are retried. If a connection drops
+mid-write, the CLI reports `ambiguous_commit` and asks you to verify rather than blindly resending.
 
-### 完整的 Taiga 工作流
+## What it does
 
-Project、Epic、User Story、Task、Issue、Sprint 與 Wiki 的日常操作都在裡面：列表、檢視、建立、編輯、
-指派、留言、關閉、刪除。加上成員與角色權限、Webhook、Custom field、八類 workflow metadata、Swimlane、
-Tag、Due-date preset，以及跨專案的 Epic ↔ Story 關聯。
+### The whole Taiga workflow
 
-工作項目可以用裸 ref、`project#ref` 或直接貼 Taiga 網址來指定，三種寫法都通：
+Day-to-day operations for projects, epics, user stories, tasks, issues, sprints, and wiki pages are
+all here: list, view, create, edit, assign, comment, close, delete. Plus members and role
+permissions, webhooks, custom fields, eight families of workflow metadata, swimlanes, tags, due-date
+presets, and cross-project epic ↔ story links.
+
+Work items accept a bare ref, a `project#ref` pair, or a pasted Taiga URL — all three work:
 
 ```text
 42
@@ -46,56 +54,62 @@ example-project#42
 https://taiga.example.com/taiga/project/example-project/issue/42
 ```
 
-### 給自動化的穩定介面
+### A stable surface for automation
 
-`--json` 輸出 `meta.contract` 版本號，`--fields` 挑選欄位，`taiga schema <command>` 給出該指令的
-input/output JSON Schema 與 safety/idempotency 標註 —— agent 可以據此判斷一個指令能不能自動執行。
-Exit code 依錯誤種類固定分流，`--dry-run` 會完整解析並顯示將送出的變更，但保證不發出任何寫入請求。
+`--json` emits a `meta.contract` version, `--fields` selects columns, and `taiga schema <command>`
+returns that command's input and output JSON Schema along with `safety` and `idempotency`
+annotations — enough for an agent to decide whether a command may run unattended. Exit codes are
+partitioned by failure kind, and `--dry-run` resolves and displays the mutation it would send while
+guaranteeing that no write request leaves the process.
 
-### 不會意外破壞資料
+### Hard to break things with
 
-刪除工作項目與 metadata 後會回讀確認；附件與 CSV 下載走 streaming、核對雜湊、以 `0600` 暫存檔原子落盤，
-且預設不覆寫既有檔案。非互動模式下的破壞性操作一律要求明確的 `--yes`。Webhook secret、application
-token 的 auth code 與 ownership transfer token 都不會出現在任何輸出或 dry-run 裡。
+Deleting work items and metadata is verified by reading the target back. Attachment and CSV downloads
+stream to a `0600` temporary file, verify their digests, and land atomically without clobbering an
+existing file. Destructive actions require an explicit `--yes` when there is no terminal. Webhook
+secrets, application-token auth codes, and ownership-transfer tokens never appear in any output,
+including dry runs.
 
-### 多站台與多專案
+### Many sites, many projects
 
-Profile 讓你在不同 Taiga 站台之間切換，各自記住 API URL 與預設專案。也可以把 profile 與 project 綁在
-單一 Git repository 上，存進 `.git/config` 而不會被 commit：
+Profiles switch between Taiga sites, each remembering its own API URL and default project. You can
+also pin a profile and project to a single Git repository, stored in `.git/config` so it is never
+committed:
 
 ```sh
 taiga project use example-project --local
 ```
 
-### 出事的時候查得出來
+### Diagnosable when something breaks
 
-`taiga doctor` 逐項檢查 frontend discovery、API、authentication 與預設專案。需要求助時，
-`taiga doctor bundle` 產生一份可以安心分享的診斷包 —— 只有版本資訊、設定「是否存在」的布林值與
-狀態碼，不含任何 URL、使用者名稱、專案名稱或憑證，而且只在本機建立、不會自動上傳。
+`taiga doctor` checks frontend discovery, the API, authentication, and the default project one by
+one. When you need help, `taiga doctor bundle` produces a report you can share without worrying:
+version information, presence booleans, and status codes only — no URLs, usernames, project names,
+or credentials — created locally and never uploaded.
 
-## 快速開始
+## Getting started
 
-1. **建置**（需要 Go 1.25 以上）：
+1. **Build** (Go 1.25 or newer):
 
    ```sh
    make build
    ./bin/taiga version
    ```
 
-2. **登入**，token 會存進 OS keyring：
+2. **Log in.** The token goes to the OS keyring:
 
    ```sh
    taiga auth login --host https://taiga.example.com/taiga/ --profile company
    ```
 
-3. **選定專案**：
+3. **Pick a project:**
 
    ```sh
    taiga project list
    taiga project use example-project
    ```
 
-4. **開始操作**：
+4. **Start working:**
 
    ```sh
    taiga issue list
@@ -104,47 +118,48 @@ taiga project use example-project --local
    taiga issue close 42 --status Closed
    ```
 
-5. **接上自動化**：
+5. **Wire up automation:**
 
    ```sh
    taiga issue view 42 --json --fields id,ref,subject,status,version --no-input
    ```
 
-完整的指令參考、旗標說明與各子系統的行為細節，見
-[使用手冊 Wiki](https://github.com/KoukeNeko/Taiga-CLI/wiki)。
+The full command reference, flag documentation, and per-subsystem behaviour live in the
+[handbook wiki](https://github.com/KoukeNeko/Taiga-CLI/wiki).
 
-## 相容性
+## Compatibility
 
-- Taiga 6.10.2 已透過固定 image digest 的 Docker E2E 驗證
-- macOS、Linux、Windows 的 `amd64` 與 `arm64`，純 Go 建置（`CGO_ENABLED=0`）
-- 帳密登入、既有 bearer token 與 refresh token rotation
+- Taiga 6.10.2, verified by Docker E2E against a pinned image digest
+- macOS, Linux, and Windows on `amd64` and `arm64`, built as pure Go (`CGO_ENABLED=0`)
+- Password login, existing bearer tokens, and refresh-token rotation
 
-詳細矩陣與已知限制見 [COMPATIBILITY.md](COMPATIBILITY.md)。
+The detailed matrix and known limits are in [COMPATIBILITY.md](COMPATIBILITY.md).
 
-## 取得工具
+## Get the tool
 
-目前尚未發布正式版本。從原始碼安裝到 `~/.local/bin`：
+No release has been published yet. To install from source into `~/.local/bin`:
 
 ```sh
 make install
 ```
 
-或自訂位置：
+Or choose your own location:
 
 ```sh
 make install PREFIX=/usr/local
 ```
 
-Release archive 的下載、checksum 驗證、shell completion 安裝與升級方式見 [INSTALL.md](INSTALL.md)；
-維護者的發布流程見 [RELEASING.md](RELEASING.md)。
+Release archive downloads, checksum verification, shell completion setup, and upgrades are covered in
+[INSTALL.md](INSTALL.md); the maintainer release process is in [RELEASING.md](RELEASING.md).
 
 ---
 
 ## Technical reference
 
-### 設定優先序
+### Setting resolution
 
-一般設定放在作業系統的使用者設定目錄，token 不會寫入設定檔：
+General settings live in the operating system's user config directory. Tokens are never written
+there:
 
 ```toml
 current_profile = "company"
@@ -154,7 +169,7 @@ api_url = "https://taiga.example.com/taiga/api/v1/"
 project = "example-project"
 ```
 
-解析順序由高到低：
+Resolution order, highest first:
 
 ```text
 command flag
@@ -166,7 +181,8 @@ command flag
 
 ### JSON contract
 
-成功資料只寫 stdout，錯誤只寫 stderr。單筆用 `data`，列表用 `items` 與 `page`，兩者都帶 `meta.contract`：
+Successful data goes to stdout and errors go to stderr, never mixed into one stream. Single records
+use `data`, lists use `items` and `page`, and both carry `meta.contract`:
 
 ```json
 {
@@ -175,9 +191,10 @@ command flag
 }
 ```
 
-同一個 contract 版本內只會新增 optional 欄位；移除、改名或改變既有欄位型別必須提升版本並附遷移說明。
+Within one contract version only optional fields are added. Removing a field, renaming it, or
+changing the type of an existing one requires a version bump and migration notes in the release.
 
-| Exit code | 意義 |
+| Exit code | Meaning |
 | ---: | --- |
 | 0 | success |
 | 2 | usage / schema |
@@ -191,19 +208,19 @@ command flag
 | 10 | confirmation required |
 | 11 | ambiguous commit |
 
-### 安全原則
+### Security principles
 
-- 不接受 command-line password
-- Authorization、password、token 不會出現在 verbose log
-- 只有 GET 會進行有上限的自動重試，POST／PATCH 不會盲目重送
-- 寫入途中連線中斷且結果不明時回報 `ambiguous_commit`
-- OCC conflict 不會自動 merge 或覆寫
-- 附件下載不會把 API bearer token 送往 media URL
-- TLS verification 預設永遠開啟
+- Passwords are never accepted on the command line
+- Authorization headers, passwords, and tokens never appear in verbose logs
+- Only GETs are retried automatically, with a bounded count; POST and PATCH are never resent blindly
+- A write whose outcome is unknown reports `ambiguous_commit` instead of retrying
+- OCC conflicts are never auto-merged or overwritten
+- Attachment downloads never send the API bearer token to the media URL
+- TLS verification is always on
 
-### 開發與測試
+### Development and testing
 
-不需要 Docker 的快速迴圈：
+The fast loop, no Docker required:
 
 ```sh
 make test
@@ -211,16 +228,17 @@ make test-race
 make lint
 ```
 
-對真實 Taiga server 的 integration test：
+Integration tests against a real Taiga server:
 
 ```sh
 make test-integration
 ```
 
-Integration harness 使用獨立的 `taiga-cli-e2e` Compose project 與 `localhost:19000`，自行建立臨時帳號、
-專案與 Issue，結束後只清除自己的 container 與 volume，不會動到日常使用的 Taiga 實例。
+The harness uses a dedicated `taiga-cli-e2e` Compose project on `localhost:19000`, creates its own
+throwaway account, project, and issues, and tears down only its own containers and volumes — it never
+touches a Taiga instance you use day to day.
 
-重建跨平台 release artifacts：
+Rebuilding cross-platform release artifacts:
 
 ```sh
 make release \
@@ -229,7 +247,7 @@ make release \
   SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)"
 ```
 
-相同的 source、Go toolchain、version、commit 與 epoch 會產生位元完全相同的 archive。
+The same source, Go toolchain, version, commit, and epoch produce byte-identical archives.
 
 <p>
   <img alt="Cobra" src="https://img.shields.io/badge/COBRA-CLI-00ADD8?style=for-the-badge&logo=go&logoColor=white">
@@ -237,15 +255,16 @@ make release \
   <img alt="SPDX 2.3 SBOM" src="https://img.shields.io/badge/SBOM-SPDX_2.3-2196F3?style=for-the-badge">
 </p>
 
-## 文件
+## Documentation
 
-| 文件 | 內容 |
+| Document | Contents |
 | --- | --- |
-| [使用手冊 Wiki](https://github.com/KoukeNeko/Taiga-CLI/wiki) | 每個指令群組的完整參考與行為說明 |
-| [INSTALL.md](INSTALL.md) | 下載、checksum、completion 與升級 |
-| [COMPATIBILITY.md](COMPATIBILITY.md) | 已驗證的 Taiga 版本、平台與登入方式 |
-| [RELEASING.md](RELEASING.md) | 維護者發布流程 |
+| [Handbook wiki](https://github.com/KoukeNeko/Taiga-CLI/wiki) | Full reference and behaviour notes for every command group |
+| [INSTALL.md](INSTALL.md) | Downloads, checksums, completion, and upgrades |
+| [COMPATIBILITY.md](COMPATIBILITY.md) | Verified Taiga versions, platforms, and login methods |
+| [RELEASING.md](RELEASING.md) | Maintainer release process |
 
 ## License
 
-尚未選定授權條款。在 repository 加入 LICENSE 之前，請勿公開散布建置產物。
+No license has been chosen yet. Please do not distribute builds publicly until a LICENSE is added to
+the repository.
