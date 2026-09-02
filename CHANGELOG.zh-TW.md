@@ -8,6 +8,12 @@ Release workflow 會把對應版本的段落與英文版 [CHANGELOG.md](CHANGELO
 
 ## [未發布]
 
+## [0.3.2] - 2026-09-03
+
+針對請求層的修正，來自對照真實 Taiga 的一輪審查。`aihki` 執行檔改變的是它回報的內容，不是它送出的東西：
+傳輸不再於三十秒後被切斷；不是 Taiga 拒絕的 refresh 失敗會照實回報；每一個讀回驗證的刪除共用同一份實作；
+指向非 Taiga 網頁應用的 `--host` 會被指名。
+
 ### 修正
 
 - 中斷 `role delete`、`swimlane delete`、`due-date delete` 或工作流程狀態刪除時，不再回報「什麼都沒發生」。
@@ -190,7 +196,8 @@ brew install koukeneko/tap/aihki
 
 已針對 Taiga 6.10.2 以固定 image digest 執行完整 Docker E2E 驗證。支援 macOS、Linux、Windows 的 `amd64` 與 `arm64`。
 
-[未發布]: https://github.com/KoukeNeko/aihki/compare/v0.3.1...HEAD
+[未發布]: https://github.com/KoukeNeko/aihki/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/KoukeNeko/aihki/releases/tag/v0.3.2
 [0.3.1]: https://github.com/KoukeNeko/aihki/releases/tag/v0.3.1
 [0.3.0]: https://github.com/KoukeNeko/aihki/releases/tag/v0.3.0
 [0.2.3]: https://github.com/KoukeNeko/aihki/releases/tag/v0.2.3

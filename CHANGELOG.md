@@ -8,6 +8,15 @@ The release workflow publishes the section matching the tag as the GitHub Releas
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-09-03
+
+Fixes to the request layer, found by reviewing it against a real Taiga. The
+`aihki` binary changes in what it reports, not in what it sends: a transfer is
+no longer cut off at thirty seconds, a refresh that failed for any reason other
+than Taiga refusing it says so, every deletion that reads the record back runs
+through one implementation, and a `--host` that is not a Taiga web app is named
+as such.
+
 ### Fixed
 
 - Interrupting `role delete`, `swimlane delete`, `due-date delete` or a workflow
@@ -222,7 +231,8 @@ Or download the archive for your platform below, verify it against `SHA256SUMS`,
 
 Verified against Taiga 6.10.2 through a full Docker E2E run against a pinned image digest. Supports macOS, Linux, and Windows on `amd64` and `arm64`.
 
-[Unreleased]: https://github.com/KoukeNeko/aihki/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/KoukeNeko/aihki/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/KoukeNeko/aihki/releases/tag/v0.3.2
 [0.3.1]: https://github.com/KoukeNeko/aihki/releases/tag/v0.3.1
 [0.3.0]: https://github.com/KoukeNeko/aihki/releases/tag/v0.3.0
 [0.2.3]: https://github.com/KoukeNeko/aihki/releases/tag/v0.2.3
