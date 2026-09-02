@@ -159,11 +159,11 @@ func (c *Client) DeleteStorage(ctx context.Context, key string) error {
 }
 
 func (c *Client) LikeProject(ctx context.Context, projectID int64) error {
-	_, err := c.Post(ctx, fmt.Sprintf("projects/%d/like", projectID), nil, nil)
+	_, err := c.PostIdempotent(ctx, fmt.Sprintf("projects/%d/like", projectID), nil, nil)
 	return err
 }
 func (c *Client) UnlikeProject(ctx context.Context, projectID int64) error {
-	_, err := c.Post(ctx, fmt.Sprintf("projects/%d/unlike", projectID), nil, nil)
+	_, err := c.PostIdempotent(ctx, fmt.Sprintf("projects/%d/unlike", projectID), nil, nil)
 	return err
 }
 func (c *Client) ProjectFans(ctx context.Context, projectID int64, page, limit int) ([]User, Page, error) {

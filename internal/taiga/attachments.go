@@ -111,27 +111,42 @@ func (c *Client) CreateAttachment(ctx context.Context, resource string, projectI
 	if c.token != "" {
 		request.Header.Set("Authorization", "Bearer "+c.token)
 	}
+	// Nothing has gone out yet, so a context that is already finished leaves
+	// nothing to reconcile.
+	if err := ctx.Err(); err != nil {
+		_ = pipeReader.CloseWithError(err)
+		return Attachment{}, err
+	}
 	started := time.Now()
 	response, err := c.httpClient.Do(request)
 	if err != nil {
 		_ = pipeReader.CloseWithError(err)
-		return Attachment{}, &Error{Kind: KindAmbiguousCommit, Operation: "POST " + endpoint.Path, Message: "attachment may have been uploaded; verify before retrying", Retryable: false, Cause: err}
+		message := "attachment may have been uploaded; verify before retrying"
+		if ctx.Err() != nil {
+			message = "upload was interrupted before Taiga confirmed it; verify before retrying"
+		}
+		return Attachment{}, &Error{Kind: KindAmbiguousCommit, Operation: "POST " + endpoint.Path, Message: message, Retryable: false, Cause: err}
 	}
 	c.log(http.MethodPost, endpoint.Path, response.StatusCode, time.Since(started))
 	data, readErr := io.ReadAll(io.LimitReader(response.Body, maxResponseBytes))
 	closeErr := response.Body.Close()
 	writeErr := <-writeDone
-	if writeErr != nil {
-		return Attachment{}, &Error{Kind: KindTransport, Operation: "POST " + endpoint.Path, Message: "stream attachment upload", Retryable: false, Cause: writeErr}
-	}
 	if readErr != nil || closeErr != nil {
 		if readErr == nil {
 			readErr = closeErr
 		}
 		return Attachment{}, &Error{Kind: KindAmbiguousCommit, Operation: "POST " + endpoint.Path, Message: "attachment may have been uploaded; verify before retrying", Retryable: false, Cause: readErr}
 	}
+	// The response is read before the write error, because Taiga answers a
+	// rejected or oversized upload without draining the body, which fails the
+	// pipe writer. Reporting that failure first would throw away a completed
+	// answer -- including a 201 -- and tell the caller an upload failed when
+	// the attachment exists.
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return Attachment{}, decodeAPIError("POST "+endpoint.Path, response.StatusCode, data)
+	}
+	if writeErr != nil {
+		return Attachment{}, &Error{Kind: KindAmbiguousCommit, Operation: "POST " + endpoint.Path, Message: "Taiga accepted the upload before the file finished sending, so it may be incomplete; verify before retrying", Retryable: false, Cause: writeErr}
 	}
 	var attachment Attachment
 	if err := json.Unmarshal(data, &attachment); err != nil {
@@ -179,6 +194,11 @@ func (c *Client) DownloadAttachment(ctx context.Context, attachment Attachment, 
 	started := time.Now()
 	response, err := c.httpClient.Do(request)
 	if err != nil {
+		// A download the operator interrupted is not an upstream fault, and
+		// marking it retryable invites an agent to start it again.
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return AttachmentDownload{}, ctxErr
+		}
 		return AttachmentDownload{}, &Error{Kind: KindTransport, Operation: "GET " + parsed.Path, Message: "download attachment", Retryable: true, Cause: err}
 	}
 	c.log(http.MethodGet, parsed.Path, response.StatusCode, time.Since(started))

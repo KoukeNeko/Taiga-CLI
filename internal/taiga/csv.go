@@ -75,6 +75,11 @@ func (c *Client) DownloadCSV(ctx context.Context, resource, uuid string, destina
 	started := time.Now()
 	response, err := c.httpClient.Do(request)
 	if err != nil {
+		// A download the operator interrupted is not an upstream fault, and
+		// marking it retryable invites an agent to start it again.
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return CSVDownload{}, ctxErr
+		}
 		return CSVDownload{}, &Error{Kind: KindTransport, Operation: "GET " + endpoint.Path, Message: "download CSV export", Retryable: true, Cause: err}
 	}
 	c.log(http.MethodGet, endpoint.Path, response.StatusCode, time.Since(started))

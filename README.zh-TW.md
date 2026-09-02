@@ -50,9 +50,10 @@ aihki issue view 42 --json --fields ref,subject,status,version
 搭配固定 exit code 與 JSON Schema descriptor，可以放心讓 Shell script、CI job 或 LLM agent 驅動。輸出格式
 不會因為被 pipe 就偷偷改變 —— 要 JSON 就得明講。
 
-**寫入行為可預測。** 所有 mutation 都帶版本號，因此當你要改的欄位已被別人改過時會被拒絕而非默默覆蓋，
-但改到不同欄位的編輯仍會合併。只有 idempotent 的 GET
-會自動重試；連線在寫入途中斷掉時回報 `ambiguous_commit`，要求你先確認，而不是盲目重送。
+**寫入行為可預測。** work item 帶版本號，而 Taiga 是逐欄位檢查的：當你要改的欄位已被別人改過時會被拒絕
+而非默默覆蓋，但對方改的是別的欄位時則會合併。這個工具本身從不替你自動合併 —— 被拒絕就停下來，讓你重讀後
+自己決定。只有 idempotent 的 GET 會自動重試；連線在寫入途中斷掉時回報 `ambiguous_commit`，要求你先確認，
+而不是盲目重送。
 
 ## 能做什麼
 

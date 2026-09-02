@@ -1055,7 +1055,7 @@ func register(t *testing.T, baseURL, username, password string) string {
 func verifyEmail(t *testing.T, username string) {
 	t.Helper()
 	code := "from taiga.users.models import User; User.objects.filter(username='" + username + "').update(verified_email=True)"
-	command := exec.Command("docker", "compose", "--project-name", "aihki-e2e", "--file", "docker-compose.yml", "exec", "-T", "taiga-back", "python", "manage.py", "shell", "-c", code)
+	command := exec.Command("docker", "compose", "--project-name", composeProject(), "--file", "docker-compose.yml", "exec", "-T", "taiga-back", "python", "manage.py", "shell", "-c", code)
 	output, err := command.CombinedOutput()
 	if err != nil {
 		t.Fatalf("verify E2E email: %v: %s", err, output)
@@ -1447,4 +1447,13 @@ func replaceEnv(values []string, key, value string) []string {
 		}
 	}
 	return append(result, prefix+value)
+}
+
+// composeProject names the stack this run is talking to, so that a pressure
+// run can stand up its own alongside the ordinary suite's.
+func composeProject() string {
+	if name := os.Getenv("AIHKI_E2E_COMPOSE_PROJECT"); name != "" {
+		return name
+	}
+	return "aihki-e2e"
 }

@@ -9,8 +9,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 func TestClientSendsBearerAndParsesPagination(t *testing.T) {
@@ -404,52 +406,63 @@ func TestBackoffBaseDoublesWithoutOverflowing(t *testing.T) {
 	}
 }
 
-// A stale write is the failure this tool exists to report clearly, so the
-// message a person sees must say what happened rather than repeating the HTTP
-// status text.
-func TestDecodeAPIErrorExplainsFieldValidation(t *testing.T) {
-	body := []byte(`{"version":"The version doesn't match with the current one"}`)
-	err := decodeAPIError("PATCH /issues/1", http.StatusBadRequest, body)
-	if err.Kind != KindConflict {
-		t.Fatalf("kind = %q, want %q", err.Kind, KindConflict)
+// Every body below was captured from a real Taiga 6 server, because the whole
+// classification turns on shapes that no specification promises. Taiga answers
+// a stale write from its own concurrency check, which carries one sentence,
+// and a malformed field through Django REST Framework, which carries a list.
+// Both arrive as HTTP 400 under the same key.
+func TestDecodeAPIErrorSeparatesStaleWritesFromBadOnes(t *testing.T) {
+	staleWrite := `{"version": "The version doesn't match with the current one"}`
+	if got := decodeAPIError("PATCH /issues/1", http.StatusBadRequest, []byte(staleWrite)); got.Kind != KindConflict {
+		t.Errorf("stale write classified %s, want %s", got.Kind, KindConflict)
 	}
-	if err.Message == http.StatusText(http.StatusBadRequest) {
-		t.Fatal("message is still the bare status text, which tells a user nothing")
+	// Rejecting the version field is not somebody else's edit. Calling it one
+	// tells the caller to re-read and retry, which never terminates because
+	// re-reading does not make the value a whole number.
+	badVersion := `{"version": ["Enter a whole number."]}`
+	if got := decodeAPIError("PATCH /issues/1", http.StatusBadRequest, []byte(badVersion)); got.Kind != KindValidation {
+		t.Errorf("malformed version classified %s, want %s", got.Kind, KindValidation)
 	}
-	if !strings.Contains(err.Message, "version doesn't match") {
-		t.Fatalf("message = %q, want the field explanation", err.Message)
-	}
-}
-
-func TestDecodeAPIErrorJoinsSeveralFieldsInAStableOrder(t *testing.T) {
-	body := []byte(`{"subject":"required","assigned_to":"unknown user"}`)
-	first := decodeAPIError("POST /issues", http.StatusBadRequest, body).Message
-	second := decodeAPIError("POST /issues", http.StatusBadRequest, body).Message
-	if first != second {
-		t.Fatalf("message is not deterministic: %q then %q", first, second)
-	}
-	if first != "assigned_to: unknown user; subject: required" {
-		t.Fatalf("message = %q", first)
-	}
-}
-
-func TestDecodeAPIErrorPrefersTaigaOwnMessage(t *testing.T) {
-	body := []byte(`{"_error_message":"Permission denied","detail":"ignored"}`)
-	if got := decodeAPIError("GET /projects", http.StatusForbidden, body).Message; got != "Permission denied" {
-		t.Fatalf("message = %q", got)
+	for _, body := range []string{
+		`{"subject": ["This field is required."]}`,
+		`{"assigned_to": ["Invalid pk '999999' - object does not exist."]}`,
+		`{"description": ["Mention the version you tested"]}`,
+		`{"_error_message": "Version must be specified"}`,
+		`{"_error_message": "Unsupported API version"}`,
+	} {
+		if got := decodeAPIError("POST /issues", http.StatusBadRequest, []byte(body)); got.Kind != KindValidation {
+			t.Errorf("body %s classified %s, want %s", body, got.Kind, KindValidation)
+		}
 	}
 }
 
-// Taiga is Django REST Framework, whose usual validation shape is a field
-// mapped to a list of messages. Handling only a bare string would leave the
-// most common rejection reading "Bad Request".
-func TestDecodeAPIErrorRendersListValuedFields(t *testing.T) {
+// A conflict signal must survive translation: Taiga renders that sentence
+// through Django's gettext, so a server running in another language sends
+// different words under the same key.
+func TestDecodeAPIErrorRecognisesAStaleWriteInAnyLanguage(t *testing.T) {
+	for _, body := range []string{
+		`{"version": "La version ne correspond pas à la version actuelle"}`,
+		`{"version": "版本與目前的版本不符"}`,
+	} {
+		if got := decodeAPIError("PATCH /issues/1", http.StatusBadRequest, []byte(body)); got.Kind != KindConflict {
+			t.Errorf("body %s classified %s, want %s", body, got.Kind, KindConflict)
+		}
+	}
+}
+
+func TestDecodeAPIErrorRendersRejectedFields(t *testing.T) {
 	cases := map[string]string{
-		`{"subject":["This field is required."]}`:                      "subject: This field is required.",
-		`{"assigned_to":["Invalid pk"],"subject":["Required"]}`:        "assigned_to: Invalid pk; subject: Required",
-		`{"subject":["Too long.","Use fewer words."]}`:                 "subject: Too long. Use fewer words.",
-		`{"non_field_errors":["Invalid data"]}`:                        "Invalid data",
-		`{"version":"The version doesn't match with the current one"}`: "version: The version doesn't match with the current one",
+		`{"subject": ["This field is required."]}`:                      "subject: This field is required.",
+		`{"assigned_to":["Invalid pk"],"subject":["Required"]}`:         "assigned_to: Invalid pk; subject: Required",
+		`{"subject":["Too long.","Use fewer words."]}`:                  "subject: Too long. Use fewer words.",
+		`{"non_field_errors":["Invalid data"]}`:                         "Invalid data",
+		`{"version": "The version doesn't match with the current one"}`: "version: The version doesn't match with the current one",
+		// Django REST Framework nests a sub-serializer's errors under the
+		// field holding it, which is how Taiga reports watchers and points.
+		`{"watchers":{"0":["Invalid pk 999 - object does not exist."]}}`: "watchers: 0: Invalid pk 999 - object does not exist.",
+		// A many=True serializer, which is what bulk create posts, answers
+		// with one entry per submitted row rather than an object.
+		`[{"subject":["required"]},{"subject":["too long"]}]`: "item 0: subject: required; item 1: subject: too long",
 	}
 	for body, want := range cases {
 		if got := decodeAPIError("POST /issues", http.StatusBadRequest, []byte(body)).Message; got != want {
@@ -458,72 +471,102 @@ func TestDecodeAPIErrorRendersListValuedFields(t *testing.T) {
 	}
 }
 
-func TestDecodeAPIErrorKeepsStatusTextWhenNothingIsExplained(t *testing.T) {
-	for _, body := range []string{`{}`, `{"detail":""}`, `not json`, `{"count":3}`} {
-		if got := decodeAPIError("GET /issues", http.StatusBadRequest, []byte(body)).Message; got != http.StatusText(http.StatusBadRequest) {
-			t.Errorf("body %s produced %q, want the status text", body, got)
+// Field rendering belongs to validation responses. A proxy's JSON error page
+// must not replace a status people recognise with its own internals.
+func TestDecodeAPIErrorKeepsStatusTextForNonValidationFailures(t *testing.T) {
+	for _, testCase := range []struct {
+		status int
+		body   string
+		want   string
+	}{
+		{http.StatusServiceUnavailable, `{"status":"error","code":"upstream_unavailable"}`, "Service Unavailable"},
+		{http.StatusInternalServerError, `{"error":"boom","request_id":"abc123"}`, "Internal Server Error"},
+		{http.StatusBadRequest, `{}`, "Bad Request"},
+		{http.StatusBadRequest, `not json`, "Bad Request"},
+		{http.StatusBadRequest, `{"count":3}`, "Bad Request"},
+	} {
+		if got := decodeAPIError("GET /issues", testCase.status, []byte(testCase.body)).Message; got != testCase.want {
+			t.Errorf("status %d body %s produced %q, want %q", testCase.status, testCase.body, got, testCase.want)
 		}
 	}
 }
 
-// A stale write and a bad write both arrive as HTTP 400, and confusing them is
-// costly in one direction: a conflict tells the caller to re-read and retry,
-// which loops forever when the request was simply invalid.
-func TestDecodeAPIErrorSeparatesStaleWritesFromBadOnes(t *testing.T) {
-	conflicts := []string{
-		`{"version":["The version doesn't match with the current one"]}`,
-		`{"version":"The version doesn't match with the current one"}`,
-		`{"_error_type":"taiga.base.exceptions.WrongArguments","_error_message":"version mismatch"}`,
+// A body carrying both Taiga's prose and rejected fields must not lose the
+// fields just because the prose repeats the status line.
+func TestDecodeAPIErrorPrefersWhicheverSaysMore(t *testing.T) {
+	if got := decodeAPIError("POST /issues", http.StatusBadRequest, []byte(`{"_error_message":"Permission denied"}`)).Message; got != "Permission denied" {
+		t.Errorf("message = %q, want Taiga's own sentence", got)
 	}
-	for _, body := range conflicts {
-		if kind := decodeAPIError("PATCH /issues/1", http.StatusBadRequest, []byte(body)).Kind; kind != KindConflict {
-			t.Errorf("body %s classified %s, want %s", body, kind, KindConflict)
-		}
+	body := `{"detail":"Bad Request","subject":["This field is required."]}`
+	if got := decodeAPIError("POST /issues", http.StatusBadRequest, []byte(body)).Message; got != "subject: This field is required." {
+		t.Errorf("message = %q, want the rejected field", got)
 	}
-	// Field text is whatever somebody typed into a form, so the word appearing
-	// there says nothing about concurrency.
-	validations := []string{
-		`{"subject":["Version must be specified"]}`,
-		`{"description":["Mention the version you tested"]}`,
-		`{"non_field_errors":["version"]}`,
+}
+
+// A body is read up to maxResponseBytes and a rejected bulk create carries a
+// message per row, so what reaches a terminal has to be bounded.
+func TestDecodeAPIErrorBoundsWhatItRenders(t *testing.T) {
+	body := `{"subject":["` + strings.Repeat("x", 4*maxMessageBytes) + `"]}`
+	message := decodeAPIError("POST /issues", http.StatusBadRequest, []byte(body)).Message
+	if len(message) > maxMessageBytes+len("… (truncated)") {
+		t.Fatalf("message is %d bytes, want it capped near %d", len(message), maxMessageBytes)
 	}
-	for _, body := range validations {
-		if kind := decodeAPIError("POST /issues", http.StatusBadRequest, []byte(body)).Kind; kind != KindValidation {
-			t.Errorf("body %s classified %s, want %s", body, kind, KindValidation)
-		}
+	if !strings.HasSuffix(message, "(truncated)") {
+		t.Errorf("a clipped message must say so, got %q", message[max(0, len(message)-40):])
+	}
+	if !utf8.ValidString(message) {
+		t.Error("clipping must not cut a rune in half")
+	}
+}
+
+func TestDecodeAPIErrorJoinsSeveralFieldsInAStableOrder(t *testing.T) {
+	body := []byte(`{"subject":"required","assigned_to":"unknown user"}`)
+	first := decodeAPIError("POST /issues", http.StatusBadRequest, body).Message
+	if second := decodeAPIError("POST /issues", http.StatusBadRequest, body).Message; first != second {
+		t.Fatalf("message is not deterministic: %q then %q", first, second)
+	}
+	if first != "assigned_to: unknown user; subject: required" {
+		t.Fatalf("message = %q", first)
 	}
 }
 
 // Interrupting a write does not un-send it. Reporting plain cancellation there
 // tells a caller the write did not happen, which nobody can know.
 func TestWriteInterruptedInFlightIsAmbiguous(t *testing.T) {
-	reached := make(chan struct{})
-	release := make(chan struct{})
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		close(reached)
-		<-release
-	}))
-	defer server.Close()
-	// Released before the server is closed, since Close waits for the handler.
-	defer close(release)
+	client, ctx, done := interruptibleClient(t)
+	defer done()
 
-	client, err := NewClient(server.URL + "/api/v1/")
-	if err != nil {
-		t.Fatalf("NewClient: %v", err)
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() {
-		<-reached
-		cancel()
-	}()
-
-	_, err = client.Post(ctx, "issues", map[string]any{"subject": "x"}, nil)
+	_, err := client.Post(ctx, "issues", map[string]any{"subject": "x"}, nil)
 	var apiErr *Error
 	if !errors.As(err, &apiErr) {
 		t.Fatalf("interrupted write reported %v, want an *Error", err)
 	}
 	if apiErr.Kind != KindAmbiguousCommit {
 		t.Errorf("interrupted write classified %s, want %s", apiErr.Kind, KindAmbiguousCommit)
+	}
+	// Every transport failure on a write reports that same kind, so asserting
+	// it alone would leave this green with the interrupt handling deleted.
+	if !errors.Is(err, context.Canceled) {
+		t.Error("the error must carry the cancellation that produced it")
+	}
+	if apiErr.Message != interruptedMessage {
+		t.Errorf("message = %q, want the one written for an interrupt", apiErr.Message)
+	}
+}
+
+// A POST that settles nothing has nothing to reconcile, so interrupting one
+// must not send a person looking for a record that never existed.
+func TestInterruptedIdempotentPostIsNotAmbiguous(t *testing.T) {
+	client, ctx, done := interruptibleClient(t)
+	defer done()
+
+	_, err := client.PostIdempotent(ctx, "auth", map[string]any{"username": "someone"}, nil)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("got %v, want context.Canceled", err)
+	}
+	var apiErr *Error
+	if errors.As(err, &apiErr) {
+		t.Errorf("logging in commits nothing, so %s is wrong", apiErr.Kind)
 	}
 }
 
@@ -548,5 +591,36 @@ func TestWriteCancelledBeforeSendingIsNotAmbiguous(t *testing.T) {
 	var apiErr *Error
 	if errors.As(err, &apiErr) {
 		t.Errorf("nothing was sent, so %s is wrong", apiErr.Kind)
+	}
+}
+
+// interruptibleClient serves a request that never answers and cancels the
+// context once the server has it, which is the shape of an operator pressing
+// Ctrl-C while a request is in flight.
+func interruptibleClient(t *testing.T) (*Client, context.Context, func()) {
+	t.Helper()
+	reached := make(chan struct{})
+	release := make(chan struct{})
+	var once sync.Once
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		once.Do(func() { close(reached) })
+		<-release
+	}))
+	client, err := NewClient(server.URL + "/api/v1/")
+	if err != nil {
+		server.Close()
+		t.Fatalf("NewClient: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		<-reached
+		cancel()
+	}()
+	// The handler is released before the server is closed, since Close waits
+	// for it to return.
+	return client, ctx, func() {
+		cancel()
+		close(release)
+		server.Close()
 	}
 }

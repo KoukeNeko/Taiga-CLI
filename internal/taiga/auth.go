@@ -11,7 +11,7 @@ type LoginRequest struct {
 func (c *Client) Login(ctx context.Context, username, password string) (AuthResponse, error) {
 	request := LoginRequest{Type: "normal", Username: username, Password: password}
 	var response AuthResponse
-	_, err := c.Post(ctx, "auth", request, &response)
+	_, err := c.PostIdempotent(ctx, "auth", request, &response)
 	return response, err
 }
 

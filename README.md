@@ -52,10 +52,11 @@ token to your operating system keyring instead of writing it into a config file.
 a shell script, a CI job, or an LLM agent can drive it safely. The output format never changes just
 because it was piped — if you want JSON, you ask for it.
 
-**Writes behave predictably.** Every mutation carries a version, so a change to a field someone else
-has already changed is refused rather than silently overwriting them, while independent edits to
-other fields still merge. Only idempotent GETs are retried. If a connection drops mid-write, the CLI
-reports `ambiguous_commit` and asks you to verify rather than blindly resending.
+**Writes behave predictably.** Work items carry a version, and Taiga checks it per field: a change to
+a field someone else has already changed is refused instead of overwriting them, while their edit to
+a different field merges. Nothing is ever auto-merged on your behalf — a refusal stops the command so
+you can re-read and decide. Only idempotent GETs are retried. If a connection drops mid-write, the
+CLI reports `ambiguous_commit` and asks you to verify rather than blindly resending.
 
 ## What it does
 

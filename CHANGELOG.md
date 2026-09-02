@@ -8,6 +8,20 @@ The release workflow publishes the section matching the tag as the GitHub Releas
 
 ## [Unreleased]
 
+### Fixed
+
+- A rejected write now says what was rejected. Taiga reports validation through Django REST Framework, which names each field it refused, and the CLI was discarding all of it and printing the HTTP status text instead, so a missing subject or an unknown assignee both read `Bad Request`. Nested serializer errors and the per-row form a bulk create is answered with are rendered too, and the rendering is bounded so a large response cannot fill a terminal with one line.
+- Telling a stale write apart from a bad one no longer depends on the wording of Taiga's message. Taiga answers both with HTTP 400 under the same `version` key and separates them only by shape: its own concurrency check sends one sentence, while a malformed field arrives as a list. The previous rule searched the message for the word "version", which called `Version must be specified` somebody else's edit — sending a caller to re-read and retry a request that could never succeed — and would have stopped recognising a real conflict entirely against a server running in another language, since Taiga translates that sentence.
+- An interrupted write no longer claims the command has a bug. Pressing Ctrl-C mid-write printed `unexpected failure: context canceled` and exited 1, which says the write did not happen; Taiga does not roll one back because the client stopped listening, so it now reports `ambiguous_commit` and asks you to verify. A request cancelled before anything was sent stays an ordinary interrupt.
+- Interrupting a request that settles nothing — logging in, liking a project — no longer reports a possible commit. Whether a call can leave something behind is now declared where the endpoint is known rather than guessed from the HTTP verb.
+- An attachment upload or project import that Taiga answered is no longer reported as a transport failure. Taiga replies to a rejected or oversized upload without reading the rest of the body, which fails the sending side; that failure was checked first, so a completed answer — including a `201` — was thrown away and the caller was told the upload failed while the attachment existed.
+- Cancelling a CSV or attachment download is no longer reported as a retryable server fault, which invited an agent to start again something the operator had just stopped.
+
+### Added
+
+- Exit code `130` and the contract codes `interrupted` and `timeout`, for a command stopped before it finished. This follows the shell convention of 128 plus the signal number rather than taking a place in the partitioned table, because an interrupt is a decision, not a way the command failed. A write whose outcome is unknown still reports `ambiguous_commit` and exit 11, even when an interrupt caused it.
+- An end-to-end pressure test: twelve accounts drive one project at once with no pacing, mixing contended edits, uncontended edits, comments, bulk creates and deliberate mistakes. It asserts that every accepted write to the contended record received its own version, that no failure was reported as an internal defect or as bare status text, and that a run which failed to provoke a conflict, a validation error and a missing record fails rather than passing on having proved nothing.
+
 ## [0.2.3] - 2026-09-02
 
 Tooling and documentation only. The `aihki` binary is unchanged from 0.2.2.

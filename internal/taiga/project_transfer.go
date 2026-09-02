@@ -70,27 +70,40 @@ func (c *Client) ImportProjectDump(ctx context.Context, name, contentType string
 	if c.token != "" {
 		request.Header.Set("Authorization", "Bearer "+c.token)
 	}
+	// Nothing has gone out yet, so a context that is already finished leaves
+	// nothing to reconcile -- and an import creates an entire project.
+	if err := ctx.Err(); err != nil {
+		_ = pipeReader.CloseWithError(err)
+		return ProjectImportResult{}, err
+	}
 	started := time.Now()
 	response, err := c.httpClient.Do(request)
 	if err != nil {
 		_ = pipeReader.CloseWithError(err)
-		return ProjectImportResult{}, &Error{Kind: KindAmbiguousCommit, Operation: "POST " + endpoint.Path, Message: "project import may have been accepted; verify before retrying", Retryable: false, Cause: err}
+		message := "project import may have been accepted; verify before retrying"
+		if ctx.Err() != nil {
+			message = "import was interrupted before Taiga confirmed it; verify before retrying"
+		}
+		return ProjectImportResult{}, &Error{Kind: KindAmbiguousCommit, Operation: "POST " + endpoint.Path, Message: message, Retryable: false, Cause: err}
 	}
 	c.log(http.MethodPost, endpoint.Path, response.StatusCode, time.Since(started))
 	data, readErr := io.ReadAll(io.LimitReader(response.Body, maxResponseBytes))
 	closeErr := response.Body.Close()
 	writeErr := <-writeDone
-	if writeErr != nil {
-		return ProjectImportResult{}, &Error{Kind: KindTransport, Operation: "POST " + endpoint.Path, Message: "stream project dump", Retryable: false, Cause: writeErr}
-	}
 	if readErr != nil || closeErr != nil {
 		if readErr == nil {
 			readErr = closeErr
 		}
 		return ProjectImportResult{}, &Error{Kind: KindAmbiguousCommit, Operation: "POST " + endpoint.Path, Message: "project import may have been accepted; verify before retrying", Retryable: false, Cause: readErr}
 	}
+	// The response outranks the write error for the same reason as an
+	// attachment upload: Taiga rejects a dump without draining it, and that
+	// rejection is the answer the caller needs.
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return ProjectImportResult{}, decodeAPIError("POST "+endpoint.Path, response.StatusCode, data)
+	}
+	if writeErr != nil {
+		return ProjectImportResult{}, &Error{Kind: KindAmbiguousCommit, Operation: "POST " + endpoint.Path, Message: "Taiga accepted the import before the dump finished sending, so it may be incomplete; verify before retrying", Retryable: false, Cause: writeErr}
 	}
 	var result ProjectImportResult
 	if err := json.Unmarshal(data, &result); err != nil {

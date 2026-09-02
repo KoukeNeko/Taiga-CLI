@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -22,6 +23,11 @@ const (
 	ExitTransport            = 9
 	ExitConfirmationRequired = 10
 	ExitAmbiguousCommit      = 11
+	// ExitInterrupted follows the shell convention of 128 plus the signal
+	// number rather than taking a place in the table above, because an
+	// interrupt is the operator's own decision and not a way the command
+	// failed.
+	ExitInterrupted = 130
 )
 
 type contractError struct {
@@ -92,6 +98,18 @@ func classifyError(err error) (*contractError, output.ErrorBody) {
 		}
 		known = &contractError{Code: string(apiErr.Kind), Message: apiErr.Message, ExitCode: exitCode, Retryable: apiErr.Retryable, Details: apiErr.Details, Cause: err}
 		return known, output.ErrorBody{Code: string(apiErr.Kind), Message: apiErr.Message, Retryable: apiErr.Retryable, Details: apiErr.Details, UpstreamStatus: apiErr.UpstreamStatus}
+	}
+	// Deliberately last of the error checks. A write whose outcome is unknown
+	// carries the cancellation that caused it, so testing for cancellation any
+	// earlier would report an interrupt and drop the warning that something may
+	// already have been committed.
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		code, message := "interrupted", "the command was interrupted before it finished"
+		if errors.Is(err, context.DeadlineExceeded) {
+			code, message = "timeout", "the command ran out of time before it finished"
+		}
+		known = &contractError{Code: code, Message: message, ExitCode: ExitInterrupted, Cause: err}
+		return known, output.ErrorBody{Code: code, Message: message, Retryable: false}
 	}
 	known = &contractError{Code: "internal", Message: fmt.Sprintf("unexpected failure: %v", err), ExitCode: ExitGeneric, Cause: err}
 	return known, output.ErrorBody{Code: known.Code, Message: known.Message, Retryable: false}
