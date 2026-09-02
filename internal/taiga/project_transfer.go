@@ -59,7 +59,9 @@ func (c *Client) ImportProjectDump(ctx context.Context, name, contentType string
 	}()
 
 	endpoint := c.baseURL.ResolveReference(&url.URL{Path: "importer/load_dump"})
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint.String(), pipeReader)
+	watch := c.watchTransfer(ctx)
+	defer watch.stop()
+	request, err := http.NewRequestWithContext(watch.ctx, http.MethodPost, endpoint.String(), watch.reader(pipeReader))
 	if err != nil {
 		_ = pipeReader.Close()
 		return ProjectImportResult{}, err
@@ -80,21 +82,21 @@ func (c *Client) ImportProjectDump(ctx context.Context, name, contentType string
 	response, err := c.httpClient.Do(request)
 	if err != nil {
 		_ = pipeReader.CloseWithError(err)
-		message := "project import may have been accepted; verify before retrying"
+		message := watch.explain("project import may have been accepted; verify before retrying")
 		if ctx.Err() != nil {
 			message = "import was interrupted before Taiga confirmed it; verify before retrying"
 		}
 		return ProjectImportResult{}, &Error{Kind: KindAmbiguousCommit, Operation: "POST " + endpoint.Path, Message: message, Retryable: false, Cause: err}
 	}
 	c.log(http.MethodPost, endpoint.Path, response.StatusCode, time.Since(started))
-	data, readErr := io.ReadAll(io.LimitReader(response.Body, maxResponseBytes))
+	data, readErr := io.ReadAll(io.LimitReader(watch.reader(response.Body), maxResponseBytes))
 	closeErr := response.Body.Close()
 	writeErr := <-writeDone
 	if readErr != nil || closeErr != nil {
 		if readErr == nil {
 			readErr = closeErr
 		}
-		return ProjectImportResult{}, &Error{Kind: KindAmbiguousCommit, Operation: "POST " + endpoint.Path, Message: "project import may have been accepted; verify before retrying", Retryable: false, Cause: readErr}
+		return ProjectImportResult{}, &Error{Kind: KindAmbiguousCommit, Operation: "POST " + endpoint.Path, Message: watch.explain("project import may have been accepted; verify before retrying"), Retryable: false, Cause: readErr}
 	}
 	// The response outranks the write error for the same reason as an
 	// attachment upload: Taiga rejects a dump without draining it, and that

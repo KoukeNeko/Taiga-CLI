@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/KoukeNeko/aihki/internal/completioncache"
 	"github.com/KoukeNeko/aihki/internal/config"
@@ -67,11 +66,14 @@ func New() (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("get current directory: %w", err)
 	}
+	// No overall deadline on the client: the request layer bounds each JSON
+	// attempt itself and watches a transfer for stalling, so an attachment or
+	// a dump is as long as it is rather than as long as thirty seconds allow.
 	return &App{
 		In:              os.Stdin,
 		Out:             os.Stdout,
 		Err:             os.Stderr,
-		HTTPClient:      &http.Client{Timeout: 30 * time.Second},
+		HTTPClient:      &http.Client{},
 		Config:          config.NewStore(path),
 		GitLocal:        config.NewGitLocal(cwd),
 		Credentials:     credential.NewKeyringStore(),

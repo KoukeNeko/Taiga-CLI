@@ -100,7 +100,9 @@ func (c *Client) CreateAttachment(ctx context.Context, resource string, projectI
 	}()
 
 	endpoint := c.baseURL.ResolveReference(&url.URL{Path: path})
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint.String(), pipeReader)
+	watch := c.watchTransfer(ctx)
+	defer watch.stop()
+	request, err := http.NewRequestWithContext(watch.ctx, http.MethodPost, endpoint.String(), watch.reader(pipeReader))
 	if err != nil {
 		_ = pipeReader.Close()
 		return Attachment{}, err
@@ -121,21 +123,21 @@ func (c *Client) CreateAttachment(ctx context.Context, resource string, projectI
 	response, err := c.httpClient.Do(request)
 	if err != nil {
 		_ = pipeReader.CloseWithError(err)
-		message := "attachment may have been uploaded; verify before retrying"
+		message := watch.explain("attachment may have been uploaded; verify before retrying")
 		if ctx.Err() != nil {
 			message = "upload was interrupted before Taiga confirmed it; verify before retrying"
 		}
 		return Attachment{}, &Error{Kind: KindAmbiguousCommit, Operation: "POST " + endpoint.Path, Message: message, Retryable: false, Cause: err}
 	}
 	c.log(http.MethodPost, endpoint.Path, response.StatusCode, time.Since(started))
-	data, readErr := io.ReadAll(io.LimitReader(response.Body, maxResponseBytes))
+	data, readErr := io.ReadAll(io.LimitReader(watch.reader(response.Body), maxResponseBytes))
 	closeErr := response.Body.Close()
 	writeErr := <-writeDone
 	if readErr != nil || closeErr != nil {
 		if readErr == nil {
 			readErr = closeErr
 		}
-		return Attachment{}, &Error{Kind: KindAmbiguousCommit, Operation: "POST " + endpoint.Path, Message: "attachment may have been uploaded; verify before retrying", Retryable: false, Cause: readErr}
+		return Attachment{}, &Error{Kind: KindAmbiguousCommit, Operation: "POST " + endpoint.Path, Message: watch.explain("attachment may have been uploaded; verify before retrying"), Retryable: false, Cause: readErr}
 	}
 	// The response is read before the write error, because Taiga answers a
 	// rejected or oversized upload without draining the body, which fails the
@@ -185,7 +187,9 @@ func (c *Client) DownloadAttachment(ctx context.Context, attachment Attachment, 
 		return AttachmentDownload{}, fmt.Errorf("unsupported attachment URL scheme %q", parsed.Scheme)
 	}
 	parsed.Fragment = ""
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, parsed.String(), nil)
+	watch := c.watchTransfer(ctx)
+	defer watch.stop()
+	request, err := http.NewRequestWithContext(watch.ctx, http.MethodGet, parsed.String(), nil)
 	if err != nil {
 		return AttachmentDownload{}, err
 	}
@@ -199,7 +203,7 @@ func (c *Client) DownloadAttachment(ctx context.Context, attachment Attachment, 
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return AttachmentDownload{}, ctxErr
 		}
-		return AttachmentDownload{}, &Error{Kind: KindTransport, Operation: "GET " + parsed.Path, Message: "download attachment", Retryable: true, Cause: err}
+		return AttachmentDownload{}, &Error{Kind: KindTransport, Operation: "GET " + parsed.Path, Message: watch.explain("download attachment"), Retryable: true, Cause: err}
 	}
 	c.log(http.MethodGet, parsed.Path, response.StatusCode, time.Since(started))
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
@@ -209,13 +213,18 @@ func (c *Client) DownloadAttachment(ctx context.Context, attachment Attachment, 
 	}
 	sha1Hash := sha1.New() // #nosec G401 -- compatibility check against Taiga's stored digest.
 	sha256Hash := sha256.New()
-	written, copyErr := io.Copy(io.MultiWriter(destination, sha1Hash, sha256Hash), response.Body)
+	written, copyErr := io.Copy(io.MultiWriter(destination, sha1Hash, sha256Hash), watch.reader(response.Body))
 	closeErr := response.Body.Close()
 	if copyErr != nil || closeErr != nil {
 		if copyErr == nil {
 			copyErr = closeErr
 		}
-		return AttachmentDownload{}, &Error{Kind: KindTransport, Operation: "GET " + parsed.Path, Message: "stream attachment download", Retryable: true, Cause: copyErr}
+		// Stopped by the operator mid-stream is the same interruption as
+		// stopped before the first byte, not a fault to retry.
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return AttachmentDownload{}, ctxErr
+		}
+		return AttachmentDownload{}, &Error{Kind: KindTransport, Operation: "GET " + parsed.Path, Message: watch.explain("stream attachment download"), Retryable: true, Cause: copyErr}
 	}
 	result := AttachmentDownload{Bytes: written, SHA1: hex.EncodeToString(sha1Hash.Sum(nil)), SHA256: hex.EncodeToString(sha256Hash.Sum(nil))}
 	if attachment.Size > 0 && written != attachment.Size {

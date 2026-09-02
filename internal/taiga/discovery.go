@@ -33,6 +33,10 @@ func DiscoverAPI(ctx context.Context, httpClient *http.Client, host string) (Fro
 		parsed.Path += "/"
 	}
 	confURL := parsed.ResolveReference(&url.URL{Path: "conf.json"})
+	// The client carries no deadline of its own, and conf.json is one small
+	// file, so this bounds it the way a JSON request is bounded.
+	ctx, cancel := context.WithTimeout(ctx, defaultRequestTimeout)
+	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, confURL.String(), nil)
 	if err != nil {
 		return FrontConfig{}, fmt.Errorf("create discovery request: %w", err)

@@ -54,6 +54,18 @@ var proseKeys = []string{"_error_message", "detail", "message"}
 var errRefreshedTokenNotStored = errors.New("refreshed token was not stored")
 
 const (
+	// defaultRequestTimeout bounds one attempt at a JSON request: connecting,
+	// sending it, waiting for the answer and reading it. Taiga answers these
+	// from its database, so one that takes longer is not going to finish.
+	defaultRequestTimeout = 30 * time.Second
+	// defaultStallTimeout bounds how long a transfer may go without a byte
+	// moving in either direction. It is longer than a request attempt because
+	// the quiet stretch after an upload is Taiga storing the file, and after a
+	// dump is Taiga building a project from it.
+	defaultStallTimeout = 60 * time.Second
+)
+
+const (
 	backoffStep = 100 * time.Millisecond
 	// jitterWindow spreads retries so that CLI invocations throttled by the
 	// same response do not resend in lockstep.
@@ -73,6 +85,9 @@ type Client struct {
 	verbose      io.Writer
 	maxRetries   int
 	sleep        func(context.Context, time.Duration) error
+
+	requestTimeout time.Duration
+	stallTimeout   time.Duration
 }
 
 type ClientOption func(*Client)
@@ -109,10 +124,15 @@ func NewClient(rawURL string, options ...ClientOption) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parse API URL: %w", err)
 	}
+	// The HTTP client carries no overall deadline. Each JSON attempt is bounded
+	// on its own, and a transfer is watched for stalling rather than for length,
+	// so that an attachment or a dump is as long as it is.
 	client := &Client{
-		baseURL:    parsed,
-		httpClient: &http.Client{Timeout: 30 * time.Second},
-		maxRetries: 3,
+		baseURL:        parsed,
+		httpClient:     &http.Client{},
+		maxRetries:     3,
+		requestTimeout: defaultRequestTimeout,
+		stallTimeout:   defaultStallTimeout,
 		sleep: func(ctx context.Context, delay time.Duration) error {
 			timer := time.NewTimer(delay)
 			defer timer.Stop()
@@ -256,8 +276,16 @@ func (c *Client) doJSON(ctx context.Context, method, path string, query url.Valu
 		if payload != nil {
 			reader = bytes.NewReader(payload)
 		}
-		req, err := http.NewRequestWithContext(ctx, method, endpoint.String(), reader)
+		// A context already finished before anything goes out cannot have
+		// committed anything, which is what separates the plain cancellation
+		// below from the ambiguous one.
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		attemptCtx, cancelAttempt := context.WithTimeout(ctx, c.requestTimeout)
+		req, err := http.NewRequestWithContext(attemptCtx, method, endpoint.String(), reader)
 		if err != nil {
+			cancelAttempt()
 			return nil, fmt.Errorf("create request: %w", err)
 		}
 		req.Header.Set("Accept", "application/json")
@@ -268,15 +296,10 @@ func (c *Client) doJSON(ctx context.Context, method, path string, query url.Valu
 		if c.token != "" {
 			req.Header.Set("Authorization", "Bearer "+c.token)
 		}
-		// A context already finished before anything goes out cannot have
-		// committed anything, which is what separates the plain cancellation
-		// below from the ambiguous one.
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
 		started := time.Now()
 		resp, err := c.httpClient.Do(req)
 		if err != nil {
+			cancelAttempt()
 			c.log(method, endpoint.Path, 0, time.Since(started))
 			if ctx.Err() != nil {
 				// Interrupted while the request was in flight. Taiga does not
@@ -301,6 +324,7 @@ func (c *Client) doJSON(ctx context.Context, method, path string, query url.Valu
 		c.log(method, endpoint.Path, resp.StatusCode, time.Since(started))
 		data, readErr := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
 		closeErr := resp.Body.Close()
+		cancelAttempt()
 		if readErr != nil {
 			if risk == mayCommit {
 				return nil, unconfirmed(unconfirmedMessage, readErr)
@@ -354,12 +378,14 @@ func (c *Client) doJSON(ctx context.Context, method, path string, query url.Valu
 }
 
 func (c *Client) refresh(ctx context.Context) error {
+	attemptCtx, cancel := context.WithTimeout(ctx, c.requestTimeout)
+	defer cancel()
 	endpoint := c.baseURL.ResolveReference(&url.URL{Path: "auth/refresh"})
 	payload, err := json.Marshal(map[string]string{"refresh": c.refreshToken})
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint.String(), bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(attemptCtx, http.MethodPost, endpoint.String(), bytes.NewReader(payload))
 	if err != nil {
 		return err
 	}

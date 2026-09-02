@@ -61,7 +61,9 @@ func (c *Client) DownloadCSV(ctx context.Context, resource, uuid string, destina
 	query := endpoint.Query()
 	query.Set("uuid", uuid)
 	endpoint.RawQuery = query.Encode()
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
+	watch := c.watchTransfer(ctx)
+	defer watch.stop()
+	request, err := http.NewRequestWithContext(watch.ctx, http.MethodGet, endpoint.String(), nil)
 	if err != nil {
 		return CSVDownload{}, err
 	}
@@ -80,7 +82,7 @@ func (c *Client) DownloadCSV(ctx context.Context, resource, uuid string, destina
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return CSVDownload{}, ctxErr
 		}
-		return CSVDownload{}, &Error{Kind: KindTransport, Operation: "GET " + endpoint.Path, Message: "download CSV export", Retryable: true, Cause: err}
+		return CSVDownload{}, &Error{Kind: KindTransport, Operation: "GET " + endpoint.Path, Message: watch.explain("download CSV export"), Retryable: true, Cause: err}
 	}
 	c.log(http.MethodGet, endpoint.Path, response.StatusCode, time.Since(started))
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
@@ -89,13 +91,18 @@ func (c *Client) DownloadCSV(ctx context.Context, resource, uuid string, destina
 		return CSVDownload{}, decodeAPIError("GET "+endpoint.Path, response.StatusCode, data)
 	}
 	hash := sha256.New()
-	written, copyErr := io.Copy(io.MultiWriter(destination, hash), response.Body)
+	written, copyErr := io.Copy(io.MultiWriter(destination, hash), watch.reader(response.Body))
 	closeErr := response.Body.Close()
 	if copyErr != nil || closeErr != nil {
 		if copyErr == nil {
 			copyErr = closeErr
 		}
-		return CSVDownload{}, &Error{Kind: KindTransport, Operation: "GET " + endpoint.Path, Message: "stream CSV export", Retryable: true, Cause: copyErr}
+		// Stopped by the operator mid-stream is the same interruption as
+		// stopped before the first byte, not a fault to retry.
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return CSVDownload{}, ctxErr
+		}
+		return CSVDownload{}, &Error{Kind: KindTransport, Operation: "GET " + endpoint.Path, Message: watch.explain("stream CSV export"), Retryable: true, Cause: copyErr}
 	}
 	return CSVDownload{Bytes: written, SHA256: hex.EncodeToString(hash.Sum(nil))}, nil
 }

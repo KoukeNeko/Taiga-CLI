@@ -696,6 +696,18 @@ func TestStoryListRejectsUnknownOrder(t *testing.T) {
 
 // CI jobs and shells still export the pre-rename variables, so those must keep
 // working, while the current names take precedence when both are set.
+// The client the CLI builds carries no overall deadline: that would cap every
+// attachment and dump at whatever thirty seconds can move.
+func TestNewClientCarriesNoOverallDeadline(t *testing.T) {
+	app, err := New()
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if app.HTTPClient.Timeout != 0 {
+		t.Fatalf("HTTPClient.Timeout = %v, want none", app.HTTPClient.Timeout)
+	}
+}
+
 func TestEnvironmentFallsBackToTheLegacyPrefix(t *testing.T) {
 	values := map[string]string{}
 	app := &App{Getenv: func(name string) string { return values[name] }}
