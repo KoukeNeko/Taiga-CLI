@@ -10,6 +10,16 @@ Release notes 以 hard line break 渲染，所以這裡每個段落與項目都�
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-09-02
+
+### 修正
+
+- 告訴使用者「下一步該執行什麼」的錯誤訊息仍使用改名前的指令名 —— 缺少憑證時會建議 `taiga auth login` 與 `TAIGA_TOKEN`，而非 `aihki auth login` 與 `AIHKI_TOKEN`。11 個檔案中的 17 處訊息現在指向真實存在的指令。
+
+### 變更
+
+- 端對端測試改用 `AIHKI_TOKEN` 認證（先前從未被測到），並新增一個案例證明 `TAIGA_TOKEN` 在真實執行檔中仍可認證。只有單元測試覆蓋的回退路徑，等於沒有人真的跑過。
+
 ## [0.2.1] - 2026-09-02
 
 僅工具與文件變更，`aihki` 執行檔的功能與 0.2.0 相同。
@@ -95,7 +105,8 @@ brew install koukeneko/tap/aihki
 
 已針對 Taiga 6.10.2 以固定 image digest 執行完整 Docker E2E 驗證。支援 macOS、Linux、Windows 的 `amd64` 與 `arm64`。
 
-[Unreleased]: https://github.com/KoukeNeko/aihki/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/KoukeNeko/aihki/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/KoukeNeko/aihki/releases/tag/v0.2.2
 [0.2.1]: https://github.com/KoukeNeko/aihki/releases/tag/v0.2.1
 [0.2.0]: https://github.com/KoukeNeko/aihki/releases/tag/v0.2.0
 [0.1.0]: https://github.com/KoukeNeko/aihki/releases/tag/v0.1.0

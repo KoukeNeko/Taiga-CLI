@@ -10,6 +10,16 @@ Release notes render with hard line breaks, so each paragraph and bullet stays o
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-09-02
+
+### Fixed
+
+- Errors that tell you what to run next named the pre-rename command, so a missing credential suggested `taiga auth login` and `TAIGA_TOKEN` rather than `aihki auth login` and `AIHKI_TOKEN`. Seventeen such messages across eleven files now name commands that exist.
+
+### Changed
+
+- The end-to-end suite authenticates with `AIHKI_TOKEN`, which it had never exercised, and gained a case proving `TAIGA_TOKEN` still authenticates a real binary. A fallback covered only by a unit test is a fallback nobody has run.
+
 ## [0.2.1] - 2026-09-02
 
 Tooling and documentation only. The `aihki` binary is functionally unchanged from 0.2.0.
@@ -95,7 +105,8 @@ Or download the archive for your platform below, verify it against `SHA256SUMS`,
 
 Verified against Taiga 6.10.2 through a full Docker E2E run against a pinned image digest. Supports macOS, Linux, and Windows on `amd64` and `arm64`.
 
-[Unreleased]: https://github.com/KoukeNeko/aihki/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/KoukeNeko/aihki/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/KoukeNeko/aihki/releases/tag/v0.2.2
 [0.2.1]: https://github.com/KoukeNeko/aihki/releases/tag/v0.2.1
 [0.2.0]: https://github.com/KoukeNeko/aihki/releases/tag/v0.2.0
 [0.1.0]: https://github.com/KoukeNeko/aihki/releases/tag/v0.1.0
