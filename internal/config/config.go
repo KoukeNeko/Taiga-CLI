@@ -7,11 +7,19 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/KoukeNeko/taiga-cli/internal/atomicfile"
+	"github.com/KoukeNeko/aihki/internal/atomicfile"
 	"github.com/pelletier/go-toml/v2"
 )
 
 const defaultProfile = "default"
+
+const (
+	configDirectory = "aihki"
+	// legacyConfigDirectory is where this tool kept its config before it was
+	// renamed. Falling back to it means an existing profile survives the
+	// rename; the next save rewrites it at the current location.
+	legacyConfigDirectory = "taiga-cli"
+)
 
 type Profile struct {
 	APIURL  string `toml:"api_url" json:"api_url"`
@@ -32,7 +40,7 @@ func DefaultPath() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("locate user config directory: %w", err)
 	}
-	return filepath.Join(base, "taiga-cli", "config.toml"), nil
+	return filepath.Join(base, configDirectory, "config.toml"), nil
 }
 
 func NewStore(path string) *Store {
@@ -41,9 +49,25 @@ func NewStore(path string) *Store {
 
 func (s *Store) Path() string { return s.path }
 
+// legacyPath is the pre-rename sibling of path, used only when path is absent.
+func legacyPath(path string) string {
+	directory := filepath.Dir(path)
+	if filepath.Base(directory) != configDirectory {
+		return ""
+	}
+	return filepath.Join(filepath.Dir(directory), legacyConfigDirectory, filepath.Base(path))
+}
+
 func (s *Store) Load() (File, error) {
 	cfg := File{CurrentProfile: defaultProfile, Profiles: map[string]Profile{}}
 	data, err := os.ReadFile(s.path)
+	if errors.Is(err, os.ErrNotExist) {
+		if legacy := legacyPath(s.path); legacy != "" {
+			if inherited, legacyErr := os.ReadFile(legacy); legacyErr == nil {
+				data, err = inherited, nil
+			}
+		}
+	}
 	if errors.Is(err, os.ErrNotExist) {
 		return cfg, nil
 	}

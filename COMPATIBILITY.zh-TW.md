@@ -9,7 +9,7 @@
 | Server | 狀態 | 證據／限制 |
 | --- | --- | --- |
 | Taiga 6.10.2 | Verified | CI 使用固定 image digest 執行完整 Docker E2E，包括 auth、Project、敏捷流程、Wiki、附件、bulk、stats 與 export/import。 |
-| Taiga 6.10.x | Expected compatible | API family 相同；仍應先執行 `taiga doctor`。 |
+| Taiga 6.10.x | Expected compatible | API family 相同；仍應先執行 `aihki doctor`。 |
 | 較早的 Taiga 6 | Unverified | 基礎 `/api/v1` 可能可用，但不承諾所有 endpoint 與 serializer 欄位。 |
 | TaigaNext | Unsupported | API contract 不同，尚未提供相容層。 |
 
@@ -32,7 +32,7 @@ macOS binary 以 Developer ID 憑證簽署並經 Apple notarization（Team ID `3
 | 模式 | 狀態 |
 | --- | --- |
 | Taiga normal username/password | Verified |
-| 既有 bearer token／`TAIGA_TOKEN` | Verified |
+| 既有 bearer token／`AIHKI_TOKEN` | Verified |
 | Refresh token rotation | Verified by automated test |
 | SSO／LDAP 外掛 | 不提供通用互動登入；可在站台允許時匯入既有 token |
 

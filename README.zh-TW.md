@@ -1,14 +1,14 @@
-<h1 align="center">Taiga CLI</h1>
+<h1 align="center">Aihki</h1>
 
 <p align="center">
-  <strong>把 Taiga 帶到命令列。</strong><br>
+  <strong>獨立的 Taiga 命令列客戶端。</strong><br>
   給人閱讀的終端輸出，以及給 Shell、CI 與 Agent 使用的穩定 JSON contract。
 </p>
 
 <p align="center">
-  <a href="https://github.com/KoukeNeko/Taiga-CLI/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/KoukeNeko/Taiga-CLI?style=for-the-badge&logo=github&label=RELEASE&color=2196F3"></a>
-  <a href="https://github.com/KoukeNeko/Taiga-CLI/releases"><img alt="Release downloads" src="https://img.shields.io/github/downloads/KoukeNeko/Taiga-CLI/total?style=for-the-badge&logo=github&label=DOWNLOADS&color=4CAF50"></a>
-  <a href="https://github.com/KoukeNeko/Taiga-CLI/actions/workflows/ci.yml"><img alt="CI status" src="https://img.shields.io/github/actions/workflow/status/KoukeNeko/Taiga-CLI/ci.yml?branch=main&style=for-the-badge&logo=githubactions&logoColor=white&label=CI"></a>
+  <a href="https://github.com/KoukeNeko/aihki/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/KoukeNeko/aihki?style=for-the-badge&logo=github&label=RELEASE&color=2196F3"></a>
+  <a href="https://github.com/KoukeNeko/aihki/releases"><img alt="Release downloads" src="https://img.shields.io/github/downloads/KoukeNeko/aihki/total?style=for-the-badge&logo=github&label=DOWNLOADS&color=4CAF50"></a>
+  <a href="https://github.com/KoukeNeko/aihki/actions/workflows/ci.yml"><img alt="CI status" src="https://img.shields.io/github/actions/workflow/status/KoukeNeko/aihki/ci.yml?branch=main&style=for-the-badge&logo=githubactions&logoColor=white&label=CI"></a>
   <a href="COMPATIBILITY.zh-TW.md"><img alt="Verified against Taiga 6.10.2" src="https://img.shields.io/badge/TAIGA-6.10.2_VERIFIED-00A5A5?style=for-the-badge"></a>
   <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/LICENSE-MIT-4CAF50?style=for-the-badge&logo=github"></a>
 </p>
@@ -20,18 +20,18 @@
 <p align="center">
   <a href="INSTALL.zh-TW.md">安裝</a>
   · <a href="#快速開始">快速開始</a>
-  · <a href="https://github.com/KoukeNeko/Taiga-CLI/wiki">使用手冊</a>
+  · <a href="https://github.com/KoukeNeko/aihki/wiki">使用手冊</a>
   · <a href="CHANGELOG.zh-TW.md">版本紀錄</a>
   · <a href="COMPATIBILITY.zh-TW.md">相容性</a>
 </p>
 
 ```sh
-taiga issue list
-taiga issue create --subject "Fix token refresh" --type Bug
-taiga issue close 42 --status Closed
+aihki issue list
+aihki issue create --subject "Fix token refresh" --type Bug
+aihki issue close 42 --status Closed
 
 # 同一份資料，給 script、CI job 或 agent
-taiga issue view 42 --json --fields ref,subject,status,version
+aihki issue view 42 --json --fields ref,subject,status,version
 ```
 
 ```json
@@ -67,7 +67,7 @@ https://taiga.example.com/taiga/project/example-project/issue/42
 
 ### 給自動化的穩定介面
 
-`--json` 輸出 `meta.contract` 版本號，`--fields` 挑選欄位，`taiga schema <command>` 給出該指令的
+`--json` 輸出 `meta.contract` 版本號，`--fields` 挑選欄位，`aihki schema <command>` 給出該指令的
 input/output JSON Schema 與 safety/idempotency 標註 —— agent 可以據此判斷一個指令能不能自動執行。
 Exit code 依錯誤種類固定分流，`--dry-run` 會完整解析並顯示將送出的變更，但保證不發出任何寫入請求。
 
@@ -83,13 +83,13 @@ Profile 讓你在不同 Taiga 站台之間切換，各自記住 API URL 與預�
 單一 Git repository 上，存進 `.git/config` 而不會被 commit：
 
 ```sh
-taiga project use example-project --local
+aihki project use example-project --local
 ```
 
 ### 出事的時候查得出來
 
-`taiga doctor` 逐項檢查 frontend discovery、API、authentication 與預設專案。需要求助時，
-`taiga doctor bundle` 產生一份可以安心分享的診斷包 —— 只有版本資訊、設定「是否存在」的布林值與
+`aihki doctor` 逐項檢查 frontend discovery、API、authentication 與預設專案。需要求助時，
+`aihki doctor bundle` 產生一份可以安心分享的診斷包 —— 只有版本資訊、設定「是否存在」的布林值與
 狀態碼，不含任何 URL、使用者名稱、專案名稱或憑證，而且只在本機建立、不會自動上傳。
 
 ## 快速開始
@@ -97,17 +97,17 @@ taiga project use example-project --local
 1. **安裝。** macOS 與 Linux 用 Homebrew：
 
    ```sh
-   brew install koukeneko/tap/taiga
+   brew install koukeneko/tap/aihki
    ```
 
    或用安裝腳本，它會先核對 release checksum 才安裝：
 
    ```sh
-   curl -fsSL https://raw.githubusercontent.com/KoukeNeko/Taiga-CLI/main/scripts/install.sh | sh
+   curl -fsSL https://raw.githubusercontent.com/KoukeNeko/aihki/main/scripts/install.sh | sh
    ```
 
    ```powershell
-   irm https://raw.githubusercontent.com/KoukeNeko/Taiga-CLI/main/scripts/install.ps1 | iex
+   irm https://raw.githubusercontent.com/KoukeNeko/aihki/main/scripts/install.ps1 | iex
    ```
 
    Release archive、手動驗證 checksum 與從原始碼建置見 [INSTALL.zh-TW.md](INSTALL.zh-TW.md)。
@@ -116,33 +116,33 @@ taiga project use example-project --local
 2. **登入**，token 會存進 OS keyring：
 
    ```sh
-   taiga auth login --host https://taiga.example.com/taiga/ --profile company
+   aihki auth login --host https://taiga.example.com/taiga/ --profile company
    ```
 
 3. **選定專案**：
 
    ```sh
-   taiga project list
-   taiga project use example-project
+   aihki project list
+   aihki project use example-project
    ```
 
 4. **開始操作**：
 
    ```sh
-   taiga issue list
-   taiga issue create --subject "Fix token refresh" --type Bug
-   taiga issue assign 42 --to alice
-   taiga issue close 42 --status Closed
+   aihki issue list
+   aihki issue create --subject "Fix token refresh" --type Bug
+   aihki issue assign 42 --to alice
+   aihki issue close 42 --status Closed
    ```
 
 5. **接上自動化**：
 
    ```sh
-   taiga issue view 42 --json --fields id,ref,subject,status,version --no-input
+   aihki issue view 42 --json --fields id,ref,subject,status,version --no-input
    ```
 
 完整的指令參考、旗標說明與各子系統的行為細節，見
-[使用手冊 Wiki](https://github.com/KoukeNeko/Taiga-CLI/wiki)。
+[使用手冊 Wiki](https://github.com/KoukeNeko/aihki/wiki)。
 
 ## 相容性
 
@@ -172,8 +172,8 @@ project = "example-project"
 
 ```text
 command flag
-→ TAIGA_PROFILE / TAIGA_API_URL / TAIGA_PROJECT / TAIGA_TOKEN
-→ Git-local taiga.profile / taiga.project
+→ AIHKI_PROFILE / AIHKI_API_URL / AIHKI_PROJECT / AIHKI_TOKEN
+→ Git-local aihki.profile / aihki.project
 → current profile
 → safe defaults
 ```
@@ -231,7 +231,7 @@ make lint
 make test-integration
 ```
 
-Integration harness 使用獨立的 `taiga-cli-e2e` Compose project 與 `localhost:19000`，自行建立臨時帳號、
+Integration harness 使用獨立的 `aihki-e2e` Compose project 與 `localhost:19000`，自行建立臨時帳號、
 專案與 Issue，結束後只清除自己的 container 與 volume，不會動到日常使用的 Taiga 實例。
 
 重建跨平台 release artifacts：

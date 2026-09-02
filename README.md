@@ -1,14 +1,14 @@
-<h1 align="center">Taiga CLI</h1>
+<h1 align="center">Aihki</h1>
 
 <p align="center">
-  <strong>Bring Taiga to the command line.</strong><br>
+  <strong>An independent command-line client for Taiga.</strong><br>
   Readable terminal output for people, and a stable JSON contract for shells, CI, and agents.
 </p>
 
 <p align="center">
-  <a href="https://github.com/KoukeNeko/Taiga-CLI/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/KoukeNeko/Taiga-CLI?style=for-the-badge&logo=github&label=RELEASE&color=2196F3"></a>
-  <a href="https://github.com/KoukeNeko/Taiga-CLI/releases"><img alt="Release downloads" src="https://img.shields.io/github/downloads/KoukeNeko/Taiga-CLI/total?style=for-the-badge&logo=github&label=DOWNLOADS&color=4CAF50"></a>
-  <a href="https://github.com/KoukeNeko/Taiga-CLI/actions/workflows/ci.yml"><img alt="CI status" src="https://img.shields.io/github/actions/workflow/status/KoukeNeko/Taiga-CLI/ci.yml?branch=main&style=for-the-badge&logo=githubactions&logoColor=white&label=CI"></a>
+  <a href="https://github.com/KoukeNeko/aihki/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/KoukeNeko/aihki?style=for-the-badge&logo=github&label=RELEASE&color=2196F3"></a>
+  <a href="https://github.com/KoukeNeko/aihki/releases"><img alt="Release downloads" src="https://img.shields.io/github/downloads/KoukeNeko/aihki/total?style=for-the-badge&logo=github&label=DOWNLOADS&color=4CAF50"></a>
+  <a href="https://github.com/KoukeNeko/aihki/actions/workflows/ci.yml"><img alt="CI status" src="https://img.shields.io/github/actions/workflow/status/KoukeNeko/aihki/ci.yml?branch=main&style=for-the-badge&logo=githubactions&logoColor=white&label=CI"></a>
   <a href="COMPATIBILITY.md"><img alt="Verified against Taiga 6.10.2" src="https://img.shields.io/badge/TAIGA-6.10.2_VERIFIED-00A5A5?style=for-the-badge"></a>
   <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/LICENSE-MIT-4CAF50?style=for-the-badge&logo=github"></a>
 </p>
@@ -20,18 +20,18 @@
 <p align="center">
   <a href="INSTALL.md">Install</a>
   · <a href="#getting-started">Getting started</a>
-  · <a href="https://github.com/KoukeNeko/Taiga-CLI/wiki">Handbook</a>
+  · <a href="https://github.com/KoukeNeko/aihki/wiki">Handbook</a>
   · <a href="CHANGELOG.md">Changelog</a>
   · <a href="COMPATIBILITY.md">Compatibility</a>
 </p>
 
 ```sh
-taiga issue list
-taiga issue create --subject "Fix token refresh" --type Bug
-taiga issue close 42 --status Closed
+aihki issue list
+aihki issue create --subject "Fix token refresh" --type Bug
+aihki issue close 42 --status Closed
 
 # The same data, for a script, a CI job, or an agent
-taiga issue view 42 --json --fields ref,subject,status,version
+aihki issue view 42 --json --fields ref,subject,status,version
 ```
 
 ```json
@@ -71,7 +71,7 @@ https://taiga.example.com/taiga/project/example-project/issue/42
 
 ### A stable surface for automation
 
-`--json` emits a `meta.contract` version, `--fields` selects columns, and `taiga schema <command>`
+`--json` emits a `meta.contract` version, `--fields` selects columns, and `aihki schema <command>`
 returns that command's input and output JSON Schema along with `safety` and `idempotency`
 annotations — enough for an agent to decide whether a command may run unattended. Exit codes are
 partitioned by failure kind, and `--dry-run` resolves and displays the mutation it would send while
@@ -92,13 +92,13 @@ also pin a profile and project to a single Git repository, stored in `.git/confi
 committed:
 
 ```sh
-taiga project use example-project --local
+aihki project use example-project --local
 ```
 
 ### Diagnosable when something breaks
 
-`taiga doctor` checks frontend discovery, the API, authentication, and the default project one by
-one. When you need help, `taiga doctor bundle` produces a report you can share without worrying:
+`aihki doctor` checks frontend discovery, the API, authentication, and the default project one by
+one. When you need help, `aihki doctor bundle` produces a report you can share without worrying:
 version information, presence booleans, and status codes only — no URLs, usernames, project names,
 or credentials — created locally and never uploaded.
 
@@ -107,18 +107,18 @@ or credentials — created locally and never uploaded.
 1. **Install.** Homebrew, on macOS and Linux:
 
    ```sh
-   brew install koukeneko/tap/taiga
+   brew install koukeneko/tap/aihki
    ```
 
    Or the install script, which verifies the download against the release checksums before it
    installs anything:
 
    ```sh
-   curl -fsSL https://raw.githubusercontent.com/KoukeNeko/Taiga-CLI/main/scripts/install.sh | sh
+   curl -fsSL https://raw.githubusercontent.com/KoukeNeko/aihki/main/scripts/install.sh | sh
    ```
 
    ```powershell
-   irm https://raw.githubusercontent.com/KoukeNeko/Taiga-CLI/main/scripts/install.ps1 | iex
+   irm https://raw.githubusercontent.com/KoukeNeko/aihki/main/scripts/install.ps1 | iex
    ```
 
    Release archives, manual checksum verification, and building from source are covered in
@@ -127,33 +127,33 @@ or credentials — created locally and never uploaded.
 2. **Log in.** The token goes to the OS keyring:
 
    ```sh
-   taiga auth login --host https://taiga.example.com/taiga/ --profile company
+   aihki auth login --host https://taiga.example.com/taiga/ --profile company
    ```
 
 3. **Pick a project:**
 
    ```sh
-   taiga project list
-   taiga project use example-project
+   aihki project list
+   aihki project use example-project
    ```
 
 4. **Start working:**
 
    ```sh
-   taiga issue list
-   taiga issue create --subject "Fix token refresh" --type Bug
-   taiga issue assign 42 --to alice
-   taiga issue close 42 --status Closed
+   aihki issue list
+   aihki issue create --subject "Fix token refresh" --type Bug
+   aihki issue assign 42 --to alice
+   aihki issue close 42 --status Closed
    ```
 
 5. **Wire up automation:**
 
    ```sh
-   taiga issue view 42 --json --fields id,ref,subject,status,version --no-input
+   aihki issue view 42 --json --fields id,ref,subject,status,version --no-input
    ```
 
 The full command reference, flag documentation, and per-subsystem behaviour live in the
-[handbook wiki](https://github.com/KoukeNeko/Taiga-CLI/wiki).
+[handbook wiki](https://github.com/KoukeNeko/aihki/wiki).
 
 ## Compatibility
 
@@ -184,8 +184,8 @@ Resolution order, highest first:
 
 ```text
 command flag
-→ TAIGA_PROFILE / TAIGA_API_URL / TAIGA_PROJECT / TAIGA_TOKEN
-→ Git-local taiga.profile / taiga.project
+→ AIHKI_PROFILE / AIHKI_API_URL / AIHKI_PROJECT / AIHKI_TOKEN
+→ Git-local aihki.profile / aihki.project
 → current profile
 → safe defaults
 ```
@@ -245,7 +245,7 @@ Integration tests against a real Taiga server:
 make test-integration
 ```
 
-The harness uses a dedicated `taiga-cli-e2e` Compose project on `localhost:19000`, creates its own
+The harness uses a dedicated `aihki-e2e` Compose project on `localhost:19000`, creates its own
 throwaway account, project, and issues, and tears down only its own containers and volumes — it never
 touches a Taiga instance you use day to day.
 

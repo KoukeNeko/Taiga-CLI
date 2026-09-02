@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/KoukeNeko/taiga-cli/internal/output"
-	"github.com/KoukeNeko/taiga-cli/internal/taiga"
+	"github.com/KoukeNeko/aihki/internal/output"
+	"github.com/KoukeNeko/aihki/internal/taiga"
 	"github.com/spf13/cobra"
 )
 

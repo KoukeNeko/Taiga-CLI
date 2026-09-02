@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/KoukeNeko/taiga-cli/internal/atomicfile"
+	"github.com/KoukeNeko/aihki/internal/atomicfile"
 )
 
 const schemaVersion = 1

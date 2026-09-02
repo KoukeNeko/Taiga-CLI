@@ -9,7 +9,7 @@ Updated: 2026-09-01
 | Server | Status | Evidence and limits |
 | --- | --- | --- |
 | Taiga 6.10.2 | Verified | CI runs a full Docker E2E against a pinned image digest, covering auth, projects, agile workflows, wiki, attachments, bulk, stats, and export/import. |
-| Taiga 6.10.x | Expected compatible | Same API family. Run `taiga doctor` first. |
+| Taiga 6.10.x | Expected compatible | Same API family. Run `aihki doctor` first. |
 | Earlier Taiga 6 | Unverified | The basic `/api/v1` may work, but no promise is made about every endpoint and serializer field. |
 | TaigaNext | Unsupported | A different API contract, with no compatibility layer yet. |
 
@@ -36,7 +36,7 @@ byte-for-byte reproducible; Linux and Windows archives are.
 | Mode | Status |
 | --- | --- |
 | Taiga normal username and password | Verified |
-| Existing bearer token or `TAIGA_TOKEN` | Verified |
+| Existing bearer token or `AIHKI_TOKEN` | Verified |
 | Refresh token rotation | Verified by automated test |
 | SSO and LDAP plugins | No generic interactive login. An existing token can be imported where the site allows it. |
 
