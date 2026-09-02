@@ -120,7 +120,7 @@ func (c *Client) DeleteWorkflowMetadata(ctx context.Context, kind string, id, mo
 	}
 	operation := fmt.Sprintf("%s/%d", path, id)
 	query := url.Values{"moveTo": []string{fmt.Sprint(moveTo)}}
-	if _, err := c.doJSON(ctx, http.MethodDelete, operation, query, nil, nil, false, false); err != nil {
+	if _, err := c.doJSON(ctx, http.MethodDelete, operation, query, nil, nil, false, mayCommit); err != nil {
 		return err
 	}
 	if _, err := c.GetWorkflowMetadata(ctx, kind, id); err != nil {

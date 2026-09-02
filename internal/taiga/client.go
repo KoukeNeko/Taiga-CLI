@@ -181,11 +181,16 @@ func (c *Client) Delete(ctx context.Context, path string) error {
 // It belongs to the call, decided where the endpoint is known, rather than
 // being inferred from the HTTP verb: Taiga has POSTs that settle nothing and a
 // GET that enqueues work.
-type commitRisk bool
+//
+// It is deliberately not a bool. It sits beside retryGET in the parameter
+// list, and while it was one, an untyped false at a call site silently meant
+// noCommit -- which is how three destructive deletes came to report an
+// interrupt as though nothing had been sent.
+type commitRisk int
 
 const (
-	noCommit  commitRisk = false
-	mayCommit commitRisk = true
+	noCommit commitRisk = iota
+	mayCommit
 )
 
 func (c *Client) doJSON(ctx context.Context, method, path string, query url.Values, body, out any, retryGET bool, risk commitRisk) (http.Header, error) {

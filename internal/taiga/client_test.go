@@ -624,3 +624,46 @@ func interruptibleClient(t *testing.T) (*Client, context.Context, func()) {
 		server.Close()
 	}
 }
+
+// Not every DELETE goes through Client.Delete. These four reach the request
+// layer on their own, because they carry a moveTo query or share the
+// delete-then-verify helper, and each destroys something. Interrupting one
+// does not un-send it, so it has to warn like any other write rather than
+// report that nothing happened.
+func TestInterruptedDeleteOutsideTheWrapperIsAmbiguous(t *testing.T) {
+	moveTo := int64(2)
+	for _, testCase := range []struct {
+		name   string
+		remove func(*Client, context.Context) error
+	}{
+		{"role", func(c *Client, ctx context.Context) error {
+			return c.DeleteRole(ctx, 1, &moveTo)
+		}},
+		{"swimlane", func(c *Client, ctx context.Context) error {
+			return c.DeleteSwimlane(ctx, 1, &moveTo)
+		}},
+		{"due date", func(c *Client, ctx context.Context) error {
+			return c.DeleteDueDate(ctx, "issue", 1)
+		}},
+		{"workflow metadata", func(c *Client, ctx context.Context) error {
+			return c.DeleteWorkflowMetadata(ctx, "issue-status", 1, moveTo)
+		}},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			client, ctx, done := interruptibleClient(t)
+			defer done()
+
+			err := testCase.remove(client, ctx)
+			var apiErr *Error
+			if !errors.As(err, &apiErr) {
+				t.Fatalf("interrupted delete reported %v, want an *Error", err)
+			}
+			if apiErr.Kind != KindAmbiguousCommit {
+				t.Errorf("interrupted delete classified %s, want %s", apiErr.Kind, KindAmbiguousCommit)
+			}
+			if apiErr.Message != interruptedMessage {
+				t.Errorf("message = %q, want the one written for an interrupt", apiErr.Message)
+			}
+		})
+	}
+}

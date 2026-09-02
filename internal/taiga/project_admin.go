@@ -190,7 +190,7 @@ func (c *Client) MixProjectTags(ctx context.Context, projectID int64, from []str
 
 func (c *Client) deleteAndVerify(ctx context.Context, path string, id int64, query url.Values) error {
 	operation := fmt.Sprintf("%s/%d", path, id)
-	if _, err := c.doJSON(ctx, http.MethodDelete, operation, query, nil, nil, false, false); err != nil {
+	if _, err := c.doJSON(ctx, http.MethodDelete, operation, query, nil, nil, false, mayCommit); err != nil {
 		return err
 	}
 	var ignored any
