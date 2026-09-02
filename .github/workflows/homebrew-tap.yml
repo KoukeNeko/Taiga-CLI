@@ -1,15 +1,15 @@
 name: Update Homebrew tap
 
 # The release workflow already updates the tap for every stable tag. This
-# exists for the cases that flow cannot cover: repairing a formula without
-# cutting a new release, and backfilling a release published before the tap
-# existed.
+# exists for the cases that flow cannot cover: checking that the tap token
+# still works, repairing a formula without cutting a new release, and
+# backfilling a release published before the tap existed.
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Published stable release tag, for example v0.1.0"
-        required: true
+        description: "Published stable release tag, for example v0.1.0. Leave empty to only check tap access."
+        required: false
 
 permissions:
   contents: read
@@ -19,7 +19,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7.0.1
+      - name: Verify tap access
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          test -n "$GH_TOKEN" || (echo "::error::HOMEBREW_TAP_TOKEN is required to update the tap" >&2; exit 1)
+          # Ask the API what the token may do rather than discovering it during
+          # a release, when a failure would burn a version number.
+          if ! permissions="$(gh api repos/KoukeNeko/homebrew-tap --jq '.permissions.push' 2>&1)"; then
+            echo "::error::HOMEBREW_TAP_TOKEN cannot read KoukeNeko/homebrew-tap. Check that the token grants access to that repository." >&2
+            exit 1
+          fi
+          if [ "$permissions" != "true" ]; then
+            echo "::error::HOMEBREW_TAP_TOKEN can read KoukeNeko/homebrew-tap but cannot push to it. Grant the token Contents: Read and write." >&2
+            exit 1
+          fi
+          echo "The tap token can push to KoukeNeko/homebrew-tap."
       - name: Render the formula from the published release
+        if: ${{ inputs.version != '' }}
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ inputs.version }}
@@ -41,11 +58,11 @@ jobs:
           ./scripts/render-homebrew-formula.sh "$VERSION" "$RUNNER_TEMP/SHA256SUMS" > "$RUNNER_TEMP/taiga.rb"
           cat "$RUNNER_TEMP/taiga.rb"
       - name: Push the formula to the tap
+        if: ${{ inputs.version != '' }}
         env:
           TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           VERSION: ${{ inputs.version }}
         run: |
-          test -n "$TAP_TOKEN" || (echo "::error::HOMEBREW_TAP_TOKEN is required to update the tap" >&2; exit 1)
           tap="$RUNNER_TEMP/homebrew-tap"
           git clone --depth 1 "https://x-access-token:$TAP_TOKEN@github.com/KoukeNeko/homebrew-tap.git" "$tap" 2>/dev/null
           mkdir -p "$tap/Formula"
