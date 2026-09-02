@@ -1,0 +1,105 @@
+name: Signing check
+
+# Exercises the full macOS signing chain without publishing anything, so that
+# credential mistakes surface here instead of aborting a tagged release and
+# consuming a version number that RELEASING.md forbids reusing.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  signing:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version: "1.26.x"
+          cache: true
+      - name: Import the Developer ID certificate
+        env:
+          CERT_P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          test -n "$CERT_P12_BASE64" || (echo "MACOS_CERT_P12_BASE64 is required" >&2; exit 1)
+          test -n "$CERT_PASSWORD" || (echo "MACOS_CERT_PASSWORD is required" >&2; exit 1)
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          keychain_password="$(uuidgen)"
+          certificate="$RUNNER_TEMP/certificate.p12"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          printf '%s' "$CERT_P12_BASE64" | base64 --decode > "$certificate"
+          if ! security import "$certificate" -k "$keychain" -P "$CERT_PASSWORD" -T /usr/bin/codesign -x; then
+            echo "::error::Importing the .p12 failed. The usual cause is a wrong MACOS_CERT_PASSWORD, or a MACOS_CERT_P12_BASE64 that is not a base64 .p12 export." >&2
+            exit 1
+          fi
+          rm -f "$certificate"
+          security set-key-partition-list -S apple-tool:,apple: -k "$keychain_password" "$keychain" > /dev/null
+          security list-keychain -d user -s "$keychain" login.keychain-db
+          identity="$(security find-identity -v -p codesigning "$keychain" | awk '/Developer ID Application/ {print $2; exit}')"
+          if [ -z "$identity" ]; then
+            echo "::error::The .p12 imported but holds no Developer ID Application identity. Export the certificate together with its private key." >&2
+            exit 1
+          fi
+          echo "SIGN_IDENTITY=$identity" >> "$GITHUB_ENV"
+          echo "SIGN_KEYCHAIN=$keychain" >> "$GITHUB_ENV"
+          echo "Imported a Developer ID Application identity."
+          security find-identity -v -p codesigning "$keychain" | sed 's/[0-9A-F]\{40\}/<hash>/'
+      - name: Check the App Store Connect credentials
+        env:
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          test -n "$ASC_KEY_P8_BASE64" || (echo "ASC_KEY_P8_BASE64 is required" >&2; exit 1)
+          notary_key="$RUNNER_TEMP/asc-key.p8"
+          printf '%s' "$ASC_KEY_P8_BASE64" | base64 --decode > "$notary_key"
+          chmod 600 "$notary_key"
+          # history authenticates without submitting anything, so bad
+          # credentials fail in seconds rather than after a full build.
+          if ! xcrun notarytool history --key "$notary_key" --key-id "$ASC_KEY_ID" --issuer "$ASC_ISSUER_ID" > /dev/null; then
+            echo "::error::notarytool rejected the App Store Connect credentials. Check ASC_KEY_ID, ASC_ISSUER_ID, and that ASC_KEY_P8_BASE64 is the base64 of the AuthKey .p8 file." >&2
+            exit 1
+          fi
+          echo "NOTARY_KEY=$notary_key" >> "$GITHUB_ENV"
+          echo "App Store Connect credentials accepted."
+      - name: Build, sign and notarize one macOS target
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          make release \
+            VERSION=v0.0.0-signingcheck \
+            COMMIT="$(git rev-parse HEAD)" \
+            SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)" \
+            TARGETS=darwin/arm64 \
+            RELEASE_DIR=dist/signing-check \
+            SIGN_IDENTITY="$SIGN_IDENTITY" \
+            SIGN_KEYCHAIN="$SIGN_KEYCHAIN" \
+            NOTARY_KEY="$NOTARY_KEY" \
+            NOTARY_KEY_ID="$ASC_KEY_ID" \
+            NOTARY_ISSUER="$ASC_ISSUER_ID"
+      - name: Verify the signed binary passes Gatekeeper
+        run: |
+          cd dist/signing-check
+          shasum -a 256 --check SHA256SUMS
+          tar -xzf taiga_0.0.0-signingcheck_darwin_arm64.tar.gz
+          binary="./taiga_0.0.0-signingcheck_darwin_arm64/taiga"
+          codesign --verify --strict --verbose=2 "$binary"
+          codesign -dvv "$binary" 2>&1 | grep "^Authority=Developer ID Application"
+          for attempt in 1 2 3 4 5; do
+            if spctl -a -vvv -t install "$binary"; then
+              echo "Gatekeeper accepted the notarized binary."
+              exit 0
+            fi
+            test "$attempt" -lt 5 || (echo "::error::The binary signed but Gatekeeper never accepted it, so notarization did not complete." >&2; exit 1)
+            sleep 30
+          done
+      - name: Remove signing material
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/asc-key.p8" "$RUNNER_TEMP/certificate.p12"
+          security delete-keychain "$RUNNER_TEMP/signing.keychain-db" || true
