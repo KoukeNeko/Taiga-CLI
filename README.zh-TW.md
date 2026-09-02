@@ -146,6 +146,10 @@ Windows：
 irm https://raw.githubusercontent.com/KoukeNeko/Taiga-CLI/main/scripts/install.ps1 | iex
 ```
 
+這行不受 PowerShell 執行原則影響，因為它執行的是字串而非檔案。若要存檔後傳 `-Version` 或
+`-InstallDir`，需要 `-ExecutionPolicy Bypass`，細節見 [INSTALL.md](INSTALL.md)。安裝後請開新的終端機，
+PATH 變更才會生效。
+
 Tap 只追蹤正式版。各平台的 archive、checksum 與 SBOM 都在
 [Releases 頁面](https://github.com/KoukeNeko/Taiga-CLI/releases)。
 

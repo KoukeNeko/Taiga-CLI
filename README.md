@@ -156,6 +156,10 @@ On Windows:
 irm https://raw.githubusercontent.com/KoukeNeko/Taiga-CLI/main/scripts/install.ps1 | iex
 ```
 
+That one-liner is unaffected by the PowerShell execution policy because it runs a string rather than a
+file. Saving the script to pass `-Version` or `-InstallDir` does need `-ExecutionPolicy Bypass`, which
+[INSTALL.md](INSTALL.md) covers. Open a new terminal afterwards to pick up the PATH change.
+
 The tap tracks stable releases only. Archives for every platform, with checksums and an SBOM, are on
 the [Releases page](https://github.com/KoukeNeko/Taiga-CLI/releases).
 

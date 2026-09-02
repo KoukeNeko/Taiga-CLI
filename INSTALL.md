@@ -18,15 +18,23 @@ irm https://raw.githubusercontent.com/KoukeNeko/Taiga-CLI/main/scripts/install.p
 `SHA256SUMS` 都會中止並保留原有安裝。預設安裝位置為 `~/.local/bin`（Windows 為
 `%LOCALAPPDATA%\Programs\taiga`，並自動加入使用者 PATH）。
 
+Windows 安裝後需要**開一個新的終端機**，使用者 PATH 的變更才會生效。
+
 指定版本或安裝位置：
 
 ```sh
 TAIGA_VERSION=v0.1.0 TAIGA_INSTALL_DIR=/usr/local/bin sh install.sh
 ```
 
+Windows 要傳參數就必須先把腳本存成檔案，而 PowerShell 的執行原則預設會封鎖從網路下載的 `.ps1`。上面
+`irm | iex` 的寫法不受影響（它執行的是字串而非檔案），但存檔後執行需要明確放行：
+
 ```powershell
-.\install.ps1 -Version v0.1.0 -InstallDir C:\Tools\taiga
+irm https://raw.githubusercontent.com/KoukeNeko/Taiga-CLI/main/scripts/install.ps1 -OutFile install.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Version v0.1.0 -InstallDir C:\Tools\taiga
 ```
+
+若不想每次都加 `-ExecutionPolicy Bypass`，也可以先用 `Unblock-File .\install.ps1` 移除下載標記。
 
 ## Homebrew（macOS 與 Linux）
 
