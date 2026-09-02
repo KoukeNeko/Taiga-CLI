@@ -272,6 +272,12 @@ Developer ID signature can never reproduce. Their contents are otherwise built i
   <img alt="SPDX 2.3 SBOM" src="https://img.shields.io/badge/SBOM-SPDX_2.3-2196F3?style=for-the-badge">
 </p>
 
+## Support
+
+If Essential Key Tools is useful to you, you can support development:
+
+<a href="https://buymeacoffee.com/doershing"><img alt="Buy Me a Coffee" src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-doershing-FFDD00?style=for-the-badge&logo=buymeacoffee&logoColor=black"></a>
+
 ## Trademarks
 
 Taiga is a trademark of its respective owner. This project is an independent client that is not
