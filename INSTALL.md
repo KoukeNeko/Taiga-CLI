@@ -180,7 +180,7 @@ which no uninstaller can find. Clear it there with `git config --local --remove-
 
 ## Installing from source
 
-Requires Go 1.25 or newer:
+Requires Go 1.25.13 or newer, which is the first 1.25 without known standard-library advisories:
 
 ```sh
 make install PREFIX="$HOME/.local"

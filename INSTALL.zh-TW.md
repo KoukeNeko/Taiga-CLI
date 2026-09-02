@@ -164,7 +164,7 @@ POSIX 腳本會偵測 Homebrew 安裝並引導你改用 `brew uninstall`，而�
 
 ## 從原始碼安裝
 
-需要 Go 1.25 或更新版本：
+需要 Go 1.25.13 或更新版本 —— 那是 1.25 系列中第一個沒有已知標準函式庫弱點的版本：
 
 ```sh
 make install PREFIX="$HOME/.local"

@@ -554,7 +554,9 @@ func retryDelay(attempt int, retryAfter string) time.Duration {
 	if date, err := http.ParseTime(strings.TrimSpace(retryAfter)); err == nil {
 		return min(max(time.Until(date), 0), maxRetryAfter)
 	}
-	return backoffBase(attempt) + rand.N(jitterWindow)
+	// Jitter only has to stop simultaneous callers retrying in lockstep, so a
+	// predictable source is fine here; nothing about it is a secret.
+	return backoffBase(attempt) + rand.N(jitterWindow) // #nosec G404
 }
 
 func backoffBase(attempt int) time.Duration {
