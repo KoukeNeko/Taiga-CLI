@@ -8,6 +8,30 @@ Release workflow 會把對應版本的段落與英文版 [CHANGELOG.md](CHANGELO
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-09-03
+
+工具與文件變更。`aihki` 執行檔的行為與 0.3.0 相同：close 與 comment 指令改寫成共用同一份實作，而 38 個指令的
+help 文字、每一個 dry-run 標籤與每一個錯誤代碼都與 0.3.0 逐一比對過，確認呼叫端看得到的東西沒有任何改變。
+
+### 新增
+
+- 退出碼表補上 `1` —— CLI 遇到無法分類的狀況時回報的代碼，值得當成 bug 回報 —— 以及 0.3.0 加入卻未記錄的
+  `130`。中文表新增一欄翻譯，因為原本半數列是英文術語、半數是中文。
+- 一小節說明為什麼這些寫入可以放心自動化，並連到說明 Taiga 會拒絕什麼、會合併什麼的頁面。
+- gosec 納入本機 lint，新的弱雜湊、寫死憑證或以使用者輸入組成的子行程會在推送前被擋下，而不是推送後才發現。
+  每一條關閉的規則都寫明了理由。
+- CI 會回報測試覆蓋率。
+
+### 變更
+
+- 從原始碼建置需要 Go 1.25.13 或更新版本 —— 那是 1.25 系列中第一個沒有未修補標準函式庫弱點的版本。發布的
+  執行檔本來就是用 1.26 建置的。
+
+### 修正
+
+- README 原本聲稱所有 mutation 都帶版本號。membership、webhook 與附件中繼資料都沒有，因此該敘述改為僅限
+  work item，而它描述的逐欄位行為現在由並行測試實際驗證，不再只是文字宣稱。
+
 ## [0.3.0] - 2026-09-02
 
 ### 修正
@@ -132,7 +156,8 @@ brew install koukeneko/tap/aihki
 
 已針對 Taiga 6.10.2 以固定 image digest 執行完整 Docker E2E 驗證。支援 macOS、Linux、Windows 的 `amd64` 與 `arm64`。
 
-[Unreleased]: https://github.com/KoukeNeko/aihki/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/KoukeNeko/aihki/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/KoukeNeko/aihki/releases/tag/v0.3.1
 [0.3.0]: https://github.com/KoukeNeko/aihki/releases/tag/v0.3.0
 [0.2.3]: https://github.com/KoukeNeko/aihki/releases/tag/v0.2.3
 [0.2.2]: https://github.com/KoukeNeko/aihki/releases/tag/v0.2.2

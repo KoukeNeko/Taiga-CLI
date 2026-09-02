@@ -8,6 +8,40 @@ The release workflow publishes the section matching the tag as the GitHub Releas
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-09-03
+
+Tooling and documentation. The `aihki` binary behaves as it did in 0.3.0: the
+close and comment commands were rewritten to share one implementation, and the
+help text of all 38 commands, every dry-run label and every error code were
+compared against 0.3.0 to confirm nothing a caller sees moved.
+
+### Added
+
+- The exit table now lists `1`, which is what the CLI returns when it meets
+  something it has no classification for and is worth reporting as a bug, and
+  `130`, added in 0.3.0 but never documented. The Chinese table gained a
+  translation column, since half its rows named the English term and half a
+  Chinese one.
+- A short section on what makes the writes safe to automate, linking to the page
+  covering what Taiga refuses and what it merges.
+- gosec runs as part of the local lint, so a new weak hash, hardcoded credential
+  or subprocess built from user input is refused before a push rather than after
+  one. Every rule turned off is turned off for a stated reason.
+- CI reports test coverage.
+
+### Changed
+
+- Building from source needs Go 1.25.13 or newer, the first 1.25 with no
+  outstanding standard library advisories. Released binaries were already built
+  with 1.26.
+
+### Fixed
+
+- README claimed every mutation carries a version. Memberships, webhooks and
+  attachment metadata carry none, so that claim is now scoped to work items, and
+  the per-field behaviour it describes is exercised by the concurrency test
+  rather than only asserted in prose.
+
 ## [0.3.0] - 2026-09-02
 
 ### Fixed
@@ -132,7 +166,8 @@ Or download the archive for your platform below, verify it against `SHA256SUMS`,
 
 Verified against Taiga 6.10.2 through a full Docker E2E run against a pinned image digest. Supports macOS, Linux, and Windows on `amd64` and `arm64`.
 
-[Unreleased]: https://github.com/KoukeNeko/aihki/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/KoukeNeko/aihki/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/KoukeNeko/aihki/releases/tag/v0.3.1
 [0.3.0]: https://github.com/KoukeNeko/aihki/releases/tag/v0.3.0
 [0.2.3]: https://github.com/KoukeNeko/aihki/releases/tag/v0.2.3
 [0.2.2]: https://github.com/KoukeNeko/aihki/releases/tag/v0.2.2
