@@ -465,3 +465,88 @@ func TestDecodeAPIErrorKeepsStatusTextWhenNothingIsExplained(t *testing.T) {
 		}
 	}
 }
+
+// A stale write and a bad write both arrive as HTTP 400, and confusing them is
+// costly in one direction: a conflict tells the caller to re-read and retry,
+// which loops forever when the request was simply invalid.
+func TestDecodeAPIErrorSeparatesStaleWritesFromBadOnes(t *testing.T) {
+	conflicts := []string{
+		`{"version":["The version doesn't match with the current one"]}`,
+		`{"version":"The version doesn't match with the current one"}`,
+		`{"_error_type":"taiga.base.exceptions.WrongArguments","_error_message":"version mismatch"}`,
+	}
+	for _, body := range conflicts {
+		if kind := decodeAPIError("PATCH /issues/1", http.StatusBadRequest, []byte(body)).Kind; kind != KindConflict {
+			t.Errorf("body %s classified %s, want %s", body, kind, KindConflict)
+		}
+	}
+	// Field text is whatever somebody typed into a form, so the word appearing
+	// there says nothing about concurrency.
+	validations := []string{
+		`{"subject":["Version must be specified"]}`,
+		`{"description":["Mention the version you tested"]}`,
+		`{"non_field_errors":["version"]}`,
+	}
+	for _, body := range validations {
+		if kind := decodeAPIError("POST /issues", http.StatusBadRequest, []byte(body)).Kind; kind != KindValidation {
+			t.Errorf("body %s classified %s, want %s", body, kind, KindValidation)
+		}
+	}
+}
+
+// Interrupting a write does not un-send it. Reporting plain cancellation there
+// tells a caller the write did not happen, which nobody can know.
+func TestWriteInterruptedInFlightIsAmbiguous(t *testing.T) {
+	reached := make(chan struct{})
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(reached)
+		<-release
+	}))
+	defer server.Close()
+	// Released before the server is closed, since Close waits for the handler.
+	defer close(release)
+
+	client, err := NewClient(server.URL + "/api/v1/")
+	if err != nil {
+		t.Fatalf("NewClient: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		<-reached
+		cancel()
+	}()
+
+	_, err = client.Post(ctx, "issues", map[string]any{"subject": "x"}, nil)
+	var apiErr *Error
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("interrupted write reported %v, want an *Error", err)
+	}
+	if apiErr.Kind != KindAmbiguousCommit {
+		t.Errorf("interrupted write classified %s, want %s", apiErr.Kind, KindAmbiguousCommit)
+	}
+}
+
+// A context that was already finished sent nothing, so it is just cancelled.
+func TestWriteCancelledBeforeSendingIsNotAmbiguous(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("no request should have been sent")
+	}))
+	defer server.Close()
+
+	client, err := NewClient(server.URL + "/api/v1/")
+	if err != nil {
+		t.Fatalf("NewClient: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err = client.Post(ctx, "issues", map[string]any{"subject": "x"}, nil)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("got %v, want context.Canceled", err)
+	}
+	var apiErr *Error
+	if errors.As(err, &apiErr) {
+		t.Errorf("nothing was sent, so %s is wrong", apiErr.Kind)
+	}
+}

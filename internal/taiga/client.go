@@ -183,10 +183,23 @@ func (c *Client) doJSON(ctx context.Context, method, path string, query url.Valu
 		if c.token != "" {
 			req.Header.Set("Authorization", "Bearer "+c.token)
 		}
+		// A context already finished before anything goes out cannot have
+		// committed anything, which is what separates the plain cancellation
+		// below from the ambiguous one.
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		started := time.Now()
 		resp, err := c.httpClient.Do(req)
 		if err != nil {
 			if ctx.Err() != nil {
+				// Interrupted while the request was in flight. Taiga does not
+				// roll a write back because the caller stopped listening, so
+				// the outcome is unknown rather than merely cancelled.
+				if method != http.MethodGet || ambiguousGET {
+					c.log(method, endpoint.Path, 0, time.Since(started))
+					return nil, &Error{Kind: KindAmbiguousCommit, Operation: method + " " + endpoint.Path, Message: "request was interrupted before Taiga confirmed it; verify before retrying", Retryable: false, Cause: err}
+				}
 				return nil, ctx.Err()
 			}
 			c.log(method, endpoint.Path, 0, time.Since(started))
@@ -295,13 +308,18 @@ func decodeAPIError(operation string, status int, data []byte) *Error {
 	details := map[string]any{}
 	_ = json.Unmarshal(data, &details)
 	message := http.StatusText(status)
+	// Whether the message is Taiga's own prose or field text this function
+	// rendered decides how far it can be trusted below: prose is a deliberate
+	// statement about the request, while field text is whatever a person typed
+	// into a form and may say anything at all.
+	fromPlainText := false
 	for _, key := range []string{"_error_message", "detail", "message"} {
 		if value, ok := details[key].(string); ok && strings.TrimSpace(value) != "" {
-			message = value
+			message, fromPlainText = value, true
 			break
 		}
 	}
-	if message == http.StatusText(status) {
+	if !fromPlainText {
 		// Taiga reports field validation, including a stale version, as a bare
 		// map of field names to explanations with none of the keys above. Left
 		// alone that surfaces to a person as "Bad Request", which says nothing
@@ -331,7 +349,12 @@ func decodeAPIError(operation string, status int, data []byte) *Error {
 	if errorType, _ := details["_error_type"].(string); strings.Contains(strings.ToLower(errorType), "version") {
 		kind = KindConflict
 	}
-	if strings.Contains(strings.ToLower(message), "version") && status == http.StatusBadRequest {
+	// Taiga answers a stale write with 400 rather than 409, so the body is the
+	// only way to tell a lost update from a bad one. Reading the word out of
+	// rendered field text would misread "Version must be specified" -- a plain
+	// validation failure -- as somebody else's edit, and retrying is exactly
+	// the wrong response to that.
+	if fromPlainText && strings.Contains(strings.ToLower(message), "version") && status == http.StatusBadRequest {
 		kind = KindConflict
 	}
 	if _, ok := details["version"]; ok && status == http.StatusBadRequest {
