@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/hero.png" alt="Aihki — an independent command-line client for Taiga" width="100%">
+</p>
+
 <h1 align="center">Aihki</h1>
 
 <p align="center">
