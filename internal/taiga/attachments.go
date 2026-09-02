@@ -1,6 +1,6 @@
 package taiga
 
-import (
+import ( // nosemgrep -- for crypto/sha1, which says why it is here
 	"context"
 	"crypto/sha1" // #nosec G505 -- Taiga exposes SHA-1 for compatibility verification; SHA-256 is also computed.
 	"crypto/sha256"
@@ -211,7 +211,7 @@ func (c *Client) DownloadAttachment(ctx context.Context, attachment Attachment, 
 		_ = response.Body.Close()
 		return AttachmentDownload{}, decodeAPIError("GET "+parsed.Path, response.StatusCode, data)
 	}
-	sha1Hash := sha1.New() // #nosec G401 -- compatibility check against Taiga's stored digest.
+	sha1Hash := sha1.New() // #nosec G401 -- compatibility check against Taiga's stored digest. nosemgrep
 	sha256Hash := sha256.New()
 	written, copyErr := io.Copy(io.MultiWriter(destination, sha1Hash, sha256Hash), watch.reader(response.Body))
 	closeErr := response.Body.Close()

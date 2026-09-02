@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/rand/v2"
+	"math/rand/v2" // nosemgrep -- retry jitter only has to break lockstep between callers; see retryDelay
 	"net/http"
 	"net/url"
 	"slices"

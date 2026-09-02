@@ -66,7 +66,7 @@ func (s *Store) Load() (File, error) {
 	data, err := os.ReadFile(source)
 	if errors.Is(err, os.ErrNotExist) {
 		if legacy := legacyPath(s.path); legacy != "" {
-			if inherited, legacyErr := os.ReadFile(legacy); legacyErr == nil {
+			if inherited, legacyErr := os.ReadFile(legacy); legacyErr == nil { // nosemgrep -- the path is built from the config location, never from input
 				data, err, source = inherited, nil, legacy
 			}
 		}
