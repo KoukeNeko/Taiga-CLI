@@ -287,3 +287,21 @@ func TestIssueCommentKeepsItsOwnEmptyCode(t *testing.T) {
 		}
 	}
 }
+
+// `comment edit` had a second empty-body check after readBody, which readBody
+// had already made unreachable. Removing it is only safe if the code the
+// command actually returns is the one readBody produces, so that is what this
+// pins -- reached before any request, so no server is needed.
+func TestCommentEditReturnsTheCodeReadBodyProduces(t *testing.T) {
+	app, _, _, _ := testApp(t, nil)
+	command := app.commentEditCommand()
+	command.SetArgs([]string{"issue", "1", "2", "--body", "   "})
+	err := command.Execute()
+	var known *contractError
+	if !errors.As(err, &known) {
+		t.Fatalf("got %v, want a contract error", err)
+	}
+	if known.Code != "empty_body" {
+		t.Errorf("code = %q, want %q", known.Code, "empty_body")
+	}
+}

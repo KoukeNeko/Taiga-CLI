@@ -168,9 +168,6 @@ func (a *App) commentEditCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if strings.TrimSpace(comment) == "" {
-				return validationError("empty_comment", "comment body cannot be empty")
-			}
 			target, err := a.loadActivityTarget(cmd.Context(), resource, args[1])
 			if err != nil {
 				return err
