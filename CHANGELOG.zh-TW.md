@@ -10,6 +10,19 @@ Release notes 以 hard line break 渲染，所以這裡每個段落與項目都�
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-09-02
+
+僅工具與文件變更，`aihki` 執行檔與 0.2.2 相同。
+
+### 新增
+
+- 安裝腳本現在會實際寫入 shell completion，不再只是印出產生指令。它只寫入**已存在**的標準目錄，並逐一告知寫到哪裡；不會建立目錄 —— 替沒在用該 shell 的人建空資料夾只是製造垃圾。Windows 維持只印提示，因為安裝 PowerShell completion 需要修改使用者的 profile，侵入性遠高於放一個檔案。
+- 解除安裝會精準移除這些檔案，並跳過看起來不是自動產生的檔案，避免誤刪同名的手寫 completion。
+
+### 修正
+
+- CI 現在會在三個作業系統上以「安裝後立即解除」的往返方式測試。先前版本宣稱有這項覆蓋，但當時的修改靜默地沒有套用，實際上該 job 從未執行過解除安裝。
+
 ## [0.2.2] - 2026-09-02
 
 ### 修正
@@ -105,7 +118,8 @@ brew install koukeneko/tap/aihki
 
 已針對 Taiga 6.10.2 以固定 image digest 執行完整 Docker E2E 驗證。支援 macOS、Linux、Windows 的 `amd64` 與 `arm64`。
 
-[Unreleased]: https://github.com/KoukeNeko/aihki/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/KoukeNeko/aihki/compare/v0.2.3...HEAD
+[0.2.3]: https://github.com/KoukeNeko/aihki/releases/tag/v0.2.3
 [0.2.2]: https://github.com/KoukeNeko/aihki/releases/tag/v0.2.2
 [0.2.1]: https://github.com/KoukeNeko/aihki/releases/tag/v0.2.1
 [0.2.0]: https://github.com/KoukeNeko/aihki/releases/tag/v0.2.0

@@ -10,6 +10,19 @@ Release notes render with hard line breaks, so each paragraph and bullet stays o
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-09-02
+
+Tooling and documentation only. The `aihki` binary is unchanged from 0.2.2.
+
+### Added
+
+- The install script now writes shell completions instead of only printing the command that generates them. It writes into a standard directory that already exists and names each file it wrote; it never creates such a directory, since that would leave a stray folder in the home directory of someone who does not use that shell. Windows still prints the hint, because installing PowerShell completion means editing a profile rather than dropping in a file.
+- The uninstaller removes exactly those files, skipping any that does not look generated so a hand-written completion of the same name survives.
+
+### Fixed
+
+- CI now runs the installer and uninstaller as a round trip on all three operating systems. An earlier release claimed this coverage, but the change that was meant to add it silently matched nothing, so the job had only ever run the installer.
+
 ## [0.2.2] - 2026-09-02
 
 ### Fixed
@@ -105,7 +118,8 @@ Or download the archive for your platform below, verify it against `SHA256SUMS`,
 
 Verified against Taiga 6.10.2 through a full Docker E2E run against a pinned image digest. Supports macOS, Linux, and Windows on `amd64` and `arm64`.
 
-[Unreleased]: https://github.com/KoukeNeko/aihki/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/KoukeNeko/aihki/compare/v0.2.3...HEAD
+[0.2.3]: https://github.com/KoukeNeko/aihki/releases/tag/v0.2.3
 [0.2.2]: https://github.com/KoukeNeko/aihki/releases/tag/v0.2.2
 [0.2.1]: https://github.com/KoukeNeko/aihki/releases/tag/v0.2.1
 [0.2.0]: https://github.com/KoukeNeko/aihki/releases/tag/v0.2.0
