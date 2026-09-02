@@ -44,6 +44,10 @@ jobs:
         uses: codacy/codacy-coverage-reporter-action@89d6c85cfafaec52c72b6c5e8b2878d33104c699 # v1
         with:
           coverage-reports: coverage.out
+          # Named explicitly because the reporter guesses from the extension
+          # and reads a Go profile with the LCOV parser, which finds nothing
+          # in it and reports success having sent no data.
+          force-coverage-parser: go
 
   lint:
     runs-on: ubuntu-latest
