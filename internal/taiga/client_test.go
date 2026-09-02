@@ -667,3 +667,49 @@ func TestInterruptedDeleteOutsideTheWrapperIsAmbiguous(t *testing.T) {
 		})
 	}
 }
+
+// Taiga retires the old refresh token the moment it issues a new one, so a
+// new token this process could not store leaves the credential on disk dead.
+// The 401 that started the refresh must not be what the caller hears: it says
+// "log in again" without saying why a login that worked has stopped working.
+func TestRefreshedTokenThatCannotBeStoredIsReported(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/users/me":
+			if r.Header.Get("Authorization") == "Bearer old-token" {
+				w.WriteHeader(http.StatusUnauthorized)
+				_, _ = io.WriteString(w, `{"detail":"expired"}`)
+				return
+			}
+			_, _ = io.WriteString(w, `{"id":1,"username":"demo"}`)
+		case "/api/v1/auth/refresh":
+			_, _ = io.WriteString(w, `{"auth_token":"new-token","refresh":"new-refresh"}`)
+		default:
+			t.Fatalf("unexpected path %q", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	storeErr := errors.New("keyring is locked")
+	client, err := NewClient(server.URL+"/api/v1/",
+		WithToken("old-token"),
+		WithRefreshToken("old-refresh", func(string, string) error { return storeErr }),
+	)
+	if err != nil {
+		t.Fatalf("NewClient: %v", err)
+	}
+
+	_, err = client.Me(context.Background())
+	var apiErr *Error
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("got %v, want an *Error", err)
+	}
+	if apiErr.Kind != KindAuth {
+		t.Errorf("kind = %s, want %s", apiErr.Kind, KindAuth)
+	}
+	if apiErr.Message != refreshNotStoredMessage {
+		t.Errorf("message = %q, want the one that says the stored credential is stale", apiErr.Message)
+	}
+	if !errors.Is(err, storeErr) {
+		t.Error("the error must carry why the token could not be stored")
+	}
+}

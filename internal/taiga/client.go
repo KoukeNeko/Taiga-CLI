@@ -30,14 +30,28 @@ const (
 
 	unconfirmedMessage = "request may have been committed; verify before retrying"
 	interruptedMessage = "request was interrupted before Taiga confirmed it; verify before retrying"
-	maxMessageBytes    = 2000
-	maxRenderedFields  = 20
-	maxFieldDepth      = 8
+	// refreshNotStoredMessage is what a refresh that Taiga completed but this
+	// process could not record has to say, because the token on disk is dead
+	// from that moment and nothing else will explain the next failure. It is
+	// named for the event rather than the credential so that gosec does not
+	// read a sentence about a token as a token.
+	refreshNotStoredMessage = "Taiga issued a new token but it could not be stored, so the saved credential is now stale; run `aihki auth login` again"
+	maxMessageBytes         = 2000
+	maxRenderedFields       = 20
+	maxFieldDepth           = 8
 )
 
 // proseKeys are the keys under which Taiga and Django REST Framework put a
 // sentence describing the request as a whole rather than one rejected field.
 var proseKeys = []string{"_error_message", "detail", "message"}
+
+// errRefreshedTokenNotStored marks a refresh that Taiga completed and this
+// process could not record. It is the one refresh failure doJSON reports in
+// place of the rejection that triggered the refresh: Taiga refusing the
+// refresh token leaves that rejection as the better explanation, but a token
+// that was issued and then lost has to be named, because the credential on
+// disk is dead from that moment on.
+var errRefreshedTokenNotStored = errors.New("refreshed token was not stored")
 
 const (
 	backoffStep = 100 * time.Millisecond
@@ -289,8 +303,11 @@ func (c *Client) doJSON(ctx context.Context, method, path string, query url.Valu
 				}
 				// A refresh stopped by the operator is not the server refusing
 				// the credential, and reporting it as one would send someone to
-				// log in again over a request they chose to abandon.
-				if ctx.Err() != nil {
+				// log in again over a request they chose to abandon. A refresh
+				// whose new token could not be stored is not that either: the
+				// rejection it would be reported as says nothing about why the
+				// saved login has just stopped working.
+				if ctx.Err() != nil || errors.Is(refreshErr, errRefreshedTokenNotStored) {
 					return resp.Header, refreshErr
 				}
 			}
@@ -362,7 +379,7 @@ func (c *Client) refresh(ctx context.Context) error {
 	// difference between one confusing failure and being locked out with no
 	// idea why.
 	if err := c.onRefresh(c.token, c.refreshToken); err != nil {
-		return &Error{Kind: KindAuth, Operation: "POST auth/refresh", Message: "Taiga issued a new token but it could not be stored, so the saved credential is now stale; run `aihki auth login` again", Retryable: false, Cause: err}
+		return &Error{Kind: KindAuth, Operation: "POST auth/refresh", Message: refreshNotStoredMessage, Retryable: false, Cause: fmt.Errorf("%w: %w", errRefreshedTokenNotStored, err)}
 	}
 	return nil
 }
