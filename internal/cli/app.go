@@ -215,10 +215,10 @@ func (a *App) client(ctx context.Context, requireToken bool) (*taiga.Client, Set
 		return nil, Settings{}, err
 	}
 	if settings.APIURL == "" {
-		return nil, Settings{}, validationError("missing_api_url", "no Taiga API URL configured; run `taiga auth login --host <url>` or pass --api-url")
+		return nil, Settings{}, validationError("missing_api_url", "no Taiga API URL configured; run `aihki auth login --host <url>` or pass --api-url")
 	}
 	if requireToken && settings.Token == "" {
-		return nil, Settings{}, authRequired("no Taiga credential available; run `taiga auth login` or set TAIGA_TOKEN")
+		return nil, Settings{}, authRequired("no Taiga credential available; run `aihki auth login` or set AIHKI_TOKEN")
 	}
 	options := []taiga.ClientOption{taiga.WithHTTPClient(a.HTTPClient), taiga.WithToken(settings.Token)}
 	if settings.RefreshToken != "" && a.Credentials != nil {

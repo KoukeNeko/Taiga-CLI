@@ -43,7 +43,7 @@ func (a *App) searchCommand() *cobra.Command {
 				return err
 			}
 			if settings.Project == "" {
-				return validationError("missing_project", "no project selected; run `taiga project use <slug>` or pass --project")
+				return validationError("missing_project", "no project selected; run `aihki project use <slug>` or pass --project")
 			}
 			project, err := client.GetProjectBySlug(cmd.Context(), settings.Project)
 			if err != nil {

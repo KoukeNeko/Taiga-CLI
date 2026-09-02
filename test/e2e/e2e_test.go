@@ -55,7 +55,7 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 		"HOME=" + home,
 		"XDG_CONFIG_HOME=" + filepath.Join(home, ".config"),
 		"TAIGA_API_URL=" + baseURL,
-		"TAIGA_TOKEN=" + token,
+		"AIHKI_TOKEN=" + token,
 		"TAIGA_PROJECT=" + projectSlug,
 	}}
 
@@ -936,7 +936,7 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 	dumpURL := fmt.Sprintf("%smedia/exports/%d/%s-%s.json.gz", host, projectID, projectSlug, exportID)
 	waitForProjectDump(t, dumpURL, dumpPath)
 	importRunner := runner
-	importRunner.env = replaceEnv(runner.env, "TAIGA_TOKEN", memberToken)
+	importRunner.env = replaceEnv(runner.env, "AIHKI_TOKEN", memberToken)
 	importResult := importRunner.jsonOK("project", "import", dumpPath, "--yes")
 	if importResult.Data["status"] != "accepted" || importResult.Data["verified"] != false {
 		t.Fatalf("async project import=%#v", importResult.Data)
@@ -948,8 +948,18 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 	waitForImportedContent(t, baseURL, memberToken, importedProjectID, sourceContent)
 	deleteProject(t, baseURL, memberToken, importedProjectID)
 
+	// The pre-rename variable has to keep authenticating a real binary, not just
+	// satisfy a unit test, because CI jobs written before the rename still export it.
+	legacyRunner := runner
+	legacyRunner.env = replaceEnv(runner.env, "AIHKI_TOKEN", "")
+	legacyRunner.env = replaceEnv(legacyRunner.env, "TAIGA_TOKEN", token)
+	legacyStatus := legacyRunner.jsonOK("auth", "status", "--fields", "authenticated")
+	if legacyStatus.Data["authenticated"] != true {
+		t.Fatalf("TAIGA_TOKEN no longer authenticates: %#v", legacyStatus.Data)
+	}
+
 	invalidRunner := runner
-	invalidRunner.env = replaceEnv(runner.env, "TAIGA_TOKEN", "token-that-must-never-appear")
+	invalidRunner.env = replaceEnv(runner.env, "AIHKI_TOKEN", "token-that-must-never-appear")
 	stdout, stderr, code = invalidRunner.run("--verbose", "auth", "status")
 	if code != 3 {
 		t.Fatalf("invalid token exit=%d stdout=%s stderr=%s", code, stdout, stderr)

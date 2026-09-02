@@ -241,7 +241,7 @@ func (a *App) selectedProject(ctx context.Context) (*taiga.Client, taiga.Project
 		return nil, taiga.Project{}, err
 	}
 	if settings.Project == "" {
-		return nil, taiga.Project{}, validationError("missing_project", "no project selected; run `taiga project use <slug>` or pass --project")
+		return nil, taiga.Project{}, validationError("missing_project", "no project selected; run `aihki project use <slug>` or pass --project")
 	}
 	project, err := client.GetProjectBySlug(ctx, settings.Project)
 	return client, project, err

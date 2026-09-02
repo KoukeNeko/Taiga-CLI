@@ -79,7 +79,7 @@ func (a *App) authLoginCommand() *cobra.Command {
 				}
 			} else {
 				if a.global.NoInput || !a.stdinTTY() {
-					return validationError("input_required", "interactive login requires a TTY; use --with-token or TAIGA_TOKEN for automation")
+					return validationError("input_required", "interactive login requires a TTY; use --with-token or AIHKI_TOKEN for automation")
 				}
 				if username == "" {
 					username, err = a.readLine("Username: ")
