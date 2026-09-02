@@ -161,7 +161,7 @@ func buildTarget(ctx context.Context, config Config, target Target, stamp time.T
 	if err := applySigning(ctx, config, target, binaryPath, temporary); err != nil {
 		return Artifact{}, err
 	}
-	for _, name := range []string{"README.md", "README.zh-TW.md", "INSTALL.md", "COMPATIBILITY.md"} {
+	for _, name := range []string{"README.md", "README.zh-TW.md", "INSTALL.md", "INSTALL.zh-TW.md", "COMPATIBILITY.md", "COMPATIBILITY.zh-TW.md"} {
 		data, err := os.ReadFile(filepath.Join(config.RepoRoot, name))
 		if err != nil {
 			return Artifact{}, fmt.Errorf("read %s: %w", name, err)

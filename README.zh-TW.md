@@ -7,8 +7,9 @@
 
 <p align="center">
   <a href="https://github.com/KoukeNeko/Taiga-CLI/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/KoukeNeko/Taiga-CLI?style=for-the-badge&logo=github&label=RELEASE&color=2196F3"></a>
+  <a href="https://github.com/KoukeNeko/Taiga-CLI/releases"><img alt="Release downloads" src="https://img.shields.io/github/downloads/KoukeNeko/Taiga-CLI/total?style=for-the-badge&logo=github&label=DOWNLOADS&color=4CAF50"></a>
   <a href="https://github.com/KoukeNeko/Taiga-CLI/actions/workflows/ci.yml"><img alt="CI status" src="https://img.shields.io/github/actions/workflow/status/KoukeNeko/Taiga-CLI/ci.yml?branch=main&style=for-the-badge&logo=githubactions&logoColor=white&label=CI"></a>
-  <a href="COMPATIBILITY.md"><img alt="Verified against Taiga 6.10.2" src="https://img.shields.io/badge/TAIGA-6.10.2_VERIFIED-00A5A5?style=for-the-badge"></a>
+  <a href="COMPATIBILITY.zh-TW.md"><img alt="Verified against Taiga 6.10.2" src="https://img.shields.io/badge/TAIGA-6.10.2_VERIFIED-00A5A5?style=for-the-badge"></a>
   <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/LICENSE-MIT-4CAF50?style=for-the-badge&logo=github"></a>
 </p>
 
@@ -17,11 +18,11 @@
 </p>
 
 <p align="center">
-  <a href="INSTALL.md">安裝</a>
+  <a href="INSTALL.zh-TW.md">安裝</a>
   · <a href="#快速開始">快速開始</a>
   · <a href="https://github.com/KoukeNeko/Taiga-CLI/wiki">使用手冊</a>
   · <a href="CHANGELOG.zh-TW.md">版本紀錄</a>
-  · <a href="COMPATIBILITY.md">相容性</a>
+  · <a href="COMPATIBILITY.zh-TW.md">相容性</a>
 </p>
 
 ```sh
@@ -137,7 +138,7 @@ taiga project use example-project --local
 - macOS、Linux、Windows 的 `amd64` 與 `arm64`，純 Go 建置（`CGO_ENABLED=0`）
 - 帳密登入、既有 bearer token 與 refresh token rotation
 
-詳細矩陣與已知限制見 [COMPATIBILITY.md](COMPATIBILITY.md)。
+詳細矩陣與已知限制見 [COMPATIBILITY.zh-TW.md](COMPATIBILITY.zh-TW.md)。
 
 ## 取得工具
 
@@ -160,7 +161,7 @@ irm https://raw.githubusercontent.com/KoukeNeko/Taiga-CLI/main/scripts/install.p
 ```
 
 這行不受 PowerShell 執行原則影響，因為它執行的是字串而非檔案。若要存檔後傳 `-Version` 或
-`-InstallDir`，需要 `-ExecutionPolicy Bypass`，細節見 [INSTALL.md](INSTALL.md)。安裝後請開新的終端機，
+`-InstallDir`，需要 `-ExecutionPolicy Bypass`，細節見 [INSTALL.zh-TW.md](INSTALL.zh-TW.md)。安裝後請開新的終端機，
 PATH 變更才會生效。
 
 Tap 只追蹤正式版。各平台的 archive、checksum 與 SBOM 都在
@@ -178,7 +179,7 @@ make install
 make install PREFIX=/usr/local
 ```
 
-Release archive 的下載、checksum 驗證、shell completion 安裝與升級方式見 [INSTALL.md](INSTALL.md)；
+Release archive 的下載、checksum 驗證、shell completion 安裝與升級方式見 [INSTALL.zh-TW.md](INSTALL.zh-TW.md)；
 維護者的發布流程見 [RELEASING.md](RELEASING.md)。
 
 ---
