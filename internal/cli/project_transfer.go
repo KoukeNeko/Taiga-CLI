@@ -141,6 +141,14 @@ func (a *App) projectImportCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			// The dump is streamed, and a stream is not resent after a
+			// refresh the way a JSON request is. Every other command reaches
+			// Taiga through a JSON lookup before it streams, which is where
+			// an expired token gets refreshed; import has no lookup of its
+			// own, so the credential is exercised here first.
+			if _, err := client.Me(cmd.Context()); err != nil {
+				return err
+			}
 			if _, err := source.File.Seek(0, io.SeekStart); err != nil {
 				return fmt.Errorf("rewind project dump: %w", err)
 			}
