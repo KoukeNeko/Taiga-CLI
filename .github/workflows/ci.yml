@@ -22,6 +22,29 @@ jobs:
       - run: go test -race ./...
       - run: go vet ./...
 
+  coverage:
+    runs-on: ubuntu-latest
+    env:
+      # Read at the job level so the step below can test it: a step's own env
+      # is not available to its own if condition, which would leave the upload
+      # silently skipped on every run.
+      CODACY_PROJECT_TOKEN: ${{ secrets.CODACY_PROJECT_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version: "1.26.x"
+          cache: true
+      - run: go test -coverprofile=coverage.out -covermode=atomic ./...
+      - run: go tool cover -func=coverage.out | tail -1
+      # A fork's pull request cannot read the token, and reporting nothing is
+      # better than failing a build over it.
+      - name: Report coverage to Codacy
+        if: env.CODACY_PROJECT_TOKEN != ''
+        uses: codacy/codacy-coverage-reporter-action@89d6c85cfafaec52c72b6c5e8b2878d33104c699 # v1
+        with:
+          coverage-reports: coverage.out
+
   lint:
     runs-on: ubuntu-latest
     steps:
