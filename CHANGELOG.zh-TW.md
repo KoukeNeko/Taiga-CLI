@@ -8,6 +8,10 @@ Release workflow 會把對應版本的段落與英文版 [CHANGELOG.md](CHANGELO
 
 ## [Unreleased]
 
+### 變更
+
+- `issue comment` 對空白內文現在回報 `empty_body` 而非 `empty_comment`，`--body-file` 讀取失敗的包裝訊息也從 `read comment body` 改為 `read body`。`story comment` 與 `task comment` 本來就是前者；issue 指令自己抄了一份相同邏輯而漂移掉了。若有腳本在判斷 `empty_comment` 需要更新。
+
 ## [0.3.0] - 2026-09-02
 
 ### 修正

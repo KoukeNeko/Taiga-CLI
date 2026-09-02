@@ -216,3 +216,31 @@ func TestAuthRequiredIsAnAuthError(t *testing.T) {
 		t.Errorf("message = %q, want it to name the command to run", known.Error())
 	}
 }
+
+// The three comment commands report an empty body under one code. They did not
+// always: issue comment carried its own copy of this logic and used
+// empty_comment until the commands were merged. A script branches on this
+// value, so it is pinned rather than left to whichever copy is edited next.
+func TestReadBodyReportsOneCodeForAnEmptyBody(t *testing.T) {
+	for _, testCase := range []struct{ body, file, from string }{
+		{"", "", "neither flag"},
+		{"   ", "", "whitespace body"},
+	} {
+		_, err := readBody(strings.NewReader(""), testCase.body, testCase.file)
+		var known *contractError
+		if !errors.As(err, &known) {
+			t.Fatalf("%s: got %v, want a contract error", testCase.from, err)
+		}
+		if known.Code != "empty_body" {
+			t.Errorf("%s: code = %q, want empty_body", testCase.from, known.Code)
+		}
+	}
+	// A file that holds only whitespace is empty too, which is checked after
+	// reading rather than before.
+	if _, err := readBody(strings.NewReader("  \n "), "", "-"); err == nil {
+		t.Error("a whitespace-only body from stdin was accepted")
+	}
+	if got, err := readBody(strings.NewReader("from stdin"), "", "-"); err != nil || got != "from stdin" {
+		t.Errorf("stdin body = %q, %v", got, err)
+	}
+}

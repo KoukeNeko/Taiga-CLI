@@ -8,6 +8,10 @@ The release workflow publishes the section matching the tag as the GitHub Releas
 
 ## [Unreleased]
 
+### Changed
+
+- `issue comment` now reports an empty body as `empty_body` rather than `empty_comment`, and wraps an unreadable `--body-file` as `read body` rather than `read comment body`. `story comment` and `task comment` already used the first form; the issue command carried its own copy of the same logic and had drifted. Anything branching on `empty_comment` needs updating.
+
 ## [0.3.0] - 2026-09-02
 
 ### Fixed
