@@ -41,11 +41,11 @@ jobs:
       - name: Install with the POSIX script
         if: runner.os != 'Windows'
         run: |
-          TAIGA_INSTALL_DIR="$RUNNER_TEMP/bin" sh scripts/install.sh
-          "$RUNNER_TEMP/bin/taiga" version --json | grep '"version"'
+          AIHKI_INSTALL_DIR="$RUNNER_TEMP/bin" sh scripts/install.sh
+          "$RUNNER_TEMP/bin/aihki" version --json | grep '"version"'
       - name: Install with the PowerShell script
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           ./scripts/install.ps1 -InstallDir "$env:RUNNER_TEMP\bin"
-          & "$env:RUNNER_TEMP\bin\taiga.exe" version --json
+          & "$env:RUNNER_TEMP\bin\aihki.exe" version --json

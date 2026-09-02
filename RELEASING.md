@@ -30,7 +30,7 @@ Packager 只接受不存在或空的 output directory，避免先前版本或失
 禁止使用 lightweight 或未簽署 tag：
 
 ```sh
-git tag -s "$version" -m "Taiga CLI $version"
+git tag -s "$version" -m "Aihki $version"
 git verify-tag "$version"
 git push origin "$version"
 ```
@@ -43,7 +43,7 @@ Pre-release 使用 SemVer suffix，流程與正式版完全相同：
 
 ```sh
 version=v0.1.0-rc.1
-git tag -s "$version" -m "Taiga CLI $version"
+git tag -s "$version" -m "Aihki $version"
 git verify-tag "$version"
 git push origin "$version"
 ```
@@ -74,4 +74,4 @@ cd /tmp/taiga-release-check
 sha256sum --check SHA256SUMS
 ```
 
-至少在一個下載 archive 執行 `taiga version --json` 與 `taiga doctor --json`。若 artifact 或簽章不正確，不要以同名檔案覆寫已發布 asset；應撤回 release、調查後使用新的版本號。
+至少在一個下載 archive 執行 `aihki version --json` 與 `aihki doctor --json`。若 artifact 或簽章不正確，不要以同名檔案覆寫已發布 asset；應撤回 release、調查後使用新的版本號。

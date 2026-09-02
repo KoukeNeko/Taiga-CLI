@@ -175,7 +175,7 @@ func (c *Client) doJSON(ctx context.Context, method, path string, query url.Valu
 			return nil, fmt.Errorf("create request: %w", err)
 		}
 		req.Header.Set("Accept", "application/json")
-		req.Header.Set("User-Agent", "taiga-cli/0.1")
+		req.Header.Set("User-Agent", "aihki/0.1")
 		if payload != nil {
 			req.Header.Set("Content-Type", "application/json")
 		}
@@ -257,7 +257,7 @@ func (c *Client) refresh(ctx context.Context) error {
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "taiga-cli/0.1")
+	req.Header.Set("User-Agent", "aihki/0.1")
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return err

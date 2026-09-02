@@ -28,9 +28,9 @@ type envelope struct {
 }
 
 func TestPhaseOneAgainstDocker(t *testing.T) {
-	baseURL := requiredEnv(t, "TAIGA_E2E_URL")
-	host := requiredEnv(t, "TAIGA_E2E_HOST")
-	binary := requiredEnv(t, "TAIGA_E2E_BIN")
+	baseURL := requiredEnv(t, "AIHKI_E2E_URL")
+	host := requiredEnv(t, "AIHKI_E2E_HOST")
+	binary := requiredEnv(t, "AIHKI_E2E_BIN")
 	home := t.TempDir()
 	username := "e2e_" + strconv.FormatInt(time.Now().UnixNano(), 36)
 	password := "E2E-Password-7fK2mQ9"
@@ -60,7 +60,7 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 	}}
 
 	runner.jsonOK("doctor", "--host", host)
-	diagnosticPath := filepath.Join(runner.dir, "taiga-diagnostics.zip")
+	diagnosticPath := filepath.Join(runner.dir, "aihki-diagnostics.zip")
 	diagnostic := runner.jsonOK("doctor", "bundle", diagnosticPath)
 	if diagnostic.Data["redacted"] != true || diagnostic.Data["uploaded"] != false {
 		t.Fatalf("diagnostic bundle result=%#v", diagnostic.Data)
@@ -131,7 +131,7 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 		t.Fatalf("role deletion=%#v", deletedRole.Data)
 	}
 	webhookSecret := "E2E-webhook-secret-must-not-leak"
-	webhook := runner.jsonOK("webhook", "create", "--name", "E2E Hook", "--url", "http://webhook.invalid/taiga", "--secret", webhookSecret)
+	webhook := runner.jsonOK("webhook", "create", "--name", "E2E Hook", "--url", "http://webhook.invalid/aihki", "--secret", webhookSecret)
 	webhookID := int64(webhook.Data["id"].(float64))
 	webhookJSON, _ := json.Marshal(webhook)
 	if bytes.Contains(webhookJSON, []byte(webhookSecret)) {
@@ -996,14 +996,14 @@ func (r cliRunner) jsonOKWithInput(input string, args ...string) envelope {
 	args = append([]string{"--json"}, args...)
 	stdout, stderr, code := r.runWithInput(input, args...)
 	if code != 0 {
-		r.t.Fatalf("taiga %v exit=%d stderr=%s", args, code, stderr)
+		r.t.Fatalf("aihki %v exit=%d stderr=%s", args, code, stderr)
 	}
 	if strings.TrimSpace(stderr) != "" {
-		r.t.Fatalf("taiga %v wrote stderr on success: %s", args, stderr)
+		r.t.Fatalf("aihki %v wrote stderr on success: %s", args, stderr)
 	}
 	var result envelope
 	if err := json.Unmarshal([]byte(stdout), &result); err != nil {
-		r.t.Fatalf("taiga %v returned invalid JSON: %v: %s", args, err, stdout)
+		r.t.Fatalf("aihki %v returned invalid JSON: %v: %s", args, err, stdout)
 	}
 	return result
 }
@@ -1013,14 +1013,14 @@ func (r cliRunner) jsonOK(args ...string) envelope {
 	args = append([]string{"--json"}, args...)
 	stdout, stderr, code := r.run(args...)
 	if code != 0 {
-		r.t.Fatalf("taiga %v exit=%d stderr=%s", args, code, stderr)
+		r.t.Fatalf("aihki %v exit=%d stderr=%s", args, code, stderr)
 	}
 	if strings.TrimSpace(stderr) != "" {
-		r.t.Fatalf("taiga %v wrote stderr on success: %s", args, stderr)
+		r.t.Fatalf("aihki %v wrote stderr on success: %s", args, stderr)
 	}
 	var result envelope
 	if err := json.Unmarshal([]byte(stdout), &result); err != nil {
-		r.t.Fatalf("taiga %v returned invalid JSON: %v: %s", args, err, stdout)
+		r.t.Fatalf("aihki %v returned invalid JSON: %v: %s", args, err, stdout)
 	}
 	return result
 }
@@ -1045,7 +1045,7 @@ func register(t *testing.T, baseURL, username, password string) string {
 func verifyEmail(t *testing.T, username string) {
 	t.Helper()
 	code := "from taiga.users.models import User; User.objects.filter(username='" + username + "').update(verified_email=True)"
-	command := exec.Command("docker", "compose", "--project-name", "taiga-cli-e2e", "--file", "docker-compose.yml", "exec", "-T", "taiga-back", "python", "manage.py", "shell", "-c", code)
+	command := exec.Command("docker", "compose", "--project-name", "aihki-e2e", "--file", "docker-compose.yml", "exec", "-T", "taiga-back", "python", "manage.py", "shell", "-c", code)
 	output, err := command.CombinedOutput()
 	if err != nil {
 		t.Fatalf("verify E2E email: %v: %s", err, output)

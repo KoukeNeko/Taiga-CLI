@@ -1,4 +1,4 @@
-module github.com/KoukeNeko/taiga-cli
+module github.com/KoukeNeko/aihki
 
 go 1.25.0
 

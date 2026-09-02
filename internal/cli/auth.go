@@ -7,9 +7,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/KoukeNeko/taiga-cli/internal/config"
-	"github.com/KoukeNeko/taiga-cli/internal/credential"
-	"github.com/KoukeNeko/taiga-cli/internal/taiga"
+	"github.com/KoukeNeko/aihki/internal/config"
+	"github.com/KoukeNeko/aihki/internal/credential"
+	"github.com/KoukeNeko/aihki/internal/taiga"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )

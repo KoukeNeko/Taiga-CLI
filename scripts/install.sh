@@ -9,16 +9,17 @@
 #   curl -fsSL https://raw.githubusercontent.com/KoukeNeko/Taiga-CLI/main/scripts/install.sh | sh
 #
 # Environment:
-#   TAIGA_VERSION      release tag to install, for example v0.1.0 (default: latest)
-#   TAIGA_INSTALL_DIR  directory to install into (default: $HOME/.local/bin)
+#   AIHKI_VERSION      release tag to install, for example v0.1.0 (default: latest)
+#   AIHKI_INSTALL_DIR  directory to install into (default: $HOME/.local/bin)
 set -eu
 
-REPOSITORY="KoukeNeko/Taiga-CLI"
+REPOSITORY="KoukeNeko/aihki"
 LATEST_RELEASE_URL="https://github.com/$REPOSITORY/releases/latest"
 DOWNLOAD_BASE="https://github.com/$REPOSITORY/releases/download"
 
-version=${TAIGA_VERSION:-}
-install_dir=${TAIGA_INSTALL_DIR:-$HOME/.local/bin}
+# The pre-rename names stay supported so an existing automation keeps working.
+version=${AIHKI_VERSION:-${TAIGA_VERSION:-}}
+install_dir=${AIHKI_INSTALL_DIR:-${TAIGA_INSTALL_DIR:-$HOME/.local/bin}}
 
 log() { printf '%s\n' "$*"; }
 fail() {
@@ -53,11 +54,11 @@ resolve_version() {
     # The latest release is never a pre-release, so an rc is only installed when
     # asked for by name.
     effective=$(curl -fsSLI -o /dev/null -w '%{url_effective}' "$LATEST_RELEASE_URL") ||
-        fail "could not reach GitHub to determine the latest release; set TAIGA_VERSION"
+        fail "could not reach GitHub to determine the latest release; set AIHKI_VERSION"
     version=${effective##*/}
     case "$version" in
         v[0-9]*) ;;
-        *) fail "could not read a release tag from $effective; set TAIGA_VERSION" ;;
+        *) fail "could not read a release tag from $effective; set AIHKI_VERSION" ;;
     esac
 }
 
@@ -84,7 +85,7 @@ main() {
     detect_platform
     resolve_version
     numeric_version=${version#v}
-    archive="taiga_${numeric_version}_${os}_${arch}.tar.gz"
+    archive="aihki_${numeric_version}_${os}_${arch}.tar.gz"
 
     work_dir=$(mktemp -d)
     trap 'rm -rf "$work_dir"' EXIT INT TERM
@@ -98,25 +99,25 @@ main() {
     (cd "$work_dir" && verify_checksum "$archive" SHA256SUMS)
     tar -xzf "$work_dir/$archive" -C "$work_dir"
 
-    extracted="$work_dir/taiga_${numeric_version}_${os}_${arch}/taiga"
-    [ -f "$extracted" ] || fail "the archive did not contain a taiga binary"
+    extracted="$work_dir/aihki_${numeric_version}_${os}_${arch}/aihki"
+    [ -f "$extracted" ] || fail "the archive did not contain an aihki binary"
 
     mkdir -p "$install_dir"
-    # Install to a temporary name first so a running taiga is never replaced
+    # Install to a temporary name first so a running aihki is never replaced
     # halfway through.
-    cp "$extracted" "$install_dir/.taiga.new"
-    chmod 0755 "$install_dir/.taiga.new"
-    mv "$install_dir/.taiga.new" "$install_dir/taiga"
+    cp "$extracted" "$install_dir/.aihki.new"
+    chmod 0755 "$install_dir/.aihki.new"
+    mv "$install_dir/.aihki.new" "$install_dir/aihki"
 
-    log "Installed $("$install_dir/taiga" version | head -1) to $install_dir/taiga"
+    log "Installed $("$install_dir/aihki" version | head -1) to $install_dir/aihki"
 
     case ":$PATH:" in
         *":$install_dir:"*) ;;
-        *) log "Add $install_dir to PATH to run taiga from anywhere." ;;
+        *) log "Add $install_dir to PATH to run aihki from anywhere." ;;
     esac
-    log "Shell completion: taiga completion bash|zsh|fish|powershell"
+    log "Shell completion: aihki completion bash|zsh|fish|powershell"
 }
 
-# Sourcing with TAIGA_INSTALL_LIB=1 exposes the functions without installing
+# Sourcing with AIHKI_INSTALL_LIB=1 exposes the functions without installing
 # anything, so the checksum guard can be tested directly rather than trusted.
-[ "${TAIGA_INSTALL_LIB:-}" = "1" ] || main "$@"
+[ "${AIHKI_INSTALL_LIB:-}" = "1" ] || main "$@"

@@ -10,6 +10,21 @@ Release notes 以 hard line break 渲染，所以這裡每個段落與項目都�
 
 ## [Unreleased]
 
+### 更名為 Aihki
+
+專案更名為 **Aihki**，執行檔為 `aihki`。Taiga 以 MPL-2.0 釋出，其第 2.3 節明文不授予商標與 logo 權利，而 Taiga 的維護者先前也曾要求分家專案放棄該名稱。把他人的商標當作本專案自己的識別，從來就不是那份授權支持的事；因此該名稱現在只用於描述本客戶端所搭配的軟體。
+
+與 Taiga 的整合沒有任何改變，改變的是這個工具本身的識別。
+
+**既有安裝可以繼續使用。** 所有已儲存的狀態都會在首次使用時遷移，而不是被丟棄：
+
+- 舊 `taiga-cli` keyring service 中的憑證，首次讀取時會被接收到 `aihki`，不會被登出。
+- `aihki/` 沒有設定檔時會讀取 `taiga-cli/` 下的舊檔，下次儲存時寫入新位置。
+- 以 `taiga.profile` 或 `taiga.project` 綁定的 repository 仍然有效；兩者並存時 `aihki.*` 優先。
+- `TAIGA_TOKEN`、`TAIGA_PROFILE`、`TAIGA_API_URL`、`TAIGA_PROJECT` 仍然被接受，`AIHKI_*` 優先。
+
+**你需要調整的部分**：改用 `brew install koukeneko/tap/aihki`；release archive 更名為 `aihki_<version>_<os>_<arch>`；completion 檔名為 `aihki.bash`、`_aihki`、`aihki.fish`、`aihki.ps1`。
+
 ## [0.1.0] - 2026-09-02
 
 首個正式版本。以 Go 實作的 Taiga 6 命令列工具，提供人類可讀的終端輸出，以及給 Shell、CI 與 Agent 使用的穩定 JSON contract。
@@ -17,7 +32,7 @@ Release notes 以 hard line break 渲染，所以這裡每個段落與項目都�
 ### 安裝
 
 ```sh
-brew install koukeneko/tap/taiga
+brew install koukeneko/tap/aihki
 ```
 
 或從下方下載對應平台的 archive，並以 `SHA256SUMS` 驗證後解壓縮。
@@ -35,7 +50,7 @@ brew install koukeneko/tap/taiga
 ### 自動化介面
 
 - `--json` 輸出帶 `meta.contract` 版本號的封包，目前為 contract 1。
-- `--fields` 挑選欄位，`taiga schema <command>` 提供 JSON Schema 與 safety／idempotency 標註。
+- `--fields` 挑選欄位，`aihki schema <command>` 提供 JSON Schema 與 safety／idempotency 標註。
 - 依錯誤種類分流的固定 exit code；`--dry-run` 完整解析但保證不送出寫入請求。
 - Bash、Zsh、Fish、PowerShell 四種 shell completion，含 5 分鐘快取與離線 stale-on-error。
 
@@ -63,5 +78,5 @@ brew install koukeneko/tap/taiga
 
 已針對 Taiga 6.10.2 以固定 image digest 執行完整 Docker E2E 驗證。支援 macOS、Linux、Windows 的 `amd64` 與 `arm64`。
 
-[Unreleased]: https://github.com/KoukeNeko/Taiga-CLI/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/KoukeNeko/Taiga-CLI/releases/tag/v0.1.0
+[Unreleased]: https://github.com/KoukeNeko/aihki/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/KoukeNeko/aihki/releases/tag/v0.1.0

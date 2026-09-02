@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/KoukeNeko/taiga-cli/internal/config"
-	"github.com/KoukeNeko/taiga-cli/internal/taiga"
-	buildversion "github.com/KoukeNeko/taiga-cli/internal/version"
+	"github.com/KoukeNeko/aihki/internal/config"
+	"github.com/KoukeNeko/aihki/internal/taiga"
+	buildversion "github.com/KoukeNeko/aihki/internal/version"
 	"github.com/spf13/cobra"
 )
 
@@ -113,7 +113,7 @@ func (a *App) buildDiagnosticBundle(ctx context.Context) (map[string][]byte, []s
 	files := map[string][]byte{}
 	system := diagnosticSystem{CLIVersion: buildversion.Version, Commit: buildversion.Commit, BuildDate: buildversion.BuildDate, GoVersion: runtime.Version(), OS: runtime.GOOS, Arch: runtime.GOARCH, Contract: 1}
 	settings, cfg, resolveErr := a.resolveSettings(ctx)
-	configReport := diagnosticConfig{Status: "ok", ProfileCount: len(cfg.Profiles), EnvironmentTokenSet: strings.TrimSpace(a.Getenv("TAIGA_TOKEN")) != ""}
+	configReport := diagnosticConfig{Status: "ok", ProfileCount: len(cfg.Profiles), EnvironmentTokenSet: a.env("TOKEN") != ""}
 	sensitive := []string{}
 	for _, profile := range cfg.Profiles {
 		sensitive = append(sensitive, profile.APIURL, profile.Project)

@@ -10,12 +10,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/KoukeNeko/taiga-cli/internal/completioncache"
-	"github.com/KoukeNeko/taiga-cli/internal/config"
-	"github.com/KoukeNeko/taiga-cli/internal/credential"
-	"github.com/KoukeNeko/taiga-cli/internal/output"
-	"github.com/KoukeNeko/taiga-cli/internal/taiga"
+	"github.com/KoukeNeko/aihki/internal/completioncache"
+	"github.com/KoukeNeko/aihki/internal/config"
+	"github.com/KoukeNeko/aihki/internal/credential"
+	"github.com/KoukeNeko/aihki/internal/output"
+	"github.com/KoukeNeko/aihki/internal/taiga"
 	"github.com/spf13/cobra"
+)
+
+const (
+	environmentPrefix       = "AIHKI_"
+	legacyEnvironmentPrefix = "TAIGA_"
 )
 
 type App struct {
@@ -95,7 +100,7 @@ func (a *App) renderer() output.Renderer {
 
 func (a *App) rootCommand() *cobra.Command {
 	root := &cobra.Command{
-		Use:           "taiga",
+		Use:           "aihki",
 		Short:         "Manage Taiga projects from the command line",
 		SilenceUsage:  true,
 		SilenceErrors: true,
@@ -176,21 +181,21 @@ func (a *App) resolveSettings(ctx context.Context) (Settings, config.File, error
 			return Settings{}, config.File{}, localErr
 		}
 	}
-	profileName := firstNonEmpty(a.global.Profile, a.Getenv("TAIGA_PROFILE"), local.Profile, cfg.CurrentProfile, config.DefaultProfileName())
+	profileName := firstNonEmpty(a.global.Profile, a.env("PROFILE"), local.Profile, cfg.CurrentProfile, config.DefaultProfileName())
 	profileName, err = config.NormalizeProfileName(profileName)
 	if err != nil {
 		return Settings{}, config.File{}, validationError("invalid_profile", err.Error())
 	}
 	profile := cfg.Profiles[profileName]
-	apiURL := firstNonEmpty(a.global.APIURL, a.Getenv("TAIGA_API_URL"), profile.APIURL)
+	apiURL := firstNonEmpty(a.global.APIURL, a.env("API_URL"), profile.APIURL)
 	if apiURL != "" {
 		apiURL, err = taiga.NormalizeAPIURL(apiURL)
 		if err != nil {
 			return Settings{}, config.File{}, validationError("invalid_api_url", err.Error())
 		}
 	}
-	project := firstNonEmpty(a.global.Project, a.Getenv("TAIGA_PROJECT"), local.Project, profile.Project)
-	token := strings.TrimSpace(a.Getenv("TAIGA_TOKEN"))
+	project := firstNonEmpty(a.global.Project, a.env("PROJECT"), local.Project, profile.Project)
+	token := strings.TrimSpace(a.env("TOKEN"))
 	refreshToken := ""
 	if token == "" && apiURL != "" && a.Credentials != nil {
 		tokens, credentialErr := a.Credentials.Get(credential.Account(profileName, apiURL))
@@ -227,6 +232,17 @@ func (a *App) client(ctx context.Context, requireToken bool) (*taiga.Client, Set
 	}
 	client, err := taiga.NewClient(settings.APIURL, options...)
 	return client, settings, err
+}
+
+// env reads a setting from the current environment variable, falling back to
+// the pre-rename name so existing shells and CI jobs keep working. The old
+// names stay supported rather than failing silently, which is the failure mode
+// that would be hardest for a user to diagnose.
+func (a *App) env(name string) string {
+	if value := strings.TrimSpace(a.Getenv(environmentPrefix + name)); value != "" {
+		return value
+	}
+	return strings.TrimSpace(a.Getenv(legacyEnvironmentPrefix + name))
 }
 
 func firstNonEmpty(values ...string) string {

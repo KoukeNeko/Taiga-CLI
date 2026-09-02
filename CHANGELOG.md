@@ -10,6 +10,21 @@ Release notes render with hard line breaks, so each paragraph and bullet stays o
 
 ## [Unreleased]
 
+### Renamed to Aihki
+
+The project is now **Aihki**, and the binary is `aihki`. Taiga ships under MPL-2.0, whose section 2.3 grants no rights in its trademarks or logos, and the Taiga maintainers have previously required a spin-off to drop the name. Leading with someone else's mark as this project's own identifier was not something the licence ever supported, so the name is now used only to describe what this client talks to.
+
+Nothing about the Taiga integration changes. What changes is the identity of this tool.
+
+**Existing installations keep working.** Every stored setting is migrated on first use rather than being abandoned:
+
+- A credential in the old `taiga-cli` keyring service is adopted into `aihki` the first time it is read, so you are not logged out.
+- A config file under `taiga-cli/` is read when `aihki/` has none, and the next save writes to the new location.
+- A repository pinned with `taiga.profile` or `taiga.project` in `.git/config` still resolves; `aihki.*` takes precedence when both exist.
+- `TAIGA_TOKEN`, `TAIGA_PROFILE`, `TAIGA_API_URL` and `TAIGA_PROJECT` are still honoured. `AIHKI_*` wins when both are set.
+
+**What you do need to change:** `brew install koukeneko/tap/aihki` replaces the old formula, release archives are now named `aihki_<version>_<os>_<arch>`, and completion files are `aihki.bash`, `_aihki`, `aihki.fish` and `aihki.ps1`.
+
 ## [0.1.0] - 2026-09-02
 
 First stable release. A Taiga 6 command line tool written in Go, offering readable terminal output and a stable JSON contract for shells, CI, and agents.
@@ -17,7 +32,7 @@ First stable release. A Taiga 6 command line tool written in Go, offering readab
 ### Install
 
 ```sh
-brew install koukeneko/tap/taiga
+brew install koukeneko/tap/aihki
 ```
 
 Or download the archive for your platform below, verify it against `SHA256SUMS`, and extract it.
@@ -35,7 +50,7 @@ Or download the archive for your platform below, verify it against `SHA256SUMS`,
 ### Automation surface
 
 - `--json` emits an envelope carrying `meta.contract`, currently contract 1.
-- `--fields` selects fields, and `taiga schema <command>` returns JSON Schema with safety and idempotency annotations.
+- `--fields` selects fields, and `aihki schema <command>` returns JSON Schema with safety and idempotency annotations.
 - Exit codes are partitioned by failure kind, and `--dry-run` resolves fully while guaranteeing that no write request is sent.
 - Completions for Bash, Zsh, Fish, and PowerShell, with a five-minute cache and stale-on-error fallback when offline.
 
@@ -63,5 +78,5 @@ Or download the archive for your platform below, verify it against `SHA256SUMS`,
 
 Verified against Taiga 6.10.2 through a full Docker E2E run against a pinned image digest. Supports macOS, Linux, and Windows on `amd64` and `arm64`.
 
-[Unreleased]: https://github.com/KoukeNeko/Taiga-CLI/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/KoukeNeko/Taiga-CLI/releases/tag/v0.1.0
+[Unreleased]: https://github.com/KoukeNeko/aihki/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/KoukeNeko/aihki/releases/tag/v0.1.0
