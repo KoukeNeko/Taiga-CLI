@@ -38,10 +38,10 @@ taiga issue view 42 --json --fields ref,subject,status,version
 {"data":{"ref":42,"status":"Closed","subject":"Fix token refresh","version":8},"meta":{"contract":1}}
 ```
 
-Taiga CLI lets you drive [Taiga 6](https://taiga.io/) projects, agile workflows, and wikis without
-leaving the terminal. It discovers the API from the frontend's `conf.json`, including sites deployed
-under a `/taiga/` subpath, and hands the token to your operating system keyring instead of writing it
-into a config file.
+An independent command-line client for [Taiga 6](https://taiga.io/), not affiliated with the Taiga
+project. It drives projects, agile workflows, and wikis without leaving the terminal, discovers the
+API from the frontend's `conf.json`, including sites deployed under a `/taiga/` subpath, and hands the
+token to your operating system keyring instead of writing it into a config file.
 
 **One command serves both people and programs.** Run it directly and you get aligned tables; add
 `--json` and you get a versioned contract, backed by fixed exit codes and JSON Schema descriptors, so
@@ -267,6 +267,12 @@ Developer ID signature can never reproduce. Their contents are otherwise built i
   <img alt="Reproducible builds" src="https://img.shields.io/badge/BUILDS-REPRODUCIBLE-4CAF50?style=for-the-badge">
   <img alt="SPDX 2.3 SBOM" src="https://img.shields.io/badge/SBOM-SPDX_2.3-2196F3?style=for-the-badge">
 </p>
+
+## Trademarks
+
+Taiga is a trademark of its respective owner. This project is an independent client that is not
+affiliated with, endorsed by, or sponsored by the Taiga project or its maintainers, and uses the name
+only to describe the software it works with.
 
 ## License
 

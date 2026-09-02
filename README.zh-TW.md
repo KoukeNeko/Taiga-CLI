@@ -38,9 +38,9 @@ taiga issue view 42 --json --fields ref,subject,status,version
 {"data":{"ref":42,"status":"Closed","subject":"Fix token refresh","version":8},"meta":{"contract":1}}
 ```
 
-Taiga CLI 讓你不必離開終端機就能操作 [Taiga 6](https://taiga.io/) 的專案、敏捷流程與 Wiki。它會自動從
-frontend 的 `conf.json` 找出 API 位置，包括部署在 `/taiga/` 子路徑的站台，登入後把 token 交給作業系統
-keyring 保管，不寫進設定檔。
+一個獨立的 [Taiga 6](https://taiga.io/) 命令列客戶端，與 Taiga 專案並無隸屬關係。它讓你不必離開終端機
+就能操作專案、敏捷流程與 Wiki，會自動從 frontend 的 `conf.json` 找出 API 位置，包括部署在 `/taiga/`
+子路徑的站台，登入後把 token 交給作業系統 keyring 保管，不寫進設定檔。
 
 **同一個指令同時服務人與程式。** 直接執行時輸出對齊的表格；加上 `--json` 就得到帶版本號的 contract，
 搭配固定 exit code 與 JSON Schema descriptor，可以放心讓 Shell script、CI job 或 LLM agent 驅動。輸出格式
@@ -253,6 +253,11 @@ macOS 是例外：notarization 要求 Apple 簽發的安全時間戳，因此 De
   <img alt="Reproducible builds" src="https://img.shields.io/badge/BUILDS-REPRODUCIBLE-4CAF50?style=for-the-badge">
   <img alt="SPDX 2.3 SBOM" src="https://img.shields.io/badge/SBOM-SPDX_2.3-2196F3?style=for-the-badge">
 </p>
+
+## 商標
+
+Taiga 為其各自權利人之商標。本專案是獨立的客戶端，與 Taiga 專案及其維護者並無隸屬關係，未經其背書或
+贊助；使用該名稱僅為描述本工具所搭配的軟體。
 
 ## License
 
