@@ -58,10 +58,19 @@ jobs:
           notary_key="$RUNNER_TEMP/asc-key.p8"
           printf '%s' "$ASC_KEY_P8_BASE64" | base64 --decode > "$notary_key"
           chmod 600 "$notary_key"
+          # notarytool requires the issuer for a Team API key and rejects it
+          # for an Individual API key, so pass it only when it is configured.
+          set --
+          if [ -n "$ASC_ISSUER_ID" ]; then
+            set -- --issuer "$ASC_ISSUER_ID"
+            echo "Using a Team API key (issuer supplied)."
+          else
+            echo "Using an Individual API key (no issuer)."
+          fi
           # history authenticates without submitting anything, so bad
           # credentials fail in seconds rather than after a full build.
-          if ! xcrun notarytool history --key "$notary_key" --key-id "$ASC_KEY_ID" --issuer "$ASC_ISSUER_ID" > /dev/null; then
-            echo "::error::notarytool rejected the App Store Connect credentials. Check ASC_KEY_ID, ASC_ISSUER_ID, and that ASC_KEY_P8_BASE64 is the base64 of the AuthKey .p8 file." >&2
+          if ! xcrun notarytool history --key "$notary_key" --key-id "$ASC_KEY_ID" "$@" > /dev/null; then
+            echo "::error::notarytool rejected the App Store Connect credentials. For a Team key, ASC_ISSUER_ID must be the Issuer ID UUID shown above the key table in App Store Connect. For an Individual key, ASC_ISSUER_ID must be deleted entirely. Also check ASC_KEY_ID and that ASC_KEY_P8_BASE64 is the base64 of the AuthKey .p8 file." >&2
             exit 1
           fi
           echo "NOTARY_KEY=$notary_key" >> "$GITHUB_ENV"

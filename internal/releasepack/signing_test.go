@@ -27,10 +27,10 @@ func TestSigningRejectsNotarizationWithoutIdentity(t *testing.T) {
 }
 
 func TestSigningRejectsPartialNotarizationCredentials(t *testing.T) {
+	const identity = "Developer ID Application: Example (TEAM)"
 	for _, incomplete := range []Signing{
-		{Identity: "Developer ID Application: Example (TEAM)", NotaryKey: "key.p8"},
-		{Identity: "Developer ID Application: Example (TEAM)", NotaryKeyID: "ABC123"},
-		{Identity: "Developer ID Application: Example (TEAM)", NotaryKey: "key.p8", NotaryIssuer: "issuer"},
+		{Identity: identity, NotaryKey: "key.p8"},
+		{Identity: identity, NotaryKeyID: "ABC123"},
 	} {
 		if incomplete.NotarizationEnabled() {
 			t.Fatalf("NotarizationEnabled() = true for %#v", incomplete)
@@ -39,9 +39,37 @@ func TestSigningRejectsPartialNotarizationCredentials(t *testing.T) {
 		if err == nil {
 			t.Fatalf("validate() = nil for %#v, want an incomplete-credentials error", incomplete)
 		}
-		if runtime.GOOS == "darwin" && !strings.Contains(err.Error(), "notarization needs all of") {
+		if runtime.GOOS == "darwin" && !strings.Contains(err.Error(), "notarization needs both") {
 			t.Fatalf("validate() = %v, want an incomplete-credentials error", err)
 		}
+	}
+}
+
+// An Individual App Store Connect key carries no issuer and notarytool refuses
+// one, so the issuer has to stay optional.
+func TestSigningAcceptsAnIndividualKeyWithoutAnIssuer(t *testing.T) {
+	signing := Signing{NotaryKey: "key.p8", NotaryKeyID: "ABC123"}
+	if !signing.NotarizationEnabled() {
+		t.Fatal("NotarizationEnabled() = false without an issuer, want true")
+	}
+	if signing.partiallyConfigured() {
+		t.Fatal("partiallyConfigured() = true for a complete Individual key")
+	}
+}
+
+func TestSigningRejectsAnIssuerThatIsNotAUUID(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("issuer validation runs after the macOS host check")
+	}
+	const identity = "Developer ID Application: Example (TEAM)"
+	signing := Signing{Identity: identity, NotaryIssuer: "not-a-uuid"}
+	err := signing.validate()
+	if err == nil || !strings.Contains(err.Error(), "must be a UUID") {
+		t.Fatalf("validate() = %v, want a malformed-issuer error", err)
+	}
+	signing.NotaryIssuer = "69a6de70-1234-47e3-e053-5b8c7c11a4d1"
+	if err := signing.validate(); err != nil {
+		t.Fatalf("validate() = %v, want a UUID issuer to be accepted", err)
 	}
 }
 
@@ -67,7 +95,7 @@ func TestSigningRequiresAReadableNotaryKey(t *testing.T) {
 		Identity:     "Developer ID Application: Example (TEAM)",
 		NotaryKey:    filepath.Join(t.TempDir(), "missing.p8"),
 		NotaryKeyID:  "ABC123",
-		NotaryIssuer: "issuer",
+		NotaryIssuer: "69a6de70-1234-47e3-e053-5b8c7c11a4d1",
 	}
 	if err := signing.validate(); err == nil || !strings.Contains(err.Error(), "App Store Connect key") {
 		t.Fatalf("validate() = %v, want a missing-key error", err)

@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 )
@@ -25,21 +26,22 @@ type Signing struct {
 
 func (s Signing) Enabled() bool { return strings.TrimSpace(s.Identity) != "" }
 
-// NotarizationEnabled reports whether every App Store Connect credential is
-// present. Signing without notarization is valid for local verification, so a
-// partially filled set is a configuration mistake rather than a mode.
+// NotarizationEnabled reports whether the App Store Connect credentials are
+// present. The issuer is deliberately not part of this: notarytool requires it
+// for a Team API key and rejects it for an Individual API key, so it is
+// optional and validated only for shape.
 func (s Signing) NotarizationEnabled() bool {
-	return strings.TrimSpace(s.NotaryKey) != "" && strings.TrimSpace(s.NotaryKeyID) != "" && strings.TrimSpace(s.NotaryIssuer) != ""
+	return strings.TrimSpace(s.NotaryKey) != "" && strings.TrimSpace(s.NotaryKeyID) != ""
 }
 
 func (s Signing) partiallyConfigured() bool {
 	filled := 0
-	for _, value := range []string{s.NotaryKey, s.NotaryKeyID, s.NotaryIssuer} {
+	for _, value := range []string{s.NotaryKey, s.NotaryKeyID} {
 		if strings.TrimSpace(value) != "" {
 			filled++
 		}
 	}
-	return filled > 0 && filled < 3
+	return filled == 1
 }
 
 func (s Signing) validate() error {
@@ -53,7 +55,10 @@ func (s Signing) validate() error {
 		return fmt.Errorf("signing identity %q requires a macOS host; codesign and notarytool do not exist elsewhere", s.Identity)
 	}
 	if s.partiallyConfigured() {
-		return errors.New("notarization needs all of --notary-key, --notary-key-id and --notary-issuer")
+		return errors.New("notarization needs both --notary-key and --notary-key-id")
+	}
+	if issuer := strings.TrimSpace(s.NotaryIssuer); issuer != "" && !issuerPattern.MatchString(issuer) {
+		return fmt.Errorf("notary issuer %q must be a UUID; leave it empty for an Individual API key", issuer)
 	}
 	if s.NotarizationEnabled() {
 		if _, err := os.Stat(s.NotaryKey); err != nil {
@@ -62,6 +67,11 @@ func (s Signing) validate() error {
 	}
 	return nil
 }
+
+// issuerPattern matches the App Store Connect issuer UUID. notarytool rejects
+// anything else outright, so catching the shape here keeps the failure next to
+// the configuration rather than deep inside a release build.
+var issuerPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
 // signBinary applies a Developer ID signature with the hardened runtime and a
 // secure timestamp. Notarization rejects binaries missing either.
@@ -93,12 +103,13 @@ func notarizeBinary(ctx context.Context, signing Signing, binaryPath, workDir st
 	if output, err := ditto.CombinedOutput(); err != nil {
 		return fmt.Errorf("package %s for notarization: %w: %s", filepath.Base(binaryPath), err, strings.TrimSpace(string(output)))
 	}
-	notarize := exec.CommandContext(ctx, "xcrun", "notarytool", "submit", submission,
-		"--key", signing.NotaryKey,
-		"--key-id", signing.NotaryKeyID,
-		"--issuer", signing.NotaryIssuer,
-		"--wait",
-	)
+	arguments := []string{"notarytool", "submit", submission, "--key", signing.NotaryKey, "--key-id", signing.NotaryKeyID, "--wait"}
+	// notarytool requires the issuer for a Team API key and refuses it for an
+	// Individual API key, so it is passed only when configured.
+	if issuer := strings.TrimSpace(signing.NotaryIssuer); issuer != "" {
+		arguments = append(arguments, "--issuer", issuer)
+	}
+	notarize := exec.CommandContext(ctx, "xcrun", arguments...)
 	if output, err := notarize.CombinedOutput(); err != nil {
 		return fmt.Errorf("notarize %s: %w: %s", filepath.Base(binaryPath), err, strings.TrimSpace(string(output)))
 	}
