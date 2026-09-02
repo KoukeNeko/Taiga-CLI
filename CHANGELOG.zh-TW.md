@@ -10,6 +10,21 @@ Release notes 以 hard line break 渲染，所以這裡每個段落與項目都�
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-09-02
+
+僅工具與文件變更，`aihki` 執行檔的功能與 0.2.0 相同。
+
+### 新增
+
+- macOS、Linux 與 Windows 的解除安裝腳本，涵蓋執行檔、Windows 的 PATH 項目，以及選擇性的設定目錄與 OS keyring 憑證。預設保守，因為解除安裝常常只是升級的其中一步：`--purge`（Windows 為 `-Purge`）才會一併移除設定與憑證，含改名前舊名稱留下的資料；`--dry-run` 只列出將移除的項目而不做變更。
+- POSIX 解除安裝腳本會偵測 Homebrew 安裝並引導改用 `brew uninstall`，不直接刪除 Homebrew 管理的檔案。兩個腳本都會說明 `project use --local` 綁定存放在哪裡 —— 任何解除安裝程式都無法從該 repository 之外找到它。
+- Repository 首頁的 hero image。
+
+### 變更
+
+- INSTALL.md 補上中英雙語的解除安裝說明。
+- CI 在三個作業系統上以「安裝後立即解除」的往返方式測試，確保解除安裝移除的正是安裝寫入的內容。
+
 ## [0.2.0] - 2026-09-02
 
 ### 更名為 Aihki
@@ -80,6 +95,7 @@ brew install koukeneko/tap/aihki
 
 已針對 Taiga 6.10.2 以固定 image digest 執行完整 Docker E2E 驗證。支援 macOS、Linux、Windows 的 `amd64` 與 `arm64`。
 
-[Unreleased]: https://github.com/KoukeNeko/aihki/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/KoukeNeko/aihki/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/KoukeNeko/aihki/releases/tag/v0.2.1
 [0.2.0]: https://github.com/KoukeNeko/aihki/releases/tag/v0.2.0
 [0.1.0]: https://github.com/KoukeNeko/aihki/releases/tag/v0.1.0

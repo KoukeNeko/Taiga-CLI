@@ -10,6 +10,21 @@ Release notes render with hard line breaks, so each paragraph and bullet stays o
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-09-02
+
+Tooling and documentation only. The `aihki` binary is functionally unchanged from 0.2.0.
+
+### Added
+
+- Uninstall scripts for macOS, Linux and Windows, covering the binary, the PATH entry on Windows, and optionally the configuration directory and the credential in the OS keyring. Removal is conservative by default because uninstalling is often one step of an upgrade: `--purge` (`-Purge` on Windows) opts into removing settings and credentials, including whatever the pre-rename name left behind, and `--dry-run` reports what would go without changing anything.
+- The POSIX uninstaller detects a Homebrew installation and hands you back to `brew uninstall` rather than deleting files Homebrew tracks. Both scripts print where a `project use --local` pin lives, since no uninstaller can find one from outside the repository holding it.
+- A hero image on the repository front page.
+
+### Changed
+
+- INSTALL.md documents uninstalling in both languages.
+- CI runs the installer and uninstaller as a round trip on all three operating systems, so the uninstaller has to remove exactly what the installer wrote.
+
 ## [0.2.0] - 2026-09-02
 
 ### Renamed to Aihki
@@ -80,6 +95,7 @@ Or download the archive for your platform below, verify it against `SHA256SUMS`,
 
 Verified against Taiga 6.10.2 through a full Docker E2E run against a pinned image digest. Supports macOS, Linux, and Windows on `amd64` and `arm64`.
 
-[Unreleased]: https://github.com/KoukeNeko/aihki/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/KoukeNeko/aihki/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/KoukeNeko/aihki/releases/tag/v0.2.1
 [0.2.0]: https://github.com/KoukeNeko/aihki/releases/tag/v0.2.0
 [0.1.0]: https://github.com/KoukeNeko/aihki/releases/tag/v0.1.0
