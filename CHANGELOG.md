@@ -31,6 +31,25 @@ The release workflow publishes the section matching the tag as the GitHub Releas
 - A malformed config left at the pre-rename location is reported under its own
   path. The parse error named the current location, which does not exist until
   the next save.
+- Attachment uploads and downloads, CSV exports and project dumps are no longer
+  cut off after thirty seconds. The HTTP client carried an overall deadline that
+  covered the whole transfer, so a file larger than the link could move in that
+  time failed every time: downloads as a retryable transport error, uploads as
+  `ambiguous_commit` for a file Taiga had not received. Each JSON request still
+  has thirty seconds per attempt. A transfer is instead abandoned when no data
+  has moved in either direction for sixty seconds, and the error says so, so a
+  dead peer still ends the command and a large file is as long as it is.
+- A refresh that never reaches Taiga, comes back unreadable or is throttled is
+  reported as what it was, rather than as the `401` that triggered it. That
+  rejection sent people to log in again over a dropped connection, when the
+  refresh token on disk was still good; only Taiga refusing the refresh keeps
+  the original rejection.
+- `project import` exercises the credential before streaming the dump. Every
+  other command reaches Taiga with a JSON lookup first, which is where an
+  expired token gets refreshed; import had no lookup of its own, so the first
+  command after a day away failed with `auth` if it was an import.
+- Interrupting an attachment or CSV download mid-stream exits `130` like an
+  interrupt before the first byte, rather than `9` marked retryable.
 
 ### Changed
 
