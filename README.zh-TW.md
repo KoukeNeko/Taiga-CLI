@@ -146,7 +146,8 @@ aihki project use example-project --local
    ```
 
 完整的指令參考、旗標說明與各子系統的行為細節，見
-[使用手冊 Wiki](https://github.com/KoukeNeko/aihki/wiki)。
+[使用手冊 Wiki](https://github.com/KoukeNeko/aihki/wiki)，其中包含給 CI、shell 腳本與 agent 的
+[自動化實例](https://github.com/KoukeNeko/aihki/wiki/Automation-Recipes-zh-TW)。
 
 ## 相容性
 

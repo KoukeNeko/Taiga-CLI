@@ -157,7 +157,9 @@ or credentials — created locally and never uploaded.
    ```
 
 The full command reference, flag documentation, and per-subsystem behaviour live in the
-[handbook wiki](https://github.com/KoukeNeko/aihki/wiki).
+[handbook wiki](https://github.com/KoukeNeko/aihki/wiki), which includes
+[worked automation recipes](https://github.com/KoukeNeko/aihki/wiki/Automation-Recipes) for CI, shell
+scripts and agents.
 
 ## Compatibility
 
