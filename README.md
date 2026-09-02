@@ -35,6 +35,9 @@ aihki issue create --subject "Fix token refresh" --type Bug
 aihki issue close 42 --status Closed
 
 # The same data, for a script, a CI job, or an agent
+
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/b8f361063a874af3be58396ac7c7ad27)](https://app.codacy.com/gh/KoukeNeko/aihki?utm_source=github.com&utm_medium=referral&utm_content=KoukeNeko/aihki&utm_campaign=Badge_Grade)
+
 aihki issue view 42 --json --fields ref,subject,status,version
 ```
 
