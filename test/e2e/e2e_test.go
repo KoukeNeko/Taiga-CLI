@@ -47,8 +47,8 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 	secondaryProjectID := int64(secondaryProject["id"].(float64))
 	secondaryProjectSlug := secondaryProject["slug"].(string)
 	t.Cleanup(func() {
-		apiRequest(t, http.MethodDelete, baseURL+"projects/"+strconv.FormatInt(projectID, 10), token, nil, nil)
-		apiRequest(t, http.MethodDelete, baseURL+"projects/"+strconv.FormatInt(secondaryProjectID, 10), token, nil, nil)
+		deleteProject(t, baseURL, token, projectID)
+		deleteProject(t, baseURL, token, secondaryProjectID)
 	})
 
 	runner := cliRunner{t: t, binary: binary, dir: t.TempDir(), env: []string{
@@ -923,6 +923,7 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 		t.Fatalf("discover stats=%#v", discoverStats.Data)
 	}
 
+	sourceContent := projectContentCounts(t, baseURL, token, projectID)
 	exportResult := runner.jsonOK("project", "export", projectSlug, "--format", "gzip")
 	if exportResult.Data["status"] != "accepted" || exportResult.Data["verified"] != false {
 		t.Fatalf("async project export=%#v", exportResult.Data)
@@ -944,7 +945,8 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 		t.Fatalf("project import missing import_id: %#v", importResult.Data)
 	}
 	importedProjectID := waitForImportedProject(t, baseURL, memberToken, project["name"].(string), projectID, secondaryProjectID)
-	apiRequest(t, http.MethodDelete, baseURL+"projects/"+strconv.FormatInt(importedProjectID, 10), memberToken, nil, nil)
+	waitForImportedContent(t, baseURL, memberToken, importedProjectID, sourceContent)
+	deleteProject(t, baseURL, memberToken, importedProjectID)
 
 	invalidRunner := runner
 	invalidRunner.env = replaceEnv(runner.env, "TAIGA_TOKEN", "token-that-must-never-appear")
@@ -1115,6 +1117,62 @@ func readDiagnosticZip(t *testing.T, path string) []byte {
 	return contents.Bytes()
 }
 
+// projectContent counts the work items a project holds. Taiga's asynchronous
+// importer creates the project row first and fills these in afterwards, so the
+// counts double as a completion signal and as evidence that the dump actually
+// carried the content.
+type projectContent struct {
+	Stories int
+	Tasks   int
+	Issues  int
+}
+
+func projectContentCounts(t *testing.T, baseURL, token string, projectID int64) projectContent {
+	t.Helper()
+	count := func(resource string) int {
+		var items []map[string]any
+		apiRequest(t, http.MethodGet, fmt.Sprintf("%s%s?project=%d&page_size=1000", baseURL, resource, projectID), token, nil, &items)
+		return len(items)
+	}
+	return projectContent{Stories: count("userstories"), Tasks: count("tasks"), Issues: count("issues")}
+}
+
+// waitForImportedContent blocks until an imported project holds what the source
+// project held. Deleting before the importer finishes makes Taiga fail its
+// cascade with a 500, which is what used to make this test flaky.
+func waitForImportedContent(t *testing.T, baseURL, token string, projectID int64, want projectContent) {
+	t.Helper()
+	deadline := time.Now().Add(90 * time.Second)
+	var got projectContent
+	for time.Now().Before(deadline) {
+		got = projectContentCounts(t, baseURL, token, projectID)
+		if got == want {
+			return
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	t.Fatalf("imported project %d holds %+v, want %+v", projectID, got, want)
+}
+
+// deleteProject removes a project, tolerating a 404 from an earlier attempt and
+// retrying while Taiga reports a server error, because a cascade delete can
+// still collide with the tail of an asynchronous import.
+func deleteProject(t *testing.T, baseURL, token string, projectID int64) {
+	t.Helper()
+	url := baseURL + "projects/" + strconv.FormatInt(projectID, 10)
+	deadline := time.Now().Add(60 * time.Second)
+	for {
+		status, body := apiStatus(t, http.MethodDelete, url, token)
+		if status == http.StatusNoContent || status == http.StatusOK || status == http.StatusNotFound {
+			return
+		}
+		if status < 500 || !time.Now().Before(deadline) {
+			t.Fatalf("DELETE %s returned %d: %s", url, status, body)
+		}
+		time.Sleep(time.Second)
+	}
+}
+
 func waitForImportedProject(t *testing.T, baseURL, token, name string, excludedIDs ...int64) int64 {
 	t.Helper()
 	excluded := map[int64]bool{}
@@ -1213,6 +1271,29 @@ func firstOpenTaskStatus(t *testing.T, baseURL, token string, projectID int64) s
 	}
 	t.Fatal("project has no open task status")
 	return ""
+}
+
+// apiStatus performs a request and returns its status, leaving the decision
+// about whether that status is a failure to the caller.
+func apiStatus(t *testing.T, method, url, token string) (int, []byte) {
+	t.Helper()
+	request, err := http.NewRequest(method, url, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if token != "" {
+		request.Header.Set("Authorization", "Bearer "+token)
+	}
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = response.Body.Close() }()
+	data, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return response.StatusCode, data
 }
 
 func apiRequest(t *testing.T, method, url, token string, body, output any) {
