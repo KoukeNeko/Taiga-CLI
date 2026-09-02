@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -88,6 +89,27 @@ func TestLoadFallsBackToTheLegacyDirectory(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(base, configDirectory, "config.toml")); err != nil {
 		t.Fatalf("save did not write the current location: %v", err)
+	}
+}
+
+// A parse error has to name the file that was read. When the current location
+// is absent and the legacy one is malformed, naming the current path sends
+// someone to fix a file that does not exist.
+func TestLoadNamesTheLegacyFileWhenItIsMalformed(t *testing.T) {
+	base := t.TempDir()
+	legacy := filepath.Join(base, legacyConfigDirectory, "config.toml")
+	if err := os.MkdirAll(filepath.Dir(legacy), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(legacy, []byte("current_profile = [\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := NewStore(filepath.Join(base, configDirectory, "config.toml")).Load()
+	if err == nil {
+		t.Fatal("a malformed legacy config must not load")
+	}
+	if !strings.Contains(err.Error(), legacy) {
+		t.Errorf("error = %q, want it to name %q", err, legacy)
 	}
 }
 

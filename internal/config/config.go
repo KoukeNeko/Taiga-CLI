@@ -60,11 +60,14 @@ func legacyPath(path string) string {
 
 func (s *Store) Load() (File, error) {
 	cfg := File{CurrentProfile: defaultProfile, Profiles: map[string]Profile{}}
-	data, err := os.ReadFile(s.path)
+	// source is the file the bytes came from, so that a parse failure names
+	// the file to fix rather than a current path that may not exist yet.
+	source := s.path
+	data, err := os.ReadFile(source)
 	if errors.Is(err, os.ErrNotExist) {
 		if legacy := legacyPath(s.path); legacy != "" {
 			if inherited, legacyErr := os.ReadFile(legacy); legacyErr == nil {
-				data, err = inherited, nil
+				data, err, source = inherited, nil, legacy
 			}
 		}
 	}
@@ -72,10 +75,10 @@ func (s *Store) Load() (File, error) {
 		return cfg, nil
 	}
 	if err != nil {
-		return File{}, fmt.Errorf("read config %q: %w", s.path, err)
+		return File{}, fmt.Errorf("read config %q: %w", source, err)
 	}
 	if err := toml.Unmarshal(data, &cfg); err != nil {
-		return File{}, fmt.Errorf("parse config %q: %w", s.path, err)
+		return File{}, fmt.Errorf("parse config %q: %w", source, err)
 	}
 	if cfg.CurrentProfile == "" {
 		cfg.CurrentProfile = defaultProfile
