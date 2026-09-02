@@ -211,21 +211,21 @@ command flag
 
 同一個 contract 版本內只會新增 optional 欄位；移除、改名或改變既有欄位型別必須提升版本並附遷移說明。
 
-| Exit code | 意義 |
-| ---: | --- |
-| 0 | success |
-| 1 | 未預期的內部錯誤 |
-| 2 | usage / schema |
-| 3 | authentication |
-| 4 | forbidden |
-| 5 | not found |
-| 6 | OCC conflict |
-| 7 | validation / ambiguity |
-| 8 | throttled |
-| 9 | transport / upstream |
-| 10 | confirmation required |
-| 11 | ambiguous commit |
-| 130 | 在完成前被中斷 |
+| Exit code | Meaning | 意義 |
+| ---: | --- | --- |
+| 0 | success | 成功 |
+| 1 | unexpected internal failure | 未預期的內部錯誤 |
+| 2 | usage / schema | 用法或 schema 錯誤 |
+| 3 | authentication | 認證失敗 |
+| 4 | forbidden | 權限不足 |
+| 5 | not found | 找不到目標 |
+| 6 | OCC conflict | 樂觀鎖衝突 |
+| 7 | validation / ambiguity | 驗證失敗或指涉不明確 |
+| 8 | throttled | 被限流 |
+| 9 | transport / upstream | 傳輸或上游錯誤 |
+| 10 | confirmation required | 需要確認 |
+| 11 | ambiguous commit | 提交結果不明 |
+| 130 | interrupted before finishing | 在完成前被中斷 |
 
 `1` 代表 CLI 遇到了它沒有分類的狀況，值得當成 bug 回報。`130` 採用 shell 慣例的 128 加訊號編號，而不是在上
 表裡再佔一個號碼，因為停掉一個指令是一個決定，不是指令失敗的一種方式；若中斷打斷的是進行中的寫入，回報的
