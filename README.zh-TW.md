@@ -83,6 +83,19 @@ Exit code 依錯誤種類固定分流，`--dry-run` 會完整解析並顯示將�
 且預設不覆寫既有檔案。非互動模式下的破壞性操作一律要求明確的 `--yes`。Webhook secret、application
 token 的 auth code 與 ownership transfer token 都不會出現在任何輸出或 dry-run 裡。
 
+### 可以放心自動化
+
+一個會謊報資料下場的包裝層，比沒有包裝層更糟，因為腳本會照著那個答案行動。由此推出三件事：
+
+- **被拒絕的寫入與寫錯的寫入，靠結構分辨而不是靠字面。** Taiga 兩者都回 HTTP 400、掛在同一個鍵下，只差在值
+  的形狀；而且那句話會被翻譯，所以比對字面既會誤判，在非英文語系的伺服器上更會完全失效。
+- **結果不明的寫入會明講。** 中斷一個已經送出的請求並不會把它收回去，所以 CLI 回報 `ambiguous_commit`、
+  要求你先確認，而不是宣稱一個它無法證明的失敗。
+- **並行寫入是實測過的，不是假設的。** 一份 end-to-end 測試讓十二個帳號同時操作同一個專案，檢查任何兩次被
+  接受的寫入都不會看到相同的版本號。
+
+[並行與衝突](https://github.com/KoukeNeko/aihki/wiki/Work-Items-zh-TW) 說明 Taiga 會拒絕什麼、會合併什麼。
+
 ### 多站台與多專案
 
 Profile 讓你在不同 Taiga 站台之間切換，各自記住 API URL 與預設專案。也可以把 profile 與 project 綁在
@@ -201,6 +214,7 @@ command flag
 | Exit code | 意義 |
 | ---: | --- |
 | 0 | success |
+| 1 | 未預期的內部錯誤 |
 | 2 | usage / schema |
 | 3 | authentication |
 | 4 | forbidden |
@@ -211,6 +225,11 @@ command flag
 | 9 | transport / upstream |
 | 10 | confirmation required |
 | 11 | ambiguous commit |
+| 130 | 在完成前被中斷 |
+
+`1` 代表 CLI 遇到了它沒有分類的狀況，值得當成 bug 回報。`130` 採用 shell 慣例的 128 加訊號編號，而不是在上
+表裡再佔一個號碼，因為停掉一個指令是一個決定，不是指令失敗的一種方式；若中斷打斷的是進行中的寫入，回報的
+會是 `11`。
 
 ### 安全原則
 
