@@ -6,10 +6,10 @@
 </p>
 
 <p align="center">
-  <img alt="Go 1.25+" src="https://img.shields.io/badge/GO-1.25%2B-00ADD8?style=for-the-badge&logo=go&logoColor=white">
-  <img alt="Taiga 6.10.2 verified" src="https://img.shields.io/badge/TAIGA-6.10.2_VERIFIED-00A5A5?style=for-the-badge">
-  <img alt="macOS, Linux, Windows" src="https://img.shields.io/badge/PLATFORMS-MACOS_·_LINUX_·_WINDOWS-4CAF50?style=for-the-badge">
-  <img alt="JSON contract v1" src="https://img.shields.io/badge/JSON_CONTRACT-V1-2196F3?style=for-the-badge">
+  <a href="https://github.com/KoukeNeko/Taiga-CLI/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/KoukeNeko/Taiga-CLI?style=for-the-badge&logo=github&label=RELEASE&color=2196F3"></a>
+  <a href="https://github.com/KoukeNeko/Taiga-CLI/actions/workflows/ci.yml"><img alt="CI status" src="https://img.shields.io/github/actions/workflow/status/KoukeNeko/Taiga-CLI/ci.yml?branch=main&style=for-the-badge&logo=githubactions&logoColor=white&label=CI"></a>
+  <a href="COMPATIBILITY.md"><img alt="Verified against Taiga 6.10.2" src="https://img.shields.io/badge/TAIGA-6.10.2_VERIFIED-00A5A5?style=for-the-badge"></a>
+  <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/LICENSE-MIT-4CAF50?style=for-the-badge&logo=github"></a>
 </p>
 
 <p align="center">
@@ -23,6 +23,19 @@
   · <a href="CHANGELOG.zh-TW.md">版本紀錄</a>
   · <a href="COMPATIBILITY.md">相容性</a>
 </p>
+
+```sh
+taiga issue list
+taiga issue create --subject "Fix token refresh" --type Bug
+taiga issue close 42 --status Closed
+
+# 同一份資料，給 script、CI job 或 agent
+taiga issue view 42 --json --fields ref,subject,status,version
+```
+
+```json
+{"data":{"ref":42,"status":"Closed","subject":"Fix token refresh","version":8},"meta":{"contract":1}}
+```
 
 Taiga CLI 讓你不必離開終端機就能操作 [Taiga 6](https://taiga.io/) 的專案、敏捷流程與 Wiki。它會自動從
 frontend 的 `conf.json` 找出 API 位置，包括部署在 `/taiga/` 子路徑的站台，登入後把 token 交給作業系統
@@ -267,7 +280,6 @@ macOS 是例外：notarization 要求 Apple 簽發的安全時間戳，因此 De
   <img alt="Cobra" src="https://img.shields.io/badge/COBRA-CLI-00ADD8?style=for-the-badge&logo=go&logoColor=white">
   <img alt="Reproducible builds" src="https://img.shields.io/badge/BUILDS-REPRODUCIBLE-4CAF50?style=for-the-badge">
   <img alt="SPDX 2.3 SBOM" src="https://img.shields.io/badge/SBOM-SPDX_2.3-2196F3?style=for-the-badge">
-  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/LICENSE-MIT-4CAF50?style=for-the-badge&logo=github"></a>
 </p>
 
 ## License

@@ -6,10 +6,10 @@
 </p>
 
 <p align="center">
-  <img alt="Go 1.25+" src="https://img.shields.io/badge/GO-1.25%2B-00ADD8?style=for-the-badge&logo=go&logoColor=white">
-  <img alt="Taiga 6.10.2 verified" src="https://img.shields.io/badge/TAIGA-6.10.2_VERIFIED-00A5A5?style=for-the-badge">
-  <img alt="macOS, Linux, Windows" src="https://img.shields.io/badge/PLATFORMS-MACOS_·_LINUX_·_WINDOWS-4CAF50?style=for-the-badge">
-  <img alt="JSON contract v1" src="https://img.shields.io/badge/JSON_CONTRACT-V1-2196F3?style=for-the-badge">
+  <a href="https://github.com/KoukeNeko/Taiga-CLI/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/KoukeNeko/Taiga-CLI?style=for-the-badge&logo=github&label=RELEASE&color=2196F3"></a>
+  <a href="https://github.com/KoukeNeko/Taiga-CLI/actions/workflows/ci.yml"><img alt="CI status" src="https://img.shields.io/github/actions/workflow/status/KoukeNeko/Taiga-CLI/ci.yml?branch=main&style=for-the-badge&logo=githubactions&logoColor=white&label=CI"></a>
+  <a href="COMPATIBILITY.md"><img alt="Verified against Taiga 6.10.2" src="https://img.shields.io/badge/TAIGA-6.10.2_VERIFIED-00A5A5?style=for-the-badge"></a>
+  <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/LICENSE-MIT-4CAF50?style=for-the-badge&logo=github"></a>
 </p>
 
 <p align="center">
@@ -23,6 +23,19 @@
   · <a href="CHANGELOG.md">Changelog</a>
   · <a href="COMPATIBILITY.md">Compatibility</a>
 </p>
+
+```sh
+taiga issue list
+taiga issue create --subject "Fix token refresh" --type Bug
+taiga issue close 42 --status Closed
+
+# The same data, for a script, a CI job, or an agent
+taiga issue view 42 --json --fields ref,subject,status,version
+```
+
+```json
+{"data":{"ref":42,"status":"Closed","subject":"Fix token refresh","version":8},"meta":{"contract":1}}
+```
 
 Taiga CLI lets you drive [Taiga 6](https://taiga.io/) projects, agile workflows, and wikis without
 leaving the terminal. It discovers the API from the frontend's `conf.json`, including sites deployed
@@ -281,7 +294,6 @@ Developer ID signature can never reproduce. Their contents are otherwise built i
   <img alt="Cobra" src="https://img.shields.io/badge/COBRA-CLI-00ADD8?style=for-the-badge&logo=go&logoColor=white">
   <img alt="Reproducible builds" src="https://img.shields.io/badge/BUILDS-REPRODUCIBLE-4CAF50?style=for-the-badge">
   <img alt="SPDX 2.3 SBOM" src="https://img.shields.io/badge/SBOM-SPDX_2.3-2196F3?style=for-the-badge">
-  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/LICENSE-MIT-4CAF50?style=for-the-badge&logo=github"></a>
 </p>
 
 ## License
