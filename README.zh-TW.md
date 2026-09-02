@@ -20,7 +20,7 @@
   <a href="INSTALL.md">安裝</a>
   · <a href="#快速開始">快速開始</a>
   · <a href="https://github.com/KoukeNeko/Taiga-CLI/wiki">使用手冊</a>
-  · <a href="CHANGELOG.md">版本紀錄</a>
+  · <a href="CHANGELOG.zh-TW.md">版本紀錄</a>
   · <a href="COMPATIBILITY.md">相容性</a>
 </p>
 
