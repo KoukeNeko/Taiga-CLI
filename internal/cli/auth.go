@@ -174,7 +174,8 @@ func (a *App) authStatusCommand() *cobra.Command {
 
 func (a *App) stdinTTY() bool {
 	file, ok := a.In.(*os.File)
-	return ok && term.IsTerminal(int(file.Fd()))
+	// x/term takes an int, and a descriptor is small and non-negative.
+	return ok && term.IsTerminal(int(file.Fd())) // #nosec G115
 }
 
 func (a *App) readLine(prompt string) (string, error) {
@@ -192,11 +193,11 @@ func (a *App) readLine(prompt string) (string, error) {
 
 func (a *App) readPassword(prompt string) (string, error) {
 	file, ok := a.In.(*os.File)
-	if !ok || !term.IsTerminal(int(file.Fd())) {
+	if !ok || !term.IsTerminal(int(file.Fd())) { // #nosec G115 -- see stdinTTY
 		return "", validationError("input_required", "password input requires a TTY")
 	}
 	_, _ = fmt.Fprint(a.Err, prompt)
-	data, err := term.ReadPassword(int(file.Fd()))
+	data, err := term.ReadPassword(int(file.Fd())) // #nosec G115 -- see stdinTTY
 	_, _ = fmt.Fprintln(a.Err)
 	if err != nil {
 		return "", fmt.Errorf("read password: %w", err)

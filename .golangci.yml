@@ -1,0 +1,54 @@
+version: "2"
+
+linters:
+  default: standard
+  enable:
+    # gosec catches the patterns a security scanner would, at the point of
+    # writing them rather than after a push.
+    - gosec
+
+  settings:
+    gosec:
+      excludes:
+        # Taint rules written for web servers. This program serves no HTTP and
+        # renders no HTML, so G705 reads a verbose log writer as a response
+        # body, and G704 flags the one thing the tool exists to do: connect to
+        # whichever Taiga the operator configured.
+        - G703
+        - G704
+        - G705
+        # Flags an exported field whose name resembles a secret. Password,
+        # AuthToken and RefreshToken are the shapes Taiga's own API sends and
+        # receives, so they cannot be renamed. What matters is that they never
+        # reach output, which the redaction tests cover directly.
+        - G117
+        # Flags opening a path held in a variable. That is what a command line
+        # tool does: the operator names the file, and reads it with their own
+        # permissions, so no privilege boundary is crossed. G204 stays on,
+        # since running a program is a different question from reading a file.
+        - G304
+
+  exclusions:
+    generated: lax
+    presets:
+      - std-error-handling
+    rules:
+      # Test code runs the binary under test, reads files it just wrote, and
+      # embeds fake secrets on purpose so the redaction tests have something to
+      # find. None of that describes the shipped program.
+      - path: _test\.go
+        linters:
+          - gosec
+      # The packaging tool is not part of the shipped binary; it runs on a
+      # developer's own checkout, invokes codesign and the built executable,
+      # and has to leave an archive readable and its binary executable.
+      - path: internal/releasepack/
+        linters:
+          - gosec
+
+issues:
+  # Show every instance. The default caps each kind at three, which hides how
+  # much of a pattern there is and makes a config written against the visible
+  # ones wrong.
+  max-same-issues: 0
+  max-issues-per-linter: 0

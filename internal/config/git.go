@@ -57,7 +57,7 @@ func (g *GitLocal) Set(ctx context.Context, key, value string) error {
 		return fmt.Errorf("unsupported local config key %q", key)
 	}
 	gitKey := configSection + "." + key
-	cmd := exec.CommandContext(ctx, "git", "config", "--local", gitKey, value)
+	cmd := exec.CommandContext(ctx, "git", "config", "--local", gitKey, value) // #nosec G204 -- fixed program, key checked against a two-name allowlist above, and the value is its own argument rather than shell text
 	cmd.Dir = g.dir
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("write Git-local config: %w: %s", err, strings.TrimSpace(string(output)))
@@ -76,7 +76,7 @@ func (g *GitLocal) resolve(ctx context.Context, key string) (string, error) {
 }
 
 func (g *GitLocal) get(ctx context.Context, key string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", "config", "--local", "--get", key)
+	cmd := exec.CommandContext(ctx, "git", "config", "--local", "--get", key) // #nosec G204 -- fixed program, and the key is built from a constant section name
 	cmd.Dir = g.dir
 	output, err := cmd.Output()
 	if err != nil {
