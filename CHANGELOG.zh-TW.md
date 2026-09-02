@@ -10,6 +10,8 @@ Release notes 以 hard line break 渲染，所以這裡每個段落與項目都�
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-02
+
 ### 更名為 Aihki
 
 專案更名為 **Aihki**，執行檔為 `aihki`。Taiga 以 MPL-2.0 釋出，其第 2.3 節明文不授予商標與 logo 權利，而 Taiga 的維護者先前也曾要求分家專案放棄該名稱。把他人的商標當作本專案自己的識別，從來就不是那份授權支持的事；因此該名稱現在只用於描述本客戶端所搭配的軟體。
@@ -78,5 +80,6 @@ brew install koukeneko/tap/aihki
 
 已針對 Taiga 6.10.2 以固定 image digest 執行完整 Docker E2E 驗證。支援 macOS、Linux、Windows 的 `amd64` 與 `arm64`。
 
-[Unreleased]: https://github.com/KoukeNeko/aihki/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/KoukeNeko/aihki/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/KoukeNeko/aihki/releases/tag/v0.2.0
 [0.1.0]: https://github.com/KoukeNeko/aihki/releases/tag/v0.1.0

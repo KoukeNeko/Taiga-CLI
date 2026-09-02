@@ -10,6 +10,8 @@ Release notes render with hard line breaks, so each paragraph and bullet stays o
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-02
+
 ### Renamed to Aihki
 
 The project is now **Aihki**, and the binary is `aihki`. Taiga ships under MPL-2.0, whose section 2.3 grants no rights in its trademarks or logos, and the Taiga maintainers have previously required a spin-off to drop the name. Leading with someone else's mark as this project's own identifier was not something the licence ever supported, so the name is now used only to describe what this client talks to.
@@ -78,5 +80,6 @@ Or download the archive for your platform below, verify it against `SHA256SUMS`,
 
 Verified against Taiga 6.10.2 through a full Docker E2E run against a pinned image digest. Supports macOS, Linux, and Windows on `amd64` and `arm64`.
 
-[Unreleased]: https://github.com/KoukeNeko/aihki/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/KoukeNeko/aihki/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/KoukeNeko/aihki/releases/tag/v0.2.0
 [0.1.0]: https://github.com/KoukeNeko/aihki/releases/tag/v0.1.0
