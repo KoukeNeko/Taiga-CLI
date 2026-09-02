@@ -278,43 +278,32 @@ func (a *App) taskEditCommand() *cobra.Command {
 }
 
 func (a *App) taskDoneCommand() *cobra.Command {
-	var status string
-	var baseVersion int
-	var dryRun bool
-	command := &cobra.Command{
-		Use: "done <ref|project#ref|url>", Short: "Move a task to a closed status", Args: exactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if baseVersion < 0 {
-				return usageError("--base-version cannot be negative")
-			}
-			target, err := a.loadTaskTarget(cmd.Context(), args[0])
+	return a.closeWorkItemCommand(closeCommandSpec{
+		use:              "done <ref|project#ref|url>",
+		short:            "Move a task to a closed status",
+		statusHelp:       "closed status name when the project has multiple closed statuses",
+		dryRunAction:     "complete task",
+		completeItems:    a.completeTasks,
+		completeStatuses: a.completeTaskStatuses,
+		plan: func(ctx context.Context, argument, status string) (closePlan, error) {
+			target, err := a.loadTaskTarget(ctx, argument)
 			if err != nil {
-				return err
+				return closePlan{}, err
 			}
-			selected, err := a.resolveTaskCloseStatus(cmd.Context(), target.Client, target.Project.ID, status)
+			selected, err := a.resolveTaskCloseStatus(ctx, target.Client, target.Project.ID, status)
 			if err != nil {
-				return err
+				return closePlan{}, err
 			}
-			version := target.Task.Version
-			if baseVersion > 0 {
-				version = baseVersion
-			}
-			if dryRun {
-				return a.renderDryRun("complete task", fmt.Sprintf("%s#%d", target.Project.Slug, target.Task.Ref), map[string]any{"status": selected.Name, "base_version": version})
-			}
-			updated, err := target.Client.UpdateTask(cmd.Context(), target.Task.ID, taiga.UpdateTaskRequest{Version: version, Status: &selected.ID})
-			if err != nil {
-				return err
-			}
-			return a.renderTaskMutation("Completed", makeTaskView(updated, target.Project.Slug))
+			return closePlan{client: target.Client, project: target.Project, itemID: target.Task.ID, ref: target.Task.Ref, version: target.Task.Version, statusID: selected.ID, statusName: selected.Name}, nil
 		},
-	}
-	command.Flags().StringVar(&status, "status", "", "closed status name when the project has multiple closed statuses")
-	command.Flags().IntVar(&baseVersion, "base-version", 0, "explicit Taiga base version")
-	command.Flags().BoolVar(&dryRun, "dry-run", false, "resolve and display the mutation without writing")
-	command.ValidArgsFunction = a.completeTasks
-	_ = command.RegisterFlagCompletionFunc("status", a.completeTaskStatuses)
-	return command
+		apply: func(ctx context.Context, plan closePlan) error {
+			updated, err := plan.client.UpdateTask(ctx, plan.itemID, taiga.UpdateTaskRequest{Version: plan.version, Status: &plan.statusID})
+			if err != nil {
+				return err
+			}
+			return a.renderTaskMutation("Completed", makeTaskView(updated, plan.project.Slug))
+		},
+	})
 }
 
 func (a *App) taskReopenCommand() *cobra.Command {
@@ -503,49 +492,26 @@ func (a *App) taskMoveCommand() *cobra.Command {
 }
 
 func (a *App) taskCommentCommand() *cobra.Command {
-	var body, bodyFile string
-	var baseVersion int
-	var dryRun bool
-	command := &cobra.Command{
-		Use: "comment <ref|project#ref|url>", Short: "Comment on a task", Args: exactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if baseVersion < 0 {
-				return usageError("--base-version cannot be negative")
-			}
-			if body != "" && bodyFile != "" {
-				return usageError("--body and --body-file are mutually exclusive")
-			}
-			if body == "" && bodyFile == "" {
-				return usageError("--body or --body-file is required")
-			}
-			comment, err := readBody(a.In, body, bodyFile)
+	return a.commentWorkItemCommand(commentCommandSpec{
+		use:           "comment <ref|project#ref|url>",
+		short:         "Comment on a task",
+		dryRunAction:  "comment on task",
+		completeItems: a.completeTasks,
+		load: func(ctx context.Context, argument string) (commentPlan, error) {
+			target, err := a.loadTaskTarget(ctx, argument)
 			if err != nil {
-				return err
+				return commentPlan{}, err
 			}
-			target, err := a.loadTaskTarget(cmd.Context(), args[0])
-			if err != nil {
-				return err
-			}
-			version := target.Task.Version
-			if baseVersion > 0 {
-				version = baseVersion
-			}
-			if dryRun {
-				return a.renderDryRun("comment on task", fmt.Sprintf("%s#%d", target.Project.Slug, target.Task.Ref), map[string]any{"body": comment, "base_version": version})
-			}
-			updated, err := target.Client.UpdateTask(cmd.Context(), target.Task.ID, taiga.UpdateTaskRequest{Version: version, Comment: &comment})
-			if err != nil {
-				return err
-			}
-			return a.renderTaskMutation("Commented on", makeTaskView(updated, target.Project.Slug))
+			return commentPlan{client: target.Client, project: target.Project, itemID: target.Task.ID, ref: target.Task.Ref, version: target.Task.Version}, nil
 		},
-	}
-	command.Flags().StringVar(&body, "body", "", "comment body")
-	command.Flags().StringVar(&bodyFile, "body-file", "", "read comment from a file, or - for stdin")
-	command.Flags().IntVar(&baseVersion, "base-version", 0, "explicit Taiga base version")
-	command.Flags().BoolVar(&dryRun, "dry-run", false, "resolve and display the mutation without writing")
-	command.ValidArgsFunction = a.completeTasks
-	return command
+		apply: func(ctx context.Context, plan commentPlan, body string) error {
+			updated, err := plan.client.UpdateTask(ctx, plan.itemID, taiga.UpdateTaskRequest{Version: plan.version, Comment: &body})
+			if err != nil {
+				return err
+			}
+			return a.renderTaskMutation("Commented on", makeTaskView(updated, plan.project.Slug))
+		},
+	})
 }
 
 func (a *App) loadTaskTarget(ctx context.Context, value string) (taskTarget, error) {

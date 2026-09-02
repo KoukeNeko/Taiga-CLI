@@ -3,8 +3,6 @@ package cli
 import (
 	"context"
 	"fmt"
-	"io"
-	"os"
 	"sort"
 	"strings"
 	"text/tabwriter"
@@ -336,45 +334,32 @@ func addEditFlags(command *cobra.Command, options *editIssueOptions) {
 }
 
 func (a *App) issueCloseCommand() *cobra.Command {
-	var status string
-	var baseVersion int
-	var dryRun bool
-	command := &cobra.Command{
-		Use:   "close <ref|project#ref|url>",
-		Short: "Move an issue to a closed status",
-		Args:  exactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if baseVersion < 0 {
-				return usageError("--base-version cannot be negative")
-			}
-			target, err := a.loadIssueTarget(cmd.Context(), args[0])
+	return a.closeWorkItemCommand(closeCommandSpec{
+		use:              "close <ref|project#ref|url>",
+		short:            "Move an issue to a closed status",
+		statusHelp:       "closed status name; required when the project has multiple closed statuses in non-interactive mode",
+		dryRunAction:     "close",
+		completeItems:    a.completeIssues,
+		completeStatuses: a.completeIssueStatuses,
+		plan: func(ctx context.Context, argument, status string) (closePlan, error) {
+			target, err := a.loadIssueTarget(ctx, argument)
 			if err != nil {
-				return err
+				return closePlan{}, err
 			}
-			selected, err := a.resolveCloseStatus(cmd.Context(), target.Client, target.Project.ID, status)
+			selected, err := a.resolveCloseStatus(ctx, target.Client, target.Project.ID, status)
 			if err != nil {
-				return err
+				return closePlan{}, err
 			}
-			version := target.Issue.Version
-			if baseVersion > 0 {
-				version = baseVersion
-			}
-			if dryRun {
-				return a.renderDryRun("close", fmt.Sprintf("%s#%d", target.Project.Slug, target.Issue.Ref), map[string]any{"status": selected.Name, "base_version": version})
-			}
-			updated, err := target.Client.UpdateIssue(cmd.Context(), target.Issue.ID, taiga.UpdateIssueRequest{Version: version, Status: &selected.ID})
-			if err != nil {
-				return err
-			}
-			return a.renderIssueMutation("Closed", makeIssueView(updated, target.Project.Slug))
+			return closePlan{client: target.Client, project: target.Project, itemID: target.Issue.ID, ref: target.Issue.Ref, version: target.Issue.Version, statusID: selected.ID, statusName: selected.Name}, nil
 		},
-	}
-	command.Flags().StringVar(&status, "status", "", "closed status name; required when the project has multiple closed statuses in non-interactive mode")
-	command.Flags().IntVar(&baseVersion, "base-version", 0, "explicit Taiga base version")
-	command.Flags().BoolVar(&dryRun, "dry-run", false, "resolve and display the mutation without writing")
-	command.ValidArgsFunction = a.completeIssues
-	_ = command.RegisterFlagCompletionFunc("status", a.completeIssueStatuses)
-	return command
+		apply: func(ctx context.Context, plan closePlan) error {
+			updated, err := plan.client.UpdateIssue(ctx, plan.itemID, taiga.UpdateIssueRequest{Version: plan.version, Status: &plan.statusID})
+			if err != nil {
+				return err
+			}
+			return a.renderIssueMutation("Closed", makeIssueView(updated, plan.project.Slug))
+		},
+	})
 }
 
 func (a *App) issueAssignCommand() *cobra.Command {
@@ -423,64 +408,26 @@ func (a *App) issueAssignCommand() *cobra.Command {
 }
 
 func (a *App) issueCommentCommand() *cobra.Command {
-	var body, bodyFile string
-	var baseVersion int
-	var dryRun bool
-	command := &cobra.Command{
-		Use:   "comment <ref|project#ref|url>",
-		Short: "Comment on an issue",
-		Args:  exactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if baseVersion < 0 {
-				return usageError("--base-version cannot be negative")
-			}
-			if body != "" && bodyFile != "" {
-				return usageError("--body and --body-file are mutually exclusive")
-			}
-			if body == "" && bodyFile == "" {
-				return usageError("--body or --body-file is required")
-			}
-			comment := body
-			if bodyFile != "" {
-				var data []byte
-				var err error
-				if bodyFile == "-" {
-					data, err = io.ReadAll(io.LimitReader(a.In, 4<<20))
-				} else {
-					data, err = os.ReadFile(bodyFile)
-				}
-				if err != nil {
-					return fmt.Errorf("read comment body: %w", err)
-				}
-				comment = string(data)
-			}
-			if strings.TrimSpace(comment) == "" {
-				return validationError("empty_comment", "comment body cannot be empty")
-			}
-			target, err := a.loadIssueTarget(cmd.Context(), args[0])
+	return a.commentWorkItemCommand(commentCommandSpec{
+		use:           "comment <ref|project#ref|url>",
+		short:         "Comment on an issue",
+		dryRunAction:  "comment",
+		completeItems: a.completeIssues,
+		load: func(ctx context.Context, argument string) (commentPlan, error) {
+			target, err := a.loadIssueTarget(ctx, argument)
 			if err != nil {
-				return err
+				return commentPlan{}, err
 			}
-			version := target.Issue.Version
-			if baseVersion > 0 {
-				version = baseVersion
-			}
-			if dryRun {
-				return a.renderDryRun("comment", fmt.Sprintf("%s#%d", target.Project.Slug, target.Issue.Ref), map[string]any{"body": comment, "base_version": version})
-			}
-			updated, err := target.Client.UpdateIssue(cmd.Context(), target.Issue.ID, taiga.UpdateIssueRequest{Version: version, Comment: &comment})
-			if err != nil {
-				return err
-			}
-			return a.renderIssueMutation("Commented on", makeIssueView(updated, target.Project.Slug))
+			return commentPlan{client: target.Client, project: target.Project, itemID: target.Issue.ID, ref: target.Issue.Ref, version: target.Issue.Version}, nil
 		},
-	}
-	command.Flags().StringVar(&body, "body", "", "comment body")
-	command.Flags().StringVar(&bodyFile, "body-file", "", "read comment from a file, or - for stdin")
-	command.Flags().IntVar(&baseVersion, "base-version", 0, "explicit Taiga base version")
-	command.Flags().BoolVar(&dryRun, "dry-run", false, "resolve and display the mutation without writing")
-	command.ValidArgsFunction = a.completeIssues
-	return command
+		apply: func(ctx context.Context, plan commentPlan, body string) error {
+			updated, err := plan.client.UpdateIssue(ctx, plan.itemID, taiga.UpdateIssueRequest{Version: plan.version, Comment: &body})
+			if err != nil {
+				return err
+			}
+			return a.renderIssueMutation("Commented on", makeIssueView(updated, plan.project.Slug))
+		},
+	})
 }
 
 func (a *App) loadIssueTarget(ctx context.Context, value string) (issueTarget, error) {

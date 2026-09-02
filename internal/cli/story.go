@@ -280,51 +280,40 @@ func addStoryEditFlags(command *cobra.Command, options *editStoryOptions) {
 }
 
 func (a *App) storyCloseCommand() *cobra.Command {
-	var status string
-	var baseVersion int
-	var dryRun bool
-	command := &cobra.Command{
-		Use:   "close <ref|project#ref|url>",
-		Short: "Move a user story to a closed status",
-		Args:  exactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if baseVersion < 0 {
-				return usageError("--base-version cannot be negative")
+	return a.closeWorkItemCommand(closeCommandSpec{
+		use:              "close <ref|project#ref|url>",
+		short:            "Move a user story to a closed status",
+		statusHelp:       "closed status name; required when the project has multiple closed statuses in non-interactive mode",
+		dryRunAction:     "close story",
+		completeItems:    a.completeStories,
+		completeStatuses: a.completeStoryStatuses,
+		plan: func(ctx context.Context, argument, status string) (closePlan, error) {
+			target, err := a.loadStoryTarget(ctx, argument)
+			if err != nil {
+				return closePlan{}, err
 			}
-			target, err := a.loadStoryTarget(cmd.Context(), args[0])
+			selected, err := a.resolveStoryCloseStatus(ctx, target.Client, target.Project.ID, status)
+			if err != nil {
+				return closePlan{}, err
+			}
+			return closePlan{client: target.Client, project: target.Project, itemID: target.Story.ID, ref: target.Story.Ref, version: target.Story.Version, statusID: selected.ID, statusName: selected.Name}, nil
+		},
+		apply: func(ctx context.Context, plan closePlan) error {
+			updated, err := plan.client.UpdateUserStory(ctx, plan.itemID, taiga.UpdateUserStoryRequest{Version: plan.version, Status: &plan.statusID})
 			if err != nil {
 				return err
 			}
-			selected, err := a.resolveStoryCloseStatus(cmd.Context(), target.Client, target.Project.ID, status)
-			if err != nil {
+			if err := a.renderStoryMutation("Closed", makeStoryView(updated, plan.project.Slug)); err != nil {
 				return err
 			}
-			version := target.Story.Version
-			if baseVersion > 0 {
-				version = baseVersion
-			}
-			if dryRun {
-				return a.renderDryRun("close story", fmt.Sprintf("%s#%d", target.Project.Slug, target.Story.Ref), map[string]any{"status": selected.Name, "base_version": version})
-			}
-			updated, err := target.Client.UpdateUserStory(cmd.Context(), target.Story.ID, taiga.UpdateUserStoryRequest{Version: version, Status: &selected.ID})
-			if err != nil {
-				return err
-			}
-			if err := a.renderStoryMutation("Closed", makeStoryView(updated, target.Project.Slug)); err != nil {
-				return err
-			}
+			// A story stays open while any of its tasks is, so a closed status
+			// alone does not mean what someone would assume it means.
 			if !a.global.JSON && !updated.IsClosed {
 				_, _ = fmt.Fprintln(a.Err, "Warning: status changed to closed, but open tasks keep this story active")
 			}
 			return nil
 		},
-	}
-	command.Flags().StringVar(&status, "status", "", "closed status name when the project has multiple closed statuses")
-	command.Flags().IntVar(&baseVersion, "base-version", 0, "explicit Taiga base version")
-	command.Flags().BoolVar(&dryRun, "dry-run", false, "resolve and display the mutation without writing")
-	command.ValidArgsFunction = a.completeStories
-	_ = command.RegisterFlagCompletionFunc("status", a.completeStoryStatuses)
-	return command
+	})
 }
 
 func (a *App) storyAssignCommand() *cobra.Command {
@@ -418,51 +407,26 @@ func (a *App) storyMoveCommand() *cobra.Command {
 }
 
 func (a *App) storyCommentCommand() *cobra.Command {
-	var body, bodyFile string
-	var baseVersion int
-	var dryRun bool
-	command := &cobra.Command{
-		Use:   "comment <ref|project#ref|url>",
-		Short: "Comment on a user story",
-		Args:  exactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if baseVersion < 0 {
-				return usageError("--base-version cannot be negative")
-			}
-			if body != "" && bodyFile != "" {
-				return usageError("--body and --body-file are mutually exclusive")
-			}
-			if body == "" && bodyFile == "" {
-				return usageError("--body or --body-file is required")
-			}
-			comment, err := readBody(a.In, body, bodyFile)
+	return a.commentWorkItemCommand(commentCommandSpec{
+		use:           "comment <ref|project#ref|url>",
+		short:         "Comment on a user story",
+		dryRunAction:  "comment on story",
+		completeItems: a.completeStories,
+		load: func(ctx context.Context, argument string) (commentPlan, error) {
+			target, err := a.loadStoryTarget(ctx, argument)
 			if err != nil {
-				return err
+				return commentPlan{}, err
 			}
-			target, err := a.loadStoryTarget(cmd.Context(), args[0])
-			if err != nil {
-				return err
-			}
-			version := target.Story.Version
-			if baseVersion > 0 {
-				version = baseVersion
-			}
-			if dryRun {
-				return a.renderDryRun("comment on story", fmt.Sprintf("%s#%d", target.Project.Slug, target.Story.Ref), map[string]any{"body": comment, "base_version": version})
-			}
-			updated, err := target.Client.UpdateUserStory(cmd.Context(), target.Story.ID, taiga.UpdateUserStoryRequest{Version: version, Comment: &comment})
-			if err != nil {
-				return err
-			}
-			return a.renderStoryMutation("Commented on", makeStoryView(updated, target.Project.Slug))
+			return commentPlan{client: target.Client, project: target.Project, itemID: target.Story.ID, ref: target.Story.Ref, version: target.Story.Version}, nil
 		},
-	}
-	command.Flags().StringVar(&body, "body", "", "comment body")
-	command.Flags().StringVar(&bodyFile, "body-file", "", "read comment from a file, or - for stdin")
-	command.Flags().IntVar(&baseVersion, "base-version", 0, "explicit Taiga base version")
-	command.Flags().BoolVar(&dryRun, "dry-run", false, "resolve and display the mutation without writing")
-	command.ValidArgsFunction = a.completeStories
-	return command
+		apply: func(ctx context.Context, plan commentPlan, body string) error {
+			updated, err := plan.client.UpdateUserStory(ctx, plan.itemID, taiga.UpdateUserStoryRequest{Version: plan.version, Comment: &body})
+			if err != nil {
+				return err
+			}
+			return a.renderStoryMutation("Commented on", makeStoryView(updated, plan.project.Slug))
+		},
+	})
 }
 
 func readBody(input io.Reader, body, bodyFile string) (string, error) {

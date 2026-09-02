@@ -28,7 +28,7 @@ jobs:
       # Read at the job level so the step below can test it: a step's own env
       # is not available to its own if condition, which would leave the upload
       # silently skipped on every run.
-      CODACY_PROJECT_TOKEN: ${{ secrets.CODACY_PROJECT_TOKEN }}
+      CODACY_PROJECT_TOKEN: ${{ secrets.CODACY_KEY }}
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: actions/setup-go@v7.0.0
