@@ -1,0 +1,66 @@
+name: Update Homebrew tap
+
+# The release workflow already updates the tap for every stable tag. This
+# exists for the cases that flow cannot cover: repairing a formula without
+# cutting a new release, and backfilling a release published before the tap
+# existed.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Published stable release tag, for example v0.1.0"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Render the formula from the published release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          # inputs.version is caller-controlled, so it is validated before it
+          # reaches any command rather than interpolated into the script.
+          case "$VERSION" in
+            v[0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "::error::version must look like v1.2.3" >&2; exit 1 ;;
+          esac
+          case "$VERSION" in
+            *-*) echo "::error::$VERSION is a pre-release; the tap tracks stable releases only" >&2; exit 1 ;;
+          esac
+          if ! gh release view "$VERSION" --json isPrerelease --jq '.isPrerelease' | grep -qx false; then
+            echo "::error::$VERSION is not a published stable release" >&2
+            exit 1
+          fi
+          gh release download "$VERSION" --pattern SHA256SUMS --dir "$RUNNER_TEMP"
+          ./scripts/render-homebrew-formula.sh "$VERSION" "$RUNNER_TEMP/SHA256SUMS" > "$RUNNER_TEMP/taiga.rb"
+          cat "$RUNNER_TEMP/taiga.rb"
+      - name: Push the formula to the tap
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          test -n "$TAP_TOKEN" || (echo "::error::HOMEBREW_TAP_TOKEN is required to update the tap" >&2; exit 1)
+          tap="$RUNNER_TEMP/homebrew-tap"
+          git clone --depth 1 "https://x-access-token:$TAP_TOKEN@github.com/KoukeNeko/homebrew-tap.git" "$tap" 2>/dev/null
+          mkdir -p "$tap/Formula"
+          cp "$RUNNER_TEMP/taiga.rb" "$tap/Formula/taiga.rb"
+          cd "$tap"
+          git add Formula/taiga.rb
+          if git diff --cached --quiet; then
+            echo "The tap already carries this formula."
+            exit 0
+          fi
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -m "taiga $VERSION"
+          git push
+          echo "Updated koukeneko/tap to $VERSION."
+      - name: Remove the tap checkout
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/homebrew-tap"

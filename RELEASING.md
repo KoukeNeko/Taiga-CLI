@@ -53,6 +53,18 @@ Latest，也不會出現在 repository 首頁的 release 位置。缺少這個�
 
 Pre-release 的 asset、checksum、SBOM 與版本 metadata 驗證方式與正式版一致。
 
+## Homebrew tap
+
+正式版 tag 發布成功後，release workflow 會自動以 `scripts/render-homebrew-formula.sh` 產生 formula 並
+推送到 [`KoukeNeko/homebrew-tap`](https://github.com/KoukeNeko/homebrew-tap) 的 `Formula/taiga.rb`。
+
+- 這一步需要 repository secret `HOMEBREW_TAP_TOKEN`，其權限只需對 `homebrew-tap` 有 `contents: write`。
+- Pre-release **不會**更新 tap，因為 `brew install taiga` 不應解析到 release candidate。
+- Formula 內容與 release archive 的 SHA256SUMS 綁定，四個平台（darwin/linux × arm64/amd64）各自釘住
+  自己的 archive 與雜湊。
+- 需要在不發新版的情況下修正 formula，或替既有版本補上 formula 時，手動執行 `Update Homebrew tap`
+  workflow 並指定版本號。
+
 ## 發布後驗證
 
 ```sh

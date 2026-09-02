@@ -127,8 +127,34 @@ jobs:
             --generate-notes \
             --title "$GITHUB_REF_NAME" \
             $prerelease
+      - name: Update the Homebrew tap
+        # Only stable releases reach the tap: `brew install taiga` must never
+        # resolve to a release candidate.
+        if: ${{ !contains(github.ref_name, '-') }}
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          test -n "$TAP_TOKEN" || (echo "HOMEBREW_TAP_TOKEN is required to update the tap" >&2; exit 1)
+          formula="$RUNNER_TEMP/taiga.rb"
+          ./scripts/render-homebrew-formula.sh "$GITHUB_REF_NAME" "dist/$GITHUB_REF_NAME/SHA256SUMS" > "$formula"
+          tap="$RUNNER_TEMP/homebrew-tap"
+          git clone --depth 1 "https://x-access-token:$TAP_TOKEN@github.com/KoukeNeko/homebrew-tap.git" "$tap" 2>/dev/null
+          mkdir -p "$tap/Formula"
+          cp "$formula" "$tap/Formula/taiga.rb"
+          cd "$tap"
+          git add Formula/taiga.rb
+          if git diff --cached --quiet; then
+            echo "The tap already carries this formula."
+            exit 0
+          fi
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -m "taiga $GITHUB_REF_NAME"
+          git push
+          echo "Updated koukeneko/tap to $GITHUB_REF_NAME."
       - name: Remove signing material
         if: always()
         run: |
           rm -f "$RUNNER_TEMP/asc-key.p8" "$RUNNER_TEMP/certificate.p12"
+          rm -rf "$RUNNER_TEMP/homebrew-tap"
           security delete-keychain "$RUNNER_TEMP/signing.keychain-db" || true

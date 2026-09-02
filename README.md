@@ -137,7 +137,16 @@ The detailed matrix and known limits are in [COMPATIBILITY.md](COMPATIBILITY.md)
 
 ## Get the tool
 
-No release has been published yet. To install from source into `~/.local/bin`:
+On macOS and Linux, Homebrew is the easiest path once a stable release is out:
+
+```sh
+brew install koukeneko/tap/taiga
+```
+
+The tap tracks stable releases only. The newest published build today is the `v0.1.0-rc.1`
+pre-release, available from [Releases](https://github.com/KoukeNeko/Taiga-CLI/releases).
+
+To install from source into `~/.local/bin`:
 
 ```sh
 make install

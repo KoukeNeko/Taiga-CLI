@@ -127,7 +127,16 @@ taiga project use example-project --local
 
 ## 取得工具
 
-目前尚未發布正式版本。從原始碼安裝到 `~/.local/bin`：
+macOS 與 Linux 上最簡單的方式是 Homebrew（正式版釋出後可用）：
+
+```sh
+brew install koukeneko/tap/taiga
+```
+
+Tap 只追蹤正式版。目前最新的發布是 `v0.1.0-rc.1` pre-release，可從
+[Releases](https://github.com/KoukeNeko/Taiga-CLI/releases) 取得。
+
+從原始碼安裝到 `~/.local/bin`：
 
 ```sh
 make install

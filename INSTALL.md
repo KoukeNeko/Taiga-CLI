@@ -1,5 +1,22 @@
 # 安裝與升級
 
+## Homebrew（macOS 與 Linux）
+
+```sh
+brew install koukeneko/tap/taiga
+```
+
+升級：
+
+```sh
+brew upgrade taiga
+```
+
+Tap 只追蹤**正式版**，不會安裝 pre-release。Formula 安裝的是 release archive 中的 binary，因此 macOS
+使用者得到的就是已簽署並 notarize 的執行檔，同時會一併安裝 Bash、Zsh 與 Fish 的 completion。
+
+要試用 pre-release 請依下一節手動下載 archive。
+
 ## 官方 release archive
 
 從 GitHub Release 下載符合平台的 archive，以及同一版本的 `SHA256SUMS`：
