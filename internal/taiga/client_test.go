@@ -439,3 +439,29 @@ func TestDecodeAPIErrorPrefersTaigaOwnMessage(t *testing.T) {
 		t.Fatalf("message = %q", got)
 	}
 }
+
+// Taiga is Django REST Framework, whose usual validation shape is a field
+// mapped to a list of messages. Handling only a bare string would leave the
+// most common rejection reading "Bad Request".
+func TestDecodeAPIErrorRendersListValuedFields(t *testing.T) {
+	cases := map[string]string{
+		`{"subject":["This field is required."]}`:                      "subject: This field is required.",
+		`{"assigned_to":["Invalid pk"],"subject":["Required"]}`:        "assigned_to: Invalid pk; subject: Required",
+		`{"subject":["Too long.","Use fewer words."]}`:                 "subject: Too long. Use fewer words.",
+		`{"non_field_errors":["Invalid data"]}`:                        "Invalid data",
+		`{"version":"The version doesn't match with the current one"}`: "version: The version doesn't match with the current one",
+	}
+	for body, want := range cases {
+		if got := decodeAPIError("POST /issues", http.StatusBadRequest, []byte(body)).Message; got != want {
+			t.Errorf("body %s\n got %q\nwant %q", body, got, want)
+		}
+	}
+}
+
+func TestDecodeAPIErrorKeepsStatusTextWhenNothingIsExplained(t *testing.T) {
+	for _, body := range []string{`{}`, `{"detail":""}`, `not json`, `{"count":3}`} {
+		if got := decodeAPIError("GET /issues", http.StatusBadRequest, []byte(body)).Message; got != http.StatusText(http.StatusBadRequest) {
+			t.Errorf("body %s produced %q, want the status text", body, got)
+		}
+	}
+}

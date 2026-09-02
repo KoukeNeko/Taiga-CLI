@@ -340,24 +340,53 @@ func decodeAPIError(operation string, status int, data []byte) *Error {
 	return &Error{Kind: kind, Operation: operation, Message: message, Retryable: retryable, UpstreamStatus: status, Details: details}
 }
 
-// fieldExplanation renders a Taiga field-validation body as a sentence. Keys
-// are sorted so the same response always produces the same message.
+// fieldExplanation renders a Taiga field-validation body as a sentence. Taiga
+// is Django REST Framework, whose usual shape is a field mapped to a list of
+// messages, though it also sends a plain string for some errors, so both are
+// handled. Keys are sorted so the same response always produces the same
+// message.
 func fieldExplanation(details map[string]any) string {
 	fields := make([]string, 0, len(details))
 	for key := range details {
 		if strings.HasPrefix(key, "_") {
 			continue
 		}
-		if _, ok := details[key].(string); ok {
+		if messages := fieldMessages(details[key]); len(messages) > 0 {
 			fields = append(fields, key)
 		}
 	}
 	sort.Strings(fields)
 	parts := make([]string, 0, len(fields))
 	for _, key := range fields {
-		parts = append(parts, key+": "+details[key].(string))
+		joined := strings.Join(fieldMessages(details[key]), " ")
+		// non_field_errors is the framework's name for an error that belongs to
+		// no field, so naming it would only add noise.
+		if key == "non_field_errors" {
+			parts = append(parts, joined)
+			continue
+		}
+		parts = append(parts, key+": "+joined)
 	}
 	return strings.Join(parts, "; ")
+}
+
+func fieldMessages(value any) []string {
+	switch typed := value.(type) {
+	case string:
+		if strings.TrimSpace(typed) == "" {
+			return nil
+		}
+		return []string{typed}
+	case []any:
+		messages := make([]string, 0, len(typed))
+		for _, item := range typed {
+			if text, ok := item.(string); ok && strings.TrimSpace(text) != "" {
+				messages = append(messages, text)
+			}
+		}
+		return messages
+	}
+	return nil
 }
 
 func retryableStatus(status int) bool {
