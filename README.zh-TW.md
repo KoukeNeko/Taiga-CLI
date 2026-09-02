@@ -233,7 +233,9 @@ make release \
   SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)"
 ```
 
-相同的 source、Go toolchain、version、commit 與 epoch 會產生位元完全相同的 archive。
+相同的 source、Go toolchain、version、commit 與 epoch 會產生位元完全相同的 Linux 與 Windows archive。
+macOS 是例外：notarization 要求 Apple 簽發的安全時間戳，因此 Developer ID 簽章本質上無法重現；除簽章外
+其餘內容的建置方式完全相同。
 
 <p>
   <img alt="Cobra" src="https://img.shields.io/badge/COBRA-CLI-00ADD8?style=for-the-badge&logo=go&logoColor=white">

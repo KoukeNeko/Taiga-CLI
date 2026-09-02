@@ -34,6 +34,7 @@ type Config struct {
 	Commit   string
 	Epoch    int64
 	Targets  []Target
+	Signing  Signing
 }
 
 type Artifact struct {
@@ -114,6 +115,9 @@ func validateConfig(config *Config) error {
 	if config.Epoch <= 0 {
 		return errors.New("source date epoch must be positive")
 	}
+	if err := config.Signing.validate(); err != nil {
+		return err
+	}
 	root, err := filepath.Abs(config.RepoRoot)
 	if err != nil {
 		return err
@@ -150,6 +154,11 @@ func buildTarget(ctx context.Context, config Config, target Target, stamp time.T
 	}
 	binaryPath := filepath.Join(stage, binaryName)
 	if err := buildBinary(ctx, config, target, binaryPath); err != nil {
+		return Artifact{}, err
+	}
+	// Signing has to happen here: the archive, and therefore every checksum
+	// derived from it, must cover the signed binary.
+	if err := applySigning(ctx, config, target, binaryPath, temporary); err != nil {
 		return Artifact{}, err
 	}
 	for _, name := range []string{"README.md", "README.zh-TW.md", "INSTALL.md", "COMPATIBILITY.md"} {

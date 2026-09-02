@@ -23,6 +23,8 @@ Release packaging 產生以下純 Go（`CGO_ENABLED=0`）binary：
 
 CI 會在 Ubuntu、macOS、Windows 編譯，並在 Linux 驗證完整 release archive、checksum、SBOM、embedded version metadata 與 reproducibility。
 
+macOS binary 以 Developer ID 憑證簽署並經 Apple notarization（Team ID `33832Z66QU`）。因 notarization 要求安全時間戳，darwin archive 不具位元可重現性；Linux 與 Windows archive 則有。
+
 ## Authentication
 
 | 模式 | 狀態 |

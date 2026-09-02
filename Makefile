@@ -8,6 +8,11 @@ PREFIX ?= $(HOME)/.local
 BINDIR ?= $(PREFIX)/bin
 RELEASE_DIR ?= dist/$(VERSION)
 TARGETS ?=
+SIGN_IDENTITY ?=
+SIGN_KEYCHAIN ?=
+NOTARY_KEY ?=
+NOTARY_KEY_ID ?=
+NOTARY_ISSUER ?=
 LDFLAGS := -s -w \
 	-X github.com/KoukeNeko/taiga-cli/internal/version.Version=$(VERSION) \
 	-X github.com/KoukeNeko/taiga-cli/internal/version.Commit=$(COMMIT) \
@@ -43,6 +48,11 @@ release:
 		--commit "$(COMMIT)" \
 		--source-date-epoch "$(SOURCE_DATE_EPOCH)" \
 		--output "$(RELEASE_DIR)" \
-		--targets "$(TARGETS)"
+		--targets "$(TARGETS)" \
+		--sign-identity "$(SIGN_IDENTITY)" \
+		--sign-keychain "$(SIGN_KEYCHAIN)" \
+		--notary-key "$(NOTARY_KEY)" \
+		--notary-key-id "$(NOTARY_KEY_ID)" \
+		--notary-issuer "$(NOTARY_ISSUER)"
 
 verify: test test-race lint build

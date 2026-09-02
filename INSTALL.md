@@ -29,22 +29,25 @@ Windows PowerShell 可用 `Get-FileHash -Algorithm SHA256 <archive>`，並與 `S
 
 ## macOS Gatekeeper
 
-Release binary 目前**未經 Apple 簽署與 notarization**。以瀏覽器下載 archive 時，macOS 會加上
-`com.apple.quarantine` 屬性，解壓後執行會被 Gatekeeper 擋下並顯示無法驗證開發者。
+Release 的 macOS binary 已用 Developer ID 憑證簽署並通過 Apple notarization，正常情況下直接執行即可，
+不需要任何額外步驟。可自行確認：
 
-移除隔離屬性後即可執行：
+```sh
+codesign --verify --strict --verbose=2 ./taiga
+spctl -a -vvv -t install ./taiga
+```
+
+`spctl` 顯示 `accepted` 且 `source=Notarized Developer ID` 即為正常。
+
+Notarization ticket 無法 staple 到裸執行檔（`stapler` 只支援 `.app`、`.dmg`、`.pkg`），因此 Gatekeeper 會
+**線上**查驗。若首次執行時完全沒有網路，仍可能被擋；連上網路後再執行一次即可，或移除隔離屬性：
 
 ```sh
 xattr -d com.apple.quarantine ./taiga
 ```
 
-以 `curl` 或 `wget` 下載則不會被加上隔離屬性，不需要這個步驟：
-
-```sh
-curl -fLO https://github.com/KoukeNeko/Taiga-CLI/releases/download/<version>/taiga_<version>_darwin_arm64.tar.gz
-```
-
-無論哪種方式，都應先用 `SHA256SUMS` 驗證檔案完整性再執行。
+以 `curl` 或 `wget` 下載的檔案不會被加上隔離屬性，本來就不會遇到這個情況。無論哪種方式，都應先用
+`SHA256SUMS` 驗證檔案完整性再執行。
 
 ## Shell completion
 

@@ -16,12 +16,30 @@ func main() {
 	epoch := flag.Int64("source-date-epoch", 0, "reproducible build timestamp")
 	output := flag.String("output", "", "release output directory")
 	targets := flag.String("targets", "", "comma-separated GOOS/GOARCH targets")
+	signIdentity := flag.String("sign-identity", "", "macOS Developer ID Application identity; empty disables signing")
+	signKeychain := flag.String("sign-keychain", "", "keychain searched for the signing identity")
+	notaryKey := flag.String("notary-key", "", "App Store Connect API key file used for notarization")
+	notaryKeyID := flag.String("notary-key-id", "", "App Store Connect API key ID")
+	notaryIssuer := flag.String("notary-issuer", "", "App Store Connect API issuer ID")
 	flag.Parse()
 	cwd, err := os.Getwd()
 	if err != nil {
 		fatal(err)
 	}
-	config := releasepack.Config{RepoRoot: cwd, Output: *output, Version: *version, Commit: *commit, Epoch: *epoch}
+	config := releasepack.Config{
+		RepoRoot: cwd,
+		Output:   *output,
+		Version:  *version,
+		Commit:   *commit,
+		Epoch:    *epoch,
+		Signing: releasepack.Signing{
+			Identity:     *signIdentity,
+			Keychain:     *signKeychain,
+			NotaryKey:    *notaryKey,
+			NotaryKeyID:  *notaryKeyID,
+			NotaryIssuer: *notaryIssuer,
+		},
+	}
 	if *targets != "" {
 		for _, raw := range strings.Split(*targets, ",") {
 			parts := strings.Split(strings.TrimSpace(raw), "/")

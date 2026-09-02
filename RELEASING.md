@@ -19,6 +19,10 @@ make release VERSION="$version" COMMIT="$commit" SOURCE_DATE_EPOCH="$epoch"
 
 輸出位於 `dist/<version>/`：六個平台 archive、SPDX 2.3 SBOM 與 `SHA256SUMS`。Release build 固定使用 `CGO_ENABLED=0`、`-trimpath`、`-buildvcs=false`、空 Go build ID、排序後的 archive entry，以及 commit timestamp。相同 source、Go toolchain、version、commit 與 epoch 應產生相同 bytes。
 
+macOS archive 是唯一例外：release 會以 Developer ID 憑證簽署並送交 notarization，而 notarization 要求
+安全時間戳，因此 darwin archive 每次建置的 bytes 都不同。Linux 與 Windows archive 不受影響，CI 仍逐位元
+驗證 Linux archive。未提供簽署設定時（例如本機重建）darwin archive 同樣是可重現的。
+
 Packager 只接受不存在或空的 output directory，避免先前版本或失敗建置的 stale asset 被上傳。若要重建同一版本，先將舊目錄移到備份位置，再重新執行。
 
 ## 建立 signed tag

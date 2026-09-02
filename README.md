@@ -247,7 +247,9 @@ make release \
   SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)"
 ```
 
-The same source, Go toolchain, version, commit, and epoch produce byte-identical archives.
+The same source, Go toolchain, version, commit, and epoch produce byte-identical Linux and Windows
+archives. macOS archives are the exception: notarization requires a secure timestamp from Apple, so a
+Developer ID signature can never reproduce. Their contents are otherwise built identically.
 
 <p>
   <img alt="Cobra" src="https://img.shields.io/badge/COBRA-CLI-00ADD8?style=for-the-badge&logo=go&logoColor=white">
