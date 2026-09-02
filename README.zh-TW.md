@@ -258,6 +258,12 @@ macOS 是例外：notarization 要求 Apple 簽發的安全時間戳，因此 De
   <img alt="SPDX 2.3 SBOM" src="https://img.shields.io/badge/SBOM-SPDX_2.3-2196F3?style=for-the-badge">
 </p>
 
+## Support
+
+如果 Aihki 對你有幫助，可以考慮支持開發者:
+
+<a href="https://buymeacoffee.com/doershing"><img alt="Buy Me a Coffee" src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-doershing-FFDD00?style=for-the-badge&logo=buymeacoffee&logoColor=black"></a>
+
 ## 商標
 
 Taiga 為其各自權利人之商標。本專案是獨立的客戶端，與 Taiga 專案及其維護者並無隸屬關係，未經其背書或
