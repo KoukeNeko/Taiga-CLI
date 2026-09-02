@@ -132,6 +132,33 @@ aihki completion powershell
 
 降級時同樣只需換回已驗證的舊 binary。若 Release Notes 標示設定 migration，應先備份作業系統使用者設定目錄中的 Aihki 設定檔。
 
+## 解除安裝
+
+Homebrew：
+
+```sh
+brew uninstall aihki
+```
+
+其他方式：
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/KoukeNeko/aihki/main/scripts/uninstall.sh | sh
+```
+
+```powershell
+irm https://raw.githubusercontent.com/KoukeNeko/aihki/main/scripts/uninstall.ps1 | iex
+```
+
+預設只移除執行檔，**設定與 OS keyring 中的憑證會保留** —— 因為解除安裝常常只是升級的其中一步。加上
+`--purge`（Windows 為 `-Purge`）才會一併移除，含改名前舊名稱留下的資料。`--dry-run` 只列出將移除的項目，
+不做任何變更。
+
+POSIX 腳本會偵測 Homebrew 安裝並引導你改用 `brew uninstall`，而不是直接刪掉 Homebrew 管理的檔案。
+
+以 `aihki project use --local` 綁定的 repository，設定存在該 repo 自己的 `.git/config` 裡，任何解除安裝
+程式都找不到。請在該 repo 執行 `git config --local --remove-section aihki` 清除。
+
 ## 從原始碼安裝
 
 需要 Go 1.25 或更新版本：

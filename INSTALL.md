@@ -144,6 +144,35 @@ Downgrading is the same in reverse: put back a verified older binary. If the rel
 configuration migration, back up the Aihki config file in your operating system's user config
 directory first.
 
+## Uninstalling
+
+Homebrew:
+
+```sh
+brew uninstall aihki
+```
+
+Everything else:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/KoukeNeko/aihki/main/scripts/uninstall.sh | sh
+```
+
+```powershell
+irm https://raw.githubusercontent.com/KoukeNeko/aihki/main/scripts/uninstall.ps1 | iex
+```
+
+By default only the binary is removed. Configuration and the credential in your OS keyring are kept,
+because uninstalling is often one step of an upgrade. Add `--purge` (`-Purge` on Windows) to remove
+those as well, including anything left under the pre-rename name. `--dry-run` reports what would go
+without changing anything.
+
+The POSIX script detects a Homebrew installation and hands you back to `brew uninstall` rather than
+deleting files Homebrew tracks.
+
+A repository pinned with `aihki project use --local` keeps that setting in its own `.git/config`,
+which no uninstaller can find. Clear it there with `git config --local --remove-section aihki`.
+
 ## Installing from source
 
 Requires Go 1.25 or newer:
