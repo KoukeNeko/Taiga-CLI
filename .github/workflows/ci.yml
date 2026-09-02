@@ -57,6 +57,33 @@ jobs:
           cache: true
       - run: go build ./cmd/taiga
 
+  install-scripts:
+    # The installers are the path most people take, so they are exercised on
+    # every supported operating system against the real published release
+    # rather than only reviewed.
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Lint the POSIX installer
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update && sudo apt-get install -y shellcheck
+          shellcheck -s sh scripts/install.sh scripts/render-homebrew-formula.sh scripts/extract-changelog.sh scripts/render-release-notes.sh
+      - name: Install with the POSIX script
+        if: runner.os != 'Windows'
+        run: |
+          TAIGA_INSTALL_DIR="$RUNNER_TEMP/bin" sh scripts/install.sh
+          "$RUNNER_TEMP/bin/taiga" version --json | grep '"version"'
+      - name: Install with the PowerShell script
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ./scripts/install.ps1 -InstallDir "$env:RUNNER_TEMP\bin"
+          & "$env:RUNNER_TEMP\bin\taiga.exe" version --json
+
   release-package:
     runs-on: ubuntu-latest
     steps:

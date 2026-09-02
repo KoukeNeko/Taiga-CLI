@@ -1,0 +1,114 @@
+#!/usr/bin/env sh
+# Install the Taiga CLI on macOS or Linux.
+#
+# The archive is never trusted on its own: this script downloads the release
+# SHA256SUMS alongside it and refuses to install anything whose digest does not
+# match, so an interrupted or tampered download fails loudly instead of leaving
+# a broken binary on PATH.
+#
+#   curl -fsSL https://raw.githubusercontent.com/KoukeNeko/Taiga-CLI/main/scripts/install.sh | sh
+#
+# Environment:
+#   TAIGA_VERSION      release tag to install, for example v0.1.0 (default: latest)
+#   TAIGA_INSTALL_DIR  directory to install into (default: $HOME/.local/bin)
+set -eu
+
+REPOSITORY="KoukeNeko/Taiga-CLI"
+RELEASE_API="https://api.github.com/repos/$REPOSITORY/releases/latest"
+DOWNLOAD_BASE="https://github.com/$REPOSITORY/releases/download"
+
+version=${TAIGA_VERSION:-}
+install_dir=${TAIGA_INSTALL_DIR:-$HOME/.local/bin}
+
+log() { printf '%s\n' "$*"; }
+fail() {
+    printf 'install: %s\n' "$*" >&2
+    exit 1
+}
+
+require() {
+    command -v "$1" >/dev/null 2>&1 || fail "$1 is required but was not found"
+}
+
+detect_platform() {
+    kernel=$(uname -s)
+    case "$kernel" in
+        Darwin) os=darwin ;;
+        Linux) os=linux ;;
+        *) fail "unsupported operating system $kernel; Windows users should run scripts/install.ps1" ;;
+    esac
+    machine=$(uname -m)
+    case "$machine" in
+        x86_64 | amd64) arch=amd64 ;;
+        arm64 | aarch64) arch=arm64 ;;
+        *) fail "unsupported architecture $machine" ;;
+    esac
+}
+
+resolve_version() {
+    [ -n "$version" ] && return 0
+    # The API returns the latest stable release, which never includes a
+    # pre-release, so an rc is only ever installed when asked for by name.
+    version=$(curl -fsSL "$RELEASE_API" | sed -n 's/.*"tag_name" *: *"\([^"]*\)".*/\1/p' | head -1)
+    [ -n "$version" ] || fail "could not determine the latest release; set TAIGA_VERSION"
+}
+
+verify_checksum() {
+    archive=$1
+    sums=$2
+    expected=$(awk -v name="$archive" '$2 == name { print $1 }' "$sums")
+    [ -n "$expected" ] || fail "$archive is not listed in SHA256SUMS"
+    if command -v sha256sum >/dev/null 2>&1; then
+        actual=$(sha256sum "$archive" | awk '{print $1}')
+    else
+        actual=$(shasum -a 256 "$archive" | awk '{print $1}')
+    fi
+    [ "$expected" = "$actual" ] || fail "checksum mismatch for $archive: expected $expected, got $actual"
+    log "Verified SHA-256 of $archive"
+}
+
+main() {
+    require curl
+    require tar
+    require awk
+    command -v sha256sum >/dev/null 2>&1 || require shasum
+
+    detect_platform
+    resolve_version
+    numeric_version=${version#v}
+    archive="taiga_${numeric_version}_${os}_${arch}.tar.gz"
+
+    work_dir=$(mktemp -d)
+    trap 'rm -rf "$work_dir"' EXIT INT TERM
+
+    log "Downloading $archive ($version)"
+    curl -fsSL -o "$work_dir/$archive" "$DOWNLOAD_BASE/$version/$archive" ||
+        fail "could not download $archive; check that $version exists for $os/$arch"
+    curl -fsSL -o "$work_dir/SHA256SUMS" "$DOWNLOAD_BASE/$version/SHA256SUMS" ||
+        fail "could not download SHA256SUMS for $version"
+
+    (cd "$work_dir" && verify_checksum "$archive" SHA256SUMS)
+    tar -xzf "$work_dir/$archive" -C "$work_dir"
+
+    extracted="$work_dir/taiga_${numeric_version}_${os}_${arch}/taiga"
+    [ -f "$extracted" ] || fail "the archive did not contain a taiga binary"
+
+    mkdir -p "$install_dir"
+    # Install to a temporary name first so a running taiga is never replaced
+    # halfway through.
+    cp "$extracted" "$install_dir/.taiga.new"
+    chmod 0755 "$install_dir/.taiga.new"
+    mv "$install_dir/.taiga.new" "$install_dir/taiga"
+
+    log "Installed $("$install_dir/taiga" version | head -1) to $install_dir/taiga"
+
+    case ":$PATH:" in
+        *":$install_dir:"*) ;;
+        *) log "Add $install_dir to PATH to run taiga from anywhere." ;;
+    esac
+    log "Shell completion: taiga completion bash|zsh|fish|powershell"
+}
+
+# Sourcing with TAIGA_INSTALL_LIB=1 exposes the functions without installing
+# anything, so the checksum guard can be tested directly rather than trusted.
+[ "${TAIGA_INSTALL_LIB:-}" = "1" ] || main "$@"

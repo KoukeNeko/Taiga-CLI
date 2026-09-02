@@ -134,6 +134,18 @@ macOS 與 Linux 上最簡單的方式是 Homebrew（正式版釋出後可用）�
 brew install koukeneko/tap/taiga
 ```
 
+或使用安裝腳本，它會先核對 release checksum 再安裝：
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/KoukeNeko/Taiga-CLI/main/scripts/install.sh | sh
+```
+
+Windows：
+
+```powershell
+irm https://raw.githubusercontent.com/KoukeNeko/Taiga-CLI/main/scripts/install.ps1 | iex
+```
+
 Tap 只追蹤正式版。各平台的 archive、checksum 與 SBOM 都在
 [Releases 頁面](https://github.com/KoukeNeko/Taiga-CLI/releases)。
 

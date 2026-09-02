@@ -1,5 +1,33 @@
 # 安裝與升級
 
+## 安裝腳本
+
+macOS 與 Linux：
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/KoukeNeko/Taiga-CLI/main/scripts/install.sh | sh
+```
+
+Windows PowerShell：
+
+```powershell
+irm https://raw.githubusercontent.com/KoukeNeko/Taiga-CLI/main/scripts/install.ps1 | iex
+```
+
+腳本會偵測平台、抓取最新**正式版**、下載 `SHA256SUMS` 並**核對雜湊後才安裝** —— 雜湊不符或檔案未列於
+`SHA256SUMS` 都會中止並保留原有安裝。預設安裝位置為 `~/.local/bin`（Windows 為
+`%LOCALAPPDATA%\Programs\taiga`，並自動加入使用者 PATH）。
+
+指定版本或安裝位置：
+
+```sh
+TAIGA_VERSION=v0.1.0 TAIGA_INSTALL_DIR=/usr/local/bin sh install.sh
+```
+
+```powershell
+.\install.ps1 -Version v0.1.0 -InstallDir C:\Tools\taiga
+```
+
 ## Homebrew（macOS 與 Linux）
 
 ```sh

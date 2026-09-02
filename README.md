@@ -144,6 +144,18 @@ On macOS and Linux, Homebrew is the easiest path once a stable release is out:
 brew install koukeneko/tap/taiga
 ```
 
+Or use the install script, which verifies the archive against the release checksums before installing:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/KoukeNeko/Taiga-CLI/main/scripts/install.sh | sh
+```
+
+On Windows:
+
+```powershell
+irm https://raw.githubusercontent.com/KoukeNeko/Taiga-CLI/main/scripts/install.ps1 | iex
+```
+
 The tap tracks stable releases only. Archives for every platform, with checksums and an SBOM, are on
 the [Releases page](https://github.com/KoukeNeko/Taiga-CLI/releases).
 
