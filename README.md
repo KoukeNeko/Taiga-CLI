@@ -91,6 +91,24 @@ existing file. Destructive actions require an explicit `--yes` when there is no 
 secrets, application-token auth codes, and ownership-transfer tokens never appear in any output,
 including dry runs.
 
+### Safe to automate
+
+A wrapper that misreports what happened to your data is worse than no wrapper, because a script acts
+on the answer. Three things follow from that:
+
+- **A refused write is told apart from a bad one by structure, not wording.** Taiga answers both with
+  HTTP 400 under the same key and separates them only by the shape of the value, and it translates
+  the sentence, so matching on the words would misfire and would fail outright on a server running in
+  another language.
+- **A write whose outcome is unknown says so.** Interrupting a request already in flight does not
+  un-send it, so the CLI reports `ambiguous_commit` and asks you to check rather than claiming a
+  failure it cannot prove.
+- **Concurrent writes are exercised, not assumed.** An end-to-end test drives one project from twelve
+  accounts at once and checks that no two accepted writes ever saw the same resulting version.
+
+[Concurrency and conflicts](https://github.com/KoukeNeko/aihki/wiki/Work-Items) covers what Taiga
+refuses and what it merges.
+
 ### Many sites, many projects
 
 Profiles switch between Taiga sites, each remembering its own API URL and default project. You can
@@ -216,6 +234,7 @@ changing the type of an existing one requires a version bump and migration notes
 | Exit code | Meaning |
 | ---: | --- |
 | 0 | success |
+| 1 | unexpected internal failure |
 | 2 | usage / schema |
 | 3 | authentication |
 | 4 | forbidden |
@@ -226,6 +245,12 @@ changing the type of an existing one requires a version bump and migration notes
 | 9 | transport / upstream |
 | 10 | confirmation required |
 | 11 | ambiguous commit |
+| 130 | interrupted before finishing |
+
+`1` means the CLI hit something it has no classification for, and is worth reporting as a bug. `130`
+follows the shell convention of 128 plus the signal number rather than taking a place in the table
+above, because stopping a command is a decision rather than a way it failed; an interrupt that
+stopped a write in flight reports `11` instead.
 
 ### Security principles
 
