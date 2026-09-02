@@ -8,6 +8,20 @@ The release workflow publishes the section matching the tag as the GitHub Releas
 
 ## [Unreleased]
 
+### Fixed
+
+- Interrupting `role delete`, `swimlane delete`, `due-date delete` or a workflow
+  status delete no longer reports that nothing happened. Those four do not go
+  through the shared `Delete` wrapper — they carry a `moveTo` query or reuse the
+  delete-then-verify helper — so they call the request layer directly. When 0.3.0
+  replaced the "is this a GET" flag with a per-call statement of what a request
+  can commit, those three call sites kept passing `false`, which used to mean "an
+  ordinary GET" and now meant "this commits nothing". Ctrl-C mid-delete therefore
+  exited 130 saying the command was interrupted, and a connection lost mid-delete
+  exited 9 marked retryable, for a deletion Taiga may well have carried out. All
+  four now report `ambiguous_commit` and exit 11 like every other write, and the
+  flag is no longer a bool, so making the same mistake again fails to compile.
+
 ## [0.3.1] - 2026-09-03
 
 Tooling and documentation. The `aihki` binary behaves as it did in 0.3.0: the
