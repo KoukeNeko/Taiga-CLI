@@ -13,7 +13,6 @@
   <a href="https://github.com/KoukeNeko/aihki/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/KoukeNeko/aihki?style=for-the-badge&logo=github&label=RELEASE&color=2196F3"></a>
   <a href="https://github.com/KoukeNeko/aihki/releases"><img alt="Release downloads" src="https://img.shields.io/github/downloads/KoukeNeko/aihki/total?style=for-the-badge&logo=github&label=DOWNLOADS&color=4CAF50"></a>
   <a href="https://github.com/KoukeNeko/aihki/actions/workflows/ci.yml"><img alt="CI status" src="https://img.shields.io/github/actions/workflow/status/KoukeNeko/aihki/ci.yml?branch=main&style=for-the-badge&logo=githubactions&logoColor=white&label=CI"></a>
-  <a href="https://app.codacy.com/gh/KoukeNeko/aihki/dashboard"><img alt="Codacy code quality" src="https://img.shields.io/codacy/grade/b8f361063a874af3be58396ac7c7ad27?branch=main&style=for-the-badge&logo=codacy&label=CODE%20QUALITY"></a>
   <a href="COMPATIBILITY.zh-TW.md"><img alt="Verified against Taiga 6.10.2" src="https://img.shields.io/badge/TAIGA-6.10.2_VERIFIED-00A5A5?style=for-the-badge"></a>
   <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/LICENSE-MIT-4CAF50?style=for-the-badge&logo=github"></a>
 </p>
@@ -279,6 +278,7 @@ macOS 是例外：notarization 要求 Apple 簽發的安全時間戳，因此 De
   <img alt="Cobra" src="https://img.shields.io/badge/COBRA-CLI-00ADD8?style=for-the-badge&logo=go&logoColor=white">
   <img alt="Reproducible builds" src="https://img.shields.io/badge/BUILDS-REPRODUCIBLE-4CAF50?style=for-the-badge">
   <img alt="SPDX 2.3 SBOM" src="https://img.shields.io/badge/SBOM-SPDX_2.3-2196F3?style=for-the-badge">
+  <img alt="Codacy code quality" src="https://img.shields.io/codacy/grade/b8f361063a874af3be58396ac7c7ad27?branch=main&style=for-the-badge&logo=codacy&label=CODE%20QUALITY">
 </p>
 
 ## 贊助
