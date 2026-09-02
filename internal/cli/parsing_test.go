@@ -234,7 +234,7 @@ func TestReadBodyKeepsEachCommandsWording(t *testing.T) {
 		{"issue comment", commentBody, "empty_comment", "comment body cannot be empty", "read comment body"},
 	} {
 		for _, empty := range []struct{ body, file string }{{"", ""}, {"   ", ""}} {
-			_, err := readBodyAs(strings.NewReader(""), empty.body, empty.file, testCase.wording)
+			_, err := readBody(strings.NewReader(""), empty.body, empty.file, testCase.wording)
 			var known *contractError
 			if !errors.As(err, &known) {
 				t.Fatalf("%s: got %v, want a contract error", testCase.name, err)
@@ -245,15 +245,15 @@ func TestReadBodyKeepsEachCommandsWording(t *testing.T) {
 		}
 		// A file holding only whitespace is empty too, which is only knowable
 		// after reading it.
-		if _, err := readBodyAs(strings.NewReader("  \n "), "", "-", testCase.wording); err == nil {
+		if _, err := readBody(strings.NewReader("  \n "), "", "-", testCase.wording); err == nil {
 			t.Errorf("%s: a whitespace-only body was accepted", testCase.name)
 		}
-		_, err := readBodyAs(strings.NewReader(""), "", "/nonexistent-body-file", testCase.wording)
+		_, err := readBody(strings.NewReader(""), "", "/nonexistent-body-file", testCase.wording)
 		if err == nil || !strings.HasPrefix(err.Error(), testCase.context+":") {
 			t.Errorf("%s: read error = %v, want it prefixed %q", testCase.name, err, testCase.context)
 		}
 	}
-	if got, err := readBody(strings.NewReader("from stdin"), "", "-"); err != nil || got != "from stdin" {
+	if got, err := readBody(strings.NewReader("from stdin"), "", "-", genericBody); err != nil || got != "from stdin" {
 		t.Errorf("stdin body = %q, %v", got, err)
 	}
 }

@@ -164,7 +164,7 @@ func (a *App) commentEditCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			comment, err := readBody(a.In, body, bodyFile)
+			comment, err := readBody(a.In, body, bodyFile, genericBody)
 			if err != nil {
 				return err
 			}

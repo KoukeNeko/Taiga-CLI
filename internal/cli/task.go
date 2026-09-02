@@ -496,6 +496,7 @@ func (a *App) taskCommentCommand() *cobra.Command {
 		use:           "comment <ref|project#ref|url>",
 		short:         "Comment on a task",
 		dryRunAction:  "comment on task",
+		body:          genericBody,
 		completeItems: a.completeTasks,
 		load: func(ctx context.Context, argument string) (commentPlan, error) {
 			target, err := a.loadTaskTarget(ctx, argument)
