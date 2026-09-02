@@ -10,102 +10,41 @@ The release workflow publishes the section matching the tag as the GitHub Releas
 
 ## [0.3.2] - 2026-09-03
 
-Fixes to the request layer, found by reviewing it against a real Taiga. The
-`aihki` binary changes in what it reports, not in what it sends: a transfer is
-no longer cut off at thirty seconds, a refresh that failed for any reason other
-than Taiga refusing it says so, every deletion that reads the record back runs
-through one implementation, and a `--host` that is not a Taiga web app is named
-as such.
+Fixes to the request layer, found by reviewing it against a real Taiga. The `aihki` binary changes in what it reports, not in what it sends: a transfer is no longer cut off at thirty seconds, a refresh that failed for any reason other than Taiga refusing it says so, every deletion that reads the record back runs through one implementation, and a `--host` that is not a Taiga web app is named as such.
 
 ### Fixed
 
-- Interrupting `role delete`, `swimlane delete`, `due-date delete` or a workflow
-  status delete no longer reports that nothing happened. Those four do not go
-  through the shared `Delete` wrapper — they carry a `moveTo` query or reuse the
-  delete-then-verify helper — so they call the request layer directly. When 0.3.0
-  replaced the "is this a GET" flag with a per-call statement of what a request
-  can commit, those three call sites kept passing `false`, which used to mean "an
-  ordinary GET" and now meant "this commits nothing". Ctrl-C mid-delete therefore
-  exited 130 saying the command was interrupted, and a connection lost mid-delete
-  exited 9 marked retryable, for a deletion Taiga may well have carried out. All
-  four now report `ambiguous_commit` and exit 11 like every other write, and the
-  flag is no longer a bool, so making the same mistake again fails to compile.
-- When Taiga rotates the token and the new one cannot be written to the OS
-  keyring, the command now says that the saved credential is stale and asks
-  for `aihki auth login`, rather than repeating the `401` that started the
-  refresh. Taiga retires the old refresh token as it issues the new one, so the
-  login on disk is dead from that moment; the message saying so has existed
-  since 0.3.0, but the request layer discarded it in favour of the rejection,
-  which said "expired" and left no way to tell why the next attempt failed too.
-- A malformed config left at the pre-rename location is reported under its own
-  path. The parse error named the current location, which does not exist until
-  the next save.
-- Attachment uploads and downloads, CSV exports and project dumps are no longer
-  cut off after thirty seconds. The HTTP client carried an overall deadline that
-  covered the whole transfer, so a file larger than the link could move in that
-  time failed every time: downloads as a retryable transport error, uploads as
-  `ambiguous_commit` for a file Taiga had not received. Each JSON request still
-  has thirty seconds per attempt. A transfer is instead abandoned when no data
-  has moved in either direction for sixty seconds, and the error says so, so a
-  dead peer still ends the command and a large file is as long as it is.
-- A refresh that never reaches Taiga, comes back unreadable or is throttled is
-  reported as what it was, rather than as the `401` that triggered it. That
-  rejection sent people to log in again over a dropped connection, when the
-  refresh token on disk was still good; only Taiga refusing the refresh keeps
-  the original rejection.
-- `project import` exercises the credential before streaming the dump. Every
-  other command reaches Taiga with a JSON lookup first, which is where an
-  expired token gets refreshed; import had no lookup of its own, so the first
-  command after a day away failed with `auth` if it was an import.
-- Interrupting an attachment or CSV download mid-stream exits `130` like an
-  interrupt before the first byte, rather than `9` marked retryable.
-- `auth login --host` and `doctor --host` pointed at something that is not a
-  Taiga web app, such as the community forum, said only "Not Found". The error
-  now names the `conf.json` URL that was tried, what came back, and what
-  `--host` should be. A host that answers with a page instead of JSON reports
-  `validation` rather than an internal failure.
+- Interrupting `role delete`, `swimlane delete`, `due-date delete` or a workflow status delete no longer reports that nothing happened. Those four do not go through the shared `Delete` wrapper — they carry a `moveTo` query or reuse the delete-then-verify helper — so they call the request layer directly. When 0.3.0 replaced the "is this a GET" flag with a per-call statement of what a request can commit, those three call sites kept passing `false`, which used to mean "an ordinary GET" and now meant "this commits nothing". Ctrl-C mid-delete therefore exited 130 saying the command was interrupted, and a connection lost mid-delete exited 9 marked retryable, for a deletion Taiga may well have carried out. All four now report `ambiguous_commit` and exit 11 like every other write, and the flag is no longer a bool, so making the same mistake again fails to compile.
+- When Taiga rotates the token and the new one cannot be written to the OS keyring, the command now says that the saved credential is stale and asks for `aihki auth login`, rather than repeating the `401` that started the refresh. Taiga retires the old refresh token as it issues the new one, so the login on disk is dead from that moment; the message saying so has existed since 0.3.0, but the request layer discarded it in favour of the rejection, which said "expired" and left no way to tell why the next attempt failed too.
+- A malformed config left at the pre-rename location is reported under its own path. The parse error named the current location, which does not exist until the next save.
+- Attachment uploads and downloads, CSV exports and project dumps are no longer cut off after thirty seconds. The HTTP client carried an overall deadline that covered the whole transfer, so a file larger than the link could move in that time failed every time: downloads as a retryable transport error, uploads as `ambiguous_commit` for a file Taiga had not received. Each JSON request still has thirty seconds per attempt. A transfer is instead abandoned when no data has moved in either direction for sixty seconds, and the error says so, so a dead peer still ends the command and a large file is as long as it is.
+- A refresh that never reaches Taiga, comes back unreadable or is throttled is reported as what it was, rather than as the `401` that triggered it. That rejection sent people to log in again over a dropped connection, when the refresh token on disk was still good; only Taiga refusing the refresh keeps the original rejection.
+- `project import` exercises the credential before streaming the dump. Every other command reaches Taiga with a JSON lookup first, which is where an expired token gets refreshed; import had no lookup of its own, so the first command after a day away failed with `auth` if it was an import.
+- Interrupting an attachment or CSV download mid-stream exits `130` like an interrupt before the first byte, rather than `9` marked retryable.
+- `auth login --host` and `doctor --host` pointed at something that is not a Taiga web app, such as the community forum, said only "Not Found". The error now names the `conf.json` URL that was tried, what came back, and what `--host` should be. A host that answers with a page instead of JSON reports `validation` rather than an internal failure.
 
 ### Changed
 
-- Every deletion that reads the record back before reporting success -- work
-  items, sprints, wiki links, workflow metadata, due dates and swimlanes -- runs
-  through one implementation instead of five copies of the same exchange. The
-  one wording that moved: the sprint read-back now says "sprint" in lowercase,
-  as its sibling message already did.
+- Every deletion that reads the record back before reporting success -- work items, sprints, wiki links, workflow metadata, due dates and swimlanes -- runs through one implementation instead of five copies of the same exchange. The one wording that moved: the sprint read-back now says "sprint" in lowercase, as its sibling message already did.
 
 ## [0.3.1] - 2026-09-03
 
-Tooling and documentation. The `aihki` binary behaves as it did in 0.3.0: the
-close and comment commands were rewritten to share one implementation, and the
-help text of all 38 commands, every dry-run label and every error code were
-compared against 0.3.0 to confirm nothing a caller sees moved.
+Tooling and documentation. The `aihki` binary behaves as it did in 0.3.0: the close and comment commands were rewritten to share one implementation, and the help text of all 38 commands, every dry-run label and every error code were compared against 0.3.0 to confirm nothing a caller sees moved.
 
 ### Added
 
-- The exit table now lists `1`, which is what the CLI returns when it meets
-  something it has no classification for and is worth reporting as a bug, and
-  `130`, added in 0.3.0 but never documented. The Chinese table gained a
-  translation column, since half its rows named the English term and half a
-  Chinese one.
-- A short section on what makes the writes safe to automate, linking to the page
-  covering what Taiga refuses and what it merges.
-- gosec runs as part of the local lint, so a new weak hash, hardcoded credential
-  or subprocess built from user input is refused before a push rather than after
-  one. Every rule turned off is turned off for a stated reason.
+- The exit table now lists `1`, which is what the CLI returns when it meets something it has no classification for and is worth reporting as a bug, and `130`, added in 0.3.0 but never documented. The Chinese table gained a translation column, since half its rows named the English term and half a Chinese one.
+- A short section on what makes the writes safe to automate, linking to the page covering what Taiga refuses and what it merges.
+- gosec runs as part of the local lint, so a new weak hash, hardcoded credential or subprocess built from user input is refused before a push rather than after one. Every rule turned off is turned off for a stated reason.
 - CI reports test coverage.
 
 ### Changed
 
-- Building from source needs Go 1.25.13 or newer, the first 1.25 with no
-  outstanding standard library advisories. Released binaries were already built
-  with 1.26.
+- Building from source needs Go 1.25.13 or newer, the first 1.25 with no outstanding standard library advisories. Released binaries were already built with 1.26.
 
 ### Fixed
 
-- README claimed every mutation carries a version. Memberships, webhooks and
-  attachment metadata carry none, so that claim is now scoped to work items, and
-  the per-field behaviour it describes is exercised by the concurrency test
-  rather than only asserted in prose.
+- README claimed every mutation carries a version. Memberships, webhooks and attachment metadata carry none, so that claim is now scoped to work items, and the per-field behaviour it describes is exercised by the concurrency test rather than only asserted in prose.
 
 ## [0.3.0] - 2026-09-02
 
