@@ -8,6 +8,8 @@ The release workflow publishes the section matching the tag as the GitHub Releas
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-02
+
 ### Fixed
 
 - A rejected write now says what was rejected. Taiga reports validation through Django REST Framework, which names each field it refused, and the CLI was discarding all of it and printing the HTTP status text instead, so a missing subject or an unknown assignee both read `Bad Request`. Nested serializer errors and the per-row form a bulk create is answered with are rendered too, and the rendering is bounded so a large response cannot fill a terminal with one line.
@@ -130,7 +132,8 @@ Or download the archive for your platform below, verify it against `SHA256SUMS`,
 
 Verified against Taiga 6.10.2 through a full Docker E2E run against a pinned image digest. Supports macOS, Linux, and Windows on `amd64` and `arm64`.
 
-[Unreleased]: https://github.com/KoukeNeko/aihki/compare/v0.2.3...HEAD
+[Unreleased]: https://github.com/KoukeNeko/aihki/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/KoukeNeko/aihki/releases/tag/v0.3.0
 [0.2.3]: https://github.com/KoukeNeko/aihki/releases/tag/v0.2.3
 [0.2.2]: https://github.com/KoukeNeko/aihki/releases/tag/v0.2.2
 [0.2.1]: https://github.com/KoukeNeko/aihki/releases/tag/v0.2.1

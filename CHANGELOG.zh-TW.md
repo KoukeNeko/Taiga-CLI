@@ -8,6 +8,8 @@ Release workflow 會把對應版本的段落與英文版 [CHANGELOG.md](CHANGELO
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-02
+
 ### Fixed
 
 - 被拒絕的寫入現在會說明被拒絕的原因。Taiga 透過 Django REST Framework 回報驗證錯誤，會逐一指名被拒的欄位，而 CLI 把這些全部丟掉、只印 HTTP 狀態文字，所以少填 subject 和指派給不存在的人讀起來都是 `Bad Request`。巢狀 serializer 錯誤、以及 bulk create 收到的逐列格式現在也會渲染，並且有長度上限，大回應不會用單行灌滿終端機。
@@ -130,7 +132,8 @@ brew install koukeneko/tap/aihki
 
 已針對 Taiga 6.10.2 以固定 image digest 執行完整 Docker E2E 驗證。支援 macOS、Linux、Windows 的 `amd64` 與 `arm64`。
 
-[Unreleased]: https://github.com/KoukeNeko/aihki/compare/v0.2.3...HEAD
+[Unreleased]: https://github.com/KoukeNeko/aihki/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/KoukeNeko/aihki/releases/tag/v0.3.0
 [0.2.3]: https://github.com/KoukeNeko/aihki/releases/tag/v0.2.3
 [0.2.2]: https://github.com/KoukeNeko/aihki/releases/tag/v0.2.2
 [0.2.1]: https://github.com/KoukeNeko/aihki/releases/tag/v0.2.1
