@@ -3,7 +3,6 @@ package taiga
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -53,19 +52,31 @@ func DiscoverAPI(ctx context.Context, httpClient *http.Client, host string) (Fro
 	if closeErr != nil {
 		return FrontConfig{}, fmt.Errorf("close Taiga frontend response: %w", closeErr)
 	}
+	// Whatever went wrong, the person reading it typed a host, and what they
+	// need to know is which URL was tried and what came back: a forum or a
+	// marketing site answers 404 or a page of HTML, and "Not Found" on its
+	// own says nothing about either.
 	if resp.StatusCode != http.StatusOK {
-		return FrontConfig{}, decodeAPIError("GET "+confURL.Path, resp.StatusCode, data)
+		apiErr := decodeAPIError("GET "+confURL.Path, resp.StatusCode, data)
+		apiErr.Message = notFrontendMessage(confURL, fmt.Sprintf("it answered %d %s", resp.StatusCode, http.StatusText(resp.StatusCode)))
+		return FrontConfig{}, apiErr
 	}
 	var config FrontConfig
 	if err := json.Unmarshal(data, &config); err != nil {
-		return FrontConfig{}, fmt.Errorf("decode Taiga frontend config: %w", err)
+		return FrontConfig{}, &Error{Kind: KindValidation, Operation: "GET " + confURL.Path, Message: notFrontendMessage(confURL, "the answer is not JSON"), Retryable: false, Cause: err}
 	}
 	if config.API == "" {
-		return FrontConfig{}, errors.New("taiga frontend config does not declare an API URL")
+		return FrontConfig{}, &Error{Kind: KindValidation, Operation: "GET " + confURL.Path, Message: notFrontendMessage(confURL, "it declares no API URL"), Retryable: false}
 	}
 	config.API, err = NormalizeAPIURL(config.API)
 	if err != nil {
 		return FrontConfig{}, err
 	}
 	return config, nil
+}
+
+// notFrontendMessage explains a host that did not turn out to be a Taiga web
+// app, naming the URL that was tried so the reader can see the mistake.
+func notFrontendMessage(confURL *url.URL, reason string) string {
+	return fmt.Sprintf("%s is not a Taiga frontend configuration: %s; --host is the address of the Taiga web app, such as https://tree.taiga.io/", confURL, reason)
 }

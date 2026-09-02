@@ -784,3 +784,51 @@ func TestRefreshFailuresKeepTheirOwnMeaning(t *testing.T) {
 		})
 	}
 }
+
+// A host that is not a Taiga web app -- a forum, a marketing site -- answers
+// 404 or a page of HTML, and the person who typed it needs to see which URL
+// was tried and what came back, not a bare status.
+func TestDiscoverAPINamesTheHostThatIsNotATaigaFrontend(t *testing.T) {
+	for _, testCase := range []struct {
+		name   string
+		answer func(http.ResponseWriter)
+		kind   ErrorKind
+		reason string
+	}{
+		{"forum answering 404", func(w http.ResponseWriter) {
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = io.WriteString(w, `{"errors":["The requested URL or resource could not be found."],"error_type":"not_found"}`)
+		}, KindNotFound, "it answered 404 Not Found"},
+		{"site answering a page", func(w http.ResponseWriter) {
+			_, _ = io.WriteString(w, `<!doctype html><html><body>welcome</body></html>`)
+		}, KindValidation, "the answer is not JSON"},
+		{"configuration without an API", func(w http.ResponseWriter) {
+			_, _ = io.WriteString(w, `{"baseHref":"/"}`)
+		}, KindValidation, "it declares no API URL"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/conf.json" {
+					t.Errorf("path = %q", r.URL.Path)
+				}
+				testCase.answer(w)
+			}))
+			defer server.Close()
+
+			_, err := DiscoverAPI(context.Background(), server.Client(), server.URL+"/")
+			var apiErr *Error
+			if !errors.As(err, &apiErr) {
+				t.Fatalf("got %v, want an *Error", err)
+			}
+			if apiErr.Kind != testCase.kind {
+				t.Errorf("kind = %s, want %s", apiErr.Kind, testCase.kind)
+			}
+			if !strings.Contains(apiErr.Message, server.URL+"/conf.json") {
+				t.Errorf("message = %q, want it to name the URL that was tried", apiErr.Message)
+			}
+			if !strings.Contains(apiErr.Message, testCase.reason) {
+				t.Errorf("message = %q, want it to say %q", apiErr.Message, testCase.reason)
+			}
+		})
+	}
+}
