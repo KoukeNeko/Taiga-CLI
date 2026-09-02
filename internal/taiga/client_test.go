@@ -713,3 +713,74 @@ func TestRefreshedTokenThatCannotBeStoredIsReported(t *testing.T) {
 		t.Error("the error must carry why the token could not be stored")
 	}
 }
+
+// A refresh that Taiga refuses leaves the caller with the rejection that
+// started it, which names what they ran. A refresh that never reached Taiga,
+// or came back unreadable, or was throttled, is not a refused credential and
+// must not be reported as one: the refresh token is still good, and sending
+// someone to log in again over a dropped connection is the wrong advice.
+func TestRefreshFailuresKeepTheirOwnMeaning(t *testing.T) {
+	for _, testCase := range []struct {
+		name      string
+		answer    func(http.ResponseWriter)
+		kind      ErrorKind
+		retryable bool
+		operation string
+	}{
+		{"connection dropped", func(w http.ResponseWriter) {
+			conn, _, err := w.(http.Hijacker).Hijack()
+			if err == nil {
+				_ = conn.Close()
+			}
+		}, KindTransport, true, "POST /api/v1/auth/refresh"},
+		{"gateway error", func(w http.ResponseWriter) {
+			w.WriteHeader(http.StatusBadGateway)
+			_, _ = io.WriteString(w, `<html>502</html>`)
+		}, KindTransport, true, "POST /api/v1/auth/refresh"},
+		{"throttled", func(w http.ResponseWriter) {
+			w.WriteHeader(http.StatusTooManyRequests)
+			_, _ = io.WriteString(w, `{"detail":"slow down"}`)
+		}, KindThrottled, true, "POST /api/v1/auth/refresh"},
+		{"unreadable answer", func(w http.ResponseWriter) {
+			_, _ = io.WriteString(w, `<html>please log in</html>`)
+		}, KindTransport, false, "POST /api/v1/auth/refresh"},
+		{"refused", func(w http.ResponseWriter) {
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = io.WriteString(w, `{"detail":"Token is invalid or expired"}`)
+		}, KindAuth, false, "GET /api/v1/users/me"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/api/v1/users/me":
+					w.WriteHeader(http.StatusUnauthorized)
+					_, _ = io.WriteString(w, `{"detail":"Token is expired"}`)
+				case "/api/v1/auth/refresh":
+					testCase.answer(w)
+				default:
+					t.Errorf("unexpected path %q", r.URL.Path)
+				}
+			}))
+			defer server.Close()
+			client, err := NewClient(server.URL+"/api/v1/", WithToken("old"), WithRefreshToken("still-good", func(string, string) error { return nil }))
+			if err != nil {
+				t.Fatalf("NewClient: %v", err)
+			}
+
+			_, err = client.Me(context.Background())
+			var apiErr *Error
+			if !errors.As(err, &apiErr) {
+				t.Fatalf("got %v, want an *Error", err)
+			}
+			if apiErr.Kind != testCase.kind || apiErr.Retryable != testCase.retryable {
+				t.Errorf("kind=%s retryable=%t, want %s retryable=%t", apiErr.Kind, apiErr.Retryable, testCase.kind, testCase.retryable)
+			}
+			if apiErr.Operation != testCase.operation {
+				t.Errorf("operation = %q, want %q", apiErr.Operation, testCase.operation)
+			}
+			if client.refreshToken != "still-good" {
+				t.Error("a refresh Taiga did not complete must leave the refresh token in place")
+			}
+		})
+	}
+}

@@ -45,14 +45,6 @@ const (
 // sentence describing the request as a whole rather than one rejected field.
 var proseKeys = []string{"_error_message", "detail", "message"}
 
-// errRefreshedTokenNotStored marks a refresh that Taiga completed and this
-// process could not record. It is the one refresh failure doJSON reports in
-// place of the rejection that triggered the refresh: Taiga refusing the
-// refresh token leaves that rejection as the better explanation, but a token
-// that was issued and then lost has to be named, because the credential on
-// disk is dead from that moment on.
-var errRefreshedTokenNotStored = errors.New("refreshed token was not stored")
-
 const (
 	// defaultRequestTimeout bounds one attempt at a JSON request: connecting,
 	// sending it, waiting for the answer and reading it. Taiga answers these
@@ -346,13 +338,15 @@ func (c *Client) doJSON(ctx context.Context, method, path string, query url.Valu
 					attempt--
 					continue
 				}
-				// A refresh stopped by the operator is not the server refusing
-				// the credential, and reporting it as one would send someone to
-				// log in again over a request they chose to abandon. A refresh
-				// whose new token could not be stored is not that either: the
-				// rejection it would be reported as says nothing about why the
-				// saved login has just stopped working.
-				if ctx.Err() != nil || errors.Is(refreshErr, errRefreshedTokenNotStored) {
+				// Only Taiga refusing the refresh leaves the original rejection
+				// as the better report, since both say the same thing and that
+				// one names what the caller ran. Every other way a refresh can
+				// fail -- the operator stopping it, the call never reaching
+				// Taiga, an answer that could not be read, a token issued but
+				// not stored -- is not a refused credential, and reporting it
+				// as one sends someone to log in again over a dropped
+				// connection or a locked keyring.
+				if !refreshRefused(refreshErr) {
 					return resp.Header, refreshErr
 				}
 			}
@@ -377,42 +371,62 @@ func (c *Client) doJSON(ctx context.Context, method, path string, query url.Valu
 	return nil, &Error{Kind: KindTransport, Message: "Taiga API request failed", Retryable: true}
 }
 
+// refreshRefused reports whether Taiga answered a refresh by refusing it, as
+// opposed to not answering at all, answering unreadably, or asking for it to
+// be sent later.
+func refreshRefused(err error) bool {
+	var apiErr *Error
+	if !errors.As(err, &apiErr) || apiErr.UpstreamStatus == 0 {
+		return false
+	}
+	return apiErr.UpstreamStatus < http.StatusInternalServerError && apiErr.Kind != KindThrottled
+}
+
+// refresh exchanges the refresh token for a new pair. Its failures are
+// classified the way doJSON classifies them, because the caller reports them
+// in place of the request that needed the refresh.
 func (c *Client) refresh(ctx context.Context) error {
 	attemptCtx, cancel := context.WithTimeout(ctx, c.requestTimeout)
 	defer cancel()
 	endpoint := c.baseURL.ResolveReference(&url.URL{Path: "auth/refresh"})
+	operation := "POST " + endpoint.Path
 	payload, err := json.Marshal(map[string]string{"refresh": c.refreshToken})
 	if err != nil {
-		return err
+		return fmt.Errorf("encode request: %w", err)
 	}
 	req, err := http.NewRequestWithContext(attemptCtx, http.MethodPost, endpoint.String(), bytes.NewReader(payload))
 	if err != nil {
-		return err
+		return fmt.Errorf("create request: %w", err)
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", "aihki/0.1")
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return err
+		// The caller's context says whether the operator stopped it. The
+		// attempt running out of its own time is Taiga not answering.
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		return &Error{Kind: KindTransport, Operation: operation, Message: "Taiga API is unavailable", Retryable: true, Cause: err}
 	}
 	data, readErr := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
 	closeErr := resp.Body.Close()
 	if readErr != nil {
-		return readErr
+		return &Error{Kind: KindTransport, Operation: operation, Message: "read Taiga API response", Retryable: true, Cause: readErr}
 	}
 	if closeErr != nil {
-		return closeErr
+		return &Error{Kind: KindTransport, Operation: operation, Message: "close Taiga API response", Retryable: false, Cause: closeErr}
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return decodeAPIError("POST "+endpoint.Path, resp.StatusCode, data)
+		return decodeAPIError(operation, resp.StatusCode, data)
 	}
 	var response AuthResponse
 	if err := json.Unmarshal(data, &response); err != nil {
-		return err
+		return &Error{Kind: KindTransport, Operation: operation, Message: "decode Taiga API response", Retryable: false, Cause: err}
 	}
 	if response.AuthToken == "" {
-		return errors.New("taiga refresh response did not contain an auth token")
+		return &Error{Kind: KindTransport, Operation: operation, Message: "Taiga refresh response did not contain an auth token", Retryable: false}
 	}
 	c.token = response.AuthToken
 	if response.RefreshToken != "" {
@@ -426,7 +440,7 @@ func (c *Client) refresh(ctx context.Context) error {
 	// difference between one confusing failure and being locked out with no
 	// idea why.
 	if err := c.onRefresh(c.token, c.refreshToken); err != nil {
-		return &Error{Kind: KindAuth, Operation: "POST auth/refresh", Message: refreshNotStoredMessage, Retryable: false, Cause: fmt.Errorf("%w: %w", errRefreshedTokenNotStored, err)}
+		return &Error{Kind: KindAuth, Operation: operation, Message: refreshNotStoredMessage, Retryable: false, Cause: err}
 	}
 	return nil
 }

@@ -154,6 +154,35 @@ func awaitOutcome(t *testing.T, outcome <-chan error) error {
 	}
 }
 
+// A refresh Taiga never answers is one more way the refresh did not reach
+// Taiga, and is reported as such. It is not the operator running out of
+// patience, which is the only thing a bare deadline error would mean to the
+// command.
+func TestRefreshThatTimesOutIsATransportFailure(t *testing.T) {
+	server := blockingServer(t, func(w http.ResponseWriter, r *http.Request) bool {
+		if r.URL.Path != "/api/v1/users/me" {
+			return false
+		}
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = io.WriteString(w, `{"detail":"Token is expired"}`)
+		return true
+	})
+	client, err := NewClient(server.URL+"/api/v1/", WithToken("old"), WithRefreshToken("still-good", func(string, string) error { return nil }))
+	if err != nil {
+		t.Fatalf("NewClient: %v", err)
+	}
+	client.requestTimeout = 50 * time.Millisecond
+
+	_, err = client.Me(context.Background())
+	var apiErr *Error
+	if !errors.As(err, &apiErr) || apiErr.Kind != KindTransport || !apiErr.Retryable {
+		t.Fatalf("unanswered refresh reported %v, want a retryable %s", err, KindTransport)
+	}
+	if apiErr.Operation != "POST /api/v1/auth/refresh" {
+		t.Errorf("operation = %q, want the refresh", apiErr.Operation)
+	}
+}
+
 // Stopping a download after the first byte is the same interruption as
 // stopping it before, and is reported as one rather than as a fault to retry.
 func TestDownloadInterruptedMidStreamIsAnInterrupt(t *testing.T) {
