@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
 )
 
 // parseBatchOrders reads what a person typed on the command line and decides
@@ -217,30 +219,71 @@ func TestAuthRequiredIsAnAuthError(t *testing.T) {
 	}
 }
 
-// The three comment commands report an empty body under one code. They did not
-// always: issue comment carried its own copy of this logic and used
-// empty_comment until the commands were merged. A script branches on this
-// value, so it is pinned rather than left to whichever copy is edited next.
-func TestReadBodyReportsOneCodeForAnEmptyBody(t *testing.T) {
-	for _, testCase := range []struct{ body, file, from string }{
-		{"", "", "neither flag"},
-		{"   ", "", "whitespace body"},
+// issue comment names the text a comment; story and task call it a body. The
+// difference is only wording, but the code is what a script branches on, so
+// merging the three commands onto one helper must not quietly unify it.
+func TestReadBodyKeepsEachCommandsWording(t *testing.T) {
+	for _, testCase := range []struct {
+		name    string
+		wording bodyWording
+		code    string
+		message string
+		context string
+	}{
+		{"story and task", genericBody, "empty_body", "body cannot be empty", "read body"},
+		{"issue comment", commentBody, "empty_comment", "comment body cannot be empty", "read comment body"},
 	} {
-		_, err := readBody(strings.NewReader(""), testCase.body, testCase.file)
-		var known *contractError
-		if !errors.As(err, &known) {
-			t.Fatalf("%s: got %v, want a contract error", testCase.from, err)
+		for _, empty := range []struct{ body, file string }{{"", ""}, {"   ", ""}} {
+			_, err := readBodyAs(strings.NewReader(""), empty.body, empty.file, testCase.wording)
+			var known *contractError
+			if !errors.As(err, &known) {
+				t.Fatalf("%s: got %v, want a contract error", testCase.name, err)
+			}
+			if known.Code != testCase.code || known.Message != testCase.message {
+				t.Errorf("%s: %q / %q, want %q / %q", testCase.name, known.Code, known.Message, testCase.code, testCase.message)
+			}
 		}
-		if known.Code != "empty_body" {
-			t.Errorf("%s: code = %q, want empty_body", testCase.from, known.Code)
+		// A file holding only whitespace is empty too, which is only knowable
+		// after reading it.
+		if _, err := readBodyAs(strings.NewReader("  \n "), "", "-", testCase.wording); err == nil {
+			t.Errorf("%s: a whitespace-only body was accepted", testCase.name)
 		}
-	}
-	// A file that holds only whitespace is empty too, which is checked after
-	// reading rather than before.
-	if _, err := readBody(strings.NewReader("  \n "), "", "-"); err == nil {
-		t.Error("a whitespace-only body from stdin was accepted")
+		_, err := readBodyAs(strings.NewReader(""), "", "/nonexistent-body-file", testCase.wording)
+		if err == nil || !strings.HasPrefix(err.Error(), testCase.context+":") {
+			t.Errorf("%s: read error = %v, want it prefixed %q", testCase.name, err, testCase.context)
+		}
 	}
 	if got, err := readBody(strings.NewReader("from stdin"), "", "-"); err != nil || got != "from stdin" {
 		t.Errorf("stdin body = %q, %v", got, err)
+	}
+}
+
+// Proving readBodyAs honours a wording says nothing about whether the issue
+// command passes the right one. This drives the command itself, and reaches
+// the body check before any request is made, so no server is needed.
+func TestIssueCommentKeepsItsOwnEmptyCode(t *testing.T) {
+	for _, testCase := range []struct {
+		command func(*App) *cobra.Command
+		name    string
+		code    string
+	}{
+		{func(a *App) *cobra.Command { return a.issueCommentCommand() }, "issue", "empty_comment"},
+		{func(a *App) *cobra.Command { return a.storyCommentCommand() }, "story", "empty_body"},
+		{func(a *App) *cobra.Command { return a.taskCommentCommand() }, "task", "empty_body"},
+	} {
+		app, _, _, _ := testApp(t, nil)
+		command := testCase.command(app)
+		// Whitespace rather than empty: an entirely absent body is refused by
+		// the flag check before the body is ever read.
+		command.SetArgs([]string{"1", "--body", "   "})
+		err := command.Execute()
+		var known *contractError
+		if !errors.As(err, &known) {
+			t.Errorf("%s comment: got %v, want a contract error", testCase.name, err)
+			continue
+		}
+		if known.Code != testCase.code {
+			t.Errorf("%s comment: code = %q, want %q", testCase.name, known.Code, testCase.code)
+		}
 	}
 }

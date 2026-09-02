@@ -99,6 +99,10 @@ type commentCommandSpec struct {
 
 	completeItems func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective)
 
+	// body names the text in this command's errors. Left unset it is the
+	// generic wording, which is what story and task have always returned.
+	body bodyWording
+
 	load  func(ctx context.Context, argument string) (commentPlan, error)
 	apply func(ctx context.Context, plan commentPlan, body string) error
 }
@@ -122,7 +126,11 @@ func (a *App) commentWorkItemCommand(spec commentCommandSpec) *cobra.Command {
 				return usageError("--body or --body-file is required")
 			}
 			// Read before loading, so a missing file fails without a request.
-			comment, err := readBody(a.In, body, bodyFile)
+			wording := spec.body
+			if wording.emptyCode == "" {
+				wording = genericBody
+			}
+			comment, err := readBodyAs(a.In, body, bodyFile, wording)
 			if err != nil {
 				return err
 			}

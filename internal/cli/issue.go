@@ -412,6 +412,7 @@ func (a *App) issueCommentCommand() *cobra.Command {
 		use:           "comment <ref|project#ref|url>",
 		short:         "Comment on an issue",
 		dryRunAction:  "comment",
+		body:          commentBody,
 		completeItems: a.completeIssues,
 		load: func(ctx context.Context, argument string) (commentPlan, error) {
 			target, err := a.loadIssueTarget(ctx, argument)
