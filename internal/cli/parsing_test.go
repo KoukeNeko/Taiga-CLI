@@ -295,6 +295,9 @@ func TestIssueCommentKeepsItsOwnEmptyCode(t *testing.T) {
 func TestCommentEditReturnsTheCodeReadBodyProduces(t *testing.T) {
 	app, _, _, _ := testApp(t, nil)
 	command := app.commentEditCommand()
+	// Run on its own, the subcommand would print its usage on the error,
+	// which the root command normally silences.
+	command.SilenceUsage, command.SilenceErrors = true, true
 	command.SetArgs([]string{"issue", "1", "2", "--body", "   "})
 	err := command.Execute()
 	var known *contractError
