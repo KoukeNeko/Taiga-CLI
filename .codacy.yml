@@ -1,0 +1,16 @@
+---
+# Test code is written to exercise the program, not to be shipped by it: it
+# runs the built binary, embeds fake secrets so the redaction tests have
+# something to find, and repeats setup that would be duplication anywhere else.
+# Analysing it alongside the production code measures the wrong thing, and the
+# two largest contributors to this repository's complexity score were both test
+# files.
+exclude_paths:
+  - "**/*_test.go"
+  - "test/**"
+  # Packaging runs on a developer's machine and ships in no binary.
+  - "internal/releasepack/**"
+  - "cmd/releasepack/**"
+  # Generated or vendored content, none of it written here.
+  - "**/testdata/**"
+  - "deployment/**"
