@@ -6,8 +6,6 @@ Notable changes to this project are recorded here. The format follows [Keep a Ch
 
 The release workflow publishes the section matching the tag as the GitHub Release notes, alongside the same section from [CHANGELOG.zh-TW.md](CHANGELOG.zh-TW.md), so both files must carry every released version.
 
-Release notes render with hard line breaks, so each paragraph and bullet stays on one line here even when that line is long. Wrapping them would show up as broken sentences on the release page.
-
 ## [Unreleased]
 
 ## [0.2.3] - 2026-09-02

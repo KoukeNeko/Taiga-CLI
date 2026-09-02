@@ -6,8 +6,6 @@
 
 Release workflow 會把對應版本的段落與英文版 [CHANGELOG.md](CHANGELOG.md) 的同一段落一起發布為 GitHub Release 說明，因此兩份都必須記錄每個已發布的版本。
 
-Release notes 以 hard line break 渲染，所以這裡每個段落與項目都維持單行，即使該行很長。若在中途換行，發布頁上會出現斷掉的句子。
-
 ## [Unreleased]
 
 ## [0.2.3] - 2026-09-02
