@@ -97,7 +97,15 @@ jobs:
           # Developer ID signature rather than an ad-hoc or missing one.
           codesign --verify --strict --verbose=2 "./taiga_${GITHUB_REF_NAME#v}_darwin_arm64/taiga"
           codesign -dvv "./taiga_${GITHUB_REF_NAME#v}_darwin_arm64/taiga" 2>&1 | grep "^Authority=Developer ID Application"
-          spctl -a -vvv -t install "./taiga_${GITHUB_REF_NAME#v}_darwin_arm64/taiga"
+          # spctl resolves the notarization ticket online, so absorb the brief
+          # propagation lag rather than burning a tag that cannot be reused.
+          for attempt in 1 2 3 4 5; do
+            if spctl -a -vvv -t install "./taiga_${GITHUB_REF_NAME#v}_darwin_arm64/taiga"; then
+              break
+            fi
+            test "$attempt" -lt 5 || (echo "notarization ticket never became visible to Gatekeeper" >&2; exit 1)
+            sleep 30
+          done
           rm -rf "taiga_${GITHUB_REF_NAME#v}_linux_amd64" "taiga_${GITHUB_REF_NAME#v}_darwin_arm64"
       - name: Publish GitHub Release
         env:
