@@ -14,7 +14,7 @@
 set -eu
 
 REPOSITORY="KoukeNeko/Taiga-CLI"
-RELEASE_API="https://api.github.com/repos/$REPOSITORY/releases/latest"
+LATEST_RELEASE_URL="https://github.com/$REPOSITORY/releases/latest"
 DOWNLOAD_BASE="https://github.com/$REPOSITORY/releases/download"
 
 version=${TAIGA_VERSION:-}
@@ -47,10 +47,18 @@ detect_platform() {
 
 resolve_version() {
     [ -n "$version" ] && return 0
-    # The API returns the latest stable release, which never includes a
-    # pre-release, so an rc is only ever installed when asked for by name.
-    version=$(curl -fsSL "$RELEASE_API" | sed -n 's/.*"tag_name" *: *"\([^"]*\)".*/\1/p' | head -1)
-    [ -n "$version" ] || fail "could not determine the latest release; set TAIGA_VERSION"
+    # github.com redirects the latest release to its tag URL. Resolving the tag
+    # that way avoids api.github.com, whose anonymous rate limit is shared by IP
+    # and is routinely exhausted on CI runners and behind corporate NAT.
+    # The latest release is never a pre-release, so an rc is only installed when
+    # asked for by name.
+    effective=$(curl -fsSLI -o /dev/null -w '%{url_effective}' "$LATEST_RELEASE_URL") ||
+        fail "could not reach GitHub to determine the latest release; set TAIGA_VERSION"
+    version=${effective##*/}
+    case "$version" in
+        v[0-9]*) ;;
+        *) fail "could not read a release tag from $effective; set TAIGA_VERSION" ;;
+    esac
 }
 
 verify_checksum() {

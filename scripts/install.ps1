@@ -34,7 +34,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
 $Repository = 'KoukeNeko/Taiga-CLI'
-$ReleaseApi = "https://api.github.com/repos/$Repository/releases/latest"
+$LatestReleaseUrl = "https://github.com/$Repository/releases/latest"
 $DownloadBase = "https://github.com/$Repository/releases/download"
 
 function Get-TargetArchitecture {
@@ -49,9 +49,22 @@ function Get-TargetArchitecture {
 function Resolve-ReleaseVersion {
     param([string]$Requested)
     if ($Requested) { return $Requested }
-    $release = Invoke-RestMethod -Uri $ReleaseApi -Headers @{ 'User-Agent' = 'taiga-cli-installer' }
-    if (-not $release.tag_name) { throw 'Could not determine the latest release. Pass -Version explicitly.' }
-    return $release.tag_name
+    # github.com redirects the latest release to its tag URL. Resolving the tag
+    # that way avoids api.github.com, whose anonymous rate limit is shared by IP
+    # and is routinely exhausted on CI runners and behind corporate NAT.
+    $response = Invoke-WebRequest -Uri $LatestReleaseUrl -UseBasicParsing
+    $finalUri = $null
+    # Windows PowerShell exposes the resolved address as ResponseUri, while
+    # PowerShell 7 carries it on the request message.
+    if ($response.BaseResponse.PSObject.Properties['ResponseUri']) {
+        $finalUri = [string]$response.BaseResponse.ResponseUri
+    } elseif ($response.BaseResponse.RequestMessage) {
+        $finalUri = [string]$response.BaseResponse.RequestMessage.RequestUri
+    }
+    if (-not $finalUri) { throw 'Could not determine the latest release. Pass -Version explicitly.' }
+    $tag = $finalUri.Split('/')[-1]
+    if ($tag -notmatch '^v[0-9]') { throw "Could not read a release tag from $finalUri. Pass -Version explicitly." }
+    return $tag
 }
 
 function Assert-Checksum {
