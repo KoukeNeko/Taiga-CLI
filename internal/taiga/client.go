@@ -10,6 +10,7 @@ import (
 	"math/rand/v2"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -300,6 +301,15 @@ func decodeAPIError(operation string, status int, data []byte) *Error {
 			break
 		}
 	}
+	if message == http.StatusText(status) {
+		// Taiga reports field validation, including a stale version, as a bare
+		// map of field names to explanations with none of the keys above. Left
+		// alone that surfaces to a person as "Bad Request", which says nothing
+		// about what to do next.
+		if explanation := fieldExplanation(details); explanation != "" {
+			message = explanation
+		}
+	}
 	kind := KindValidation
 	retryable := false
 	switch status {
@@ -328,6 +338,26 @@ func decodeAPIError(operation string, status int, data []byte) *Error {
 		kind = KindConflict
 	}
 	return &Error{Kind: kind, Operation: operation, Message: message, Retryable: retryable, UpstreamStatus: status, Details: details}
+}
+
+// fieldExplanation renders a Taiga field-validation body as a sentence. Keys
+// are sorted so the same response always produces the same message.
+func fieldExplanation(details map[string]any) string {
+	fields := make([]string, 0, len(details))
+	for key := range details {
+		if strings.HasPrefix(key, "_") {
+			continue
+		}
+		if _, ok := details[key].(string); ok {
+			fields = append(fields, key)
+		}
+	}
+	sort.Strings(fields)
+	parts := make([]string, 0, len(fields))
+	for _, key := range fields {
+		parts = append(parts, key+": "+details[key].(string))
+	}
+	return strings.Join(parts, "; ")
 }
 
 func retryableStatus(status int) bool {

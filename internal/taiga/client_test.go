@@ -403,3 +403,39 @@ func TestBackoffBaseDoublesWithoutOverflowing(t *testing.T) {
 		t.Fatalf("backoffBase(1000) = %v, want a positive delay", got)
 	}
 }
+
+// A stale write is the failure this tool exists to report clearly, so the
+// message a person sees must say what happened rather than repeating the HTTP
+// status text.
+func TestDecodeAPIErrorExplainsFieldValidation(t *testing.T) {
+	body := []byte(`{"version":"The version doesn't match with the current one"}`)
+	err := decodeAPIError("PATCH /issues/1", http.StatusBadRequest, body)
+	if err.Kind != KindConflict {
+		t.Fatalf("kind = %q, want %q", err.Kind, KindConflict)
+	}
+	if err.Message == http.StatusText(http.StatusBadRequest) {
+		t.Fatal("message is still the bare status text, which tells a user nothing")
+	}
+	if !strings.Contains(err.Message, "version doesn't match") {
+		t.Fatalf("message = %q, want the field explanation", err.Message)
+	}
+}
+
+func TestDecodeAPIErrorJoinsSeveralFieldsInAStableOrder(t *testing.T) {
+	body := []byte(`{"subject":"required","assigned_to":"unknown user"}`)
+	first := decodeAPIError("POST /issues", http.StatusBadRequest, body).Message
+	second := decodeAPIError("POST /issues", http.StatusBadRequest, body).Message
+	if first != second {
+		t.Fatalf("message is not deterministic: %q then %q", first, second)
+	}
+	if first != "assigned_to: unknown user; subject: required" {
+		t.Fatalf("message = %q", first)
+	}
+}
+
+func TestDecodeAPIErrorPrefersTaigaOwnMessage(t *testing.T) {
+	body := []byte(`{"_error_message":"Permission denied","detail":"ignored"}`)
+	if got := decodeAPIError("GET /projects", http.StatusForbidden, body).Message; got != "Permission denied" {
+		t.Fatalf("message = %q", got)
+	}
+}
