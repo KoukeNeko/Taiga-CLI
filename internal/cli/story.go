@@ -69,14 +69,7 @@ func (a *App) storyListCommand() *cobra.Command {
 			if limit < 1 || limit > 1000 || page < 1 {
 				return usageError("--page must be positive and --limit must be between 1 and 1000")
 			}
-			client, settings, err := a.client(cmd.Context(), true)
-			if err != nil {
-				return err
-			}
-			if settings.Project == "" {
-				return validationError("missing_project", "no project selected; run `aihki project use <slug>` or pass --project")
-			}
-			project, err := client.GetProjectBySlug(cmd.Context(), settings.Project)
+			client, project, err := a.selectedProject(cmd.Context())
 			if err != nil {
 				return err
 			}
@@ -154,14 +147,7 @@ func (a *App) storyCreateCommand() *cobra.Command {
 			if strings.TrimSpace(subject) == "" {
 				return usageError("--subject is required")
 			}
-			client, settings, err := a.client(cmd.Context(), true)
-			if err != nil {
-				return err
-			}
-			if settings.Project == "" {
-				return validationError("missing_project", "no project selected; run `aihki project use <slug>` or pass --project")
-			}
-			project, err := client.GetProjectBySlug(cmd.Context(), settings.Project)
+			client, project, err := a.selectedProject(cmd.Context())
 			if err != nil {
 				return err
 			}

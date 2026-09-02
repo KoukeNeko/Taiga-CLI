@@ -65,14 +65,7 @@ func (a *App) taskListCommand() *cobra.Command {
 			if err := validateTaskOrderBy(orderBy); err != nil {
 				return err
 			}
-			client, settings, err := a.client(cmd.Context(), true)
-			if err != nil {
-				return err
-			}
-			if settings.Project == "" {
-				return validationError("missing_project", "no project selected; run `aihki project use <slug>` or pass --project")
-			}
-			project, err := client.GetProjectBySlug(cmd.Context(), settings.Project)
+			client, project, err := a.selectedProject(cmd.Context())
 			if err != nil {
 				return err
 			}
@@ -140,14 +133,7 @@ func (a *App) taskCreateCommand() *cobra.Command {
 			if strings.TrimSpace(subject) == "" {
 				return usageError("--subject is required")
 			}
-			client, settings, err := a.client(cmd.Context(), true)
-			if err != nil {
-				return err
-			}
-			if settings.Project == "" {
-				return validationError("missing_project", "no project selected; run `aihki project use <slug>` or pass --project")
-			}
-			project, err := client.GetProjectBySlug(cmd.Context(), settings.Project)
+			client, project, err := a.selectedProject(cmd.Context())
 			if err != nil {
 				return err
 			}

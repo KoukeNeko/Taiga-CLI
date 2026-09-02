@@ -128,7 +128,7 @@ func (a *App) sprintStatsCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use: "sprint <name|slug>", Short: "Show sprint completion and burndown statistics", Args: exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, _, project, sprint, err := a.loadSprint(cmd, args[0])
+			client, project, sprint, err := a.loadSprint(cmd, args[0])
 			if err != nil {
 				return err
 			}

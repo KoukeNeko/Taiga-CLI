@@ -33,7 +33,7 @@ func (a *App) sprintCommand() *cobra.Command {
 func (a *App) sprintDeleteCommand() *cobra.Command {
 	var yes, dryRun bool
 	command := &cobra.Command{Use: "delete <name|slug>", Short: "Permanently delete a Sprint", Args: exactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
-		client, _, project, sprint, err := a.loadSprint(cmd, args[0])
+		client, project, sprint, err := a.loadSprint(cmd, args[0])
 		if err != nil {
 			return err
 		}
@@ -86,14 +86,7 @@ func (a *App) sprintListCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			client, settings, err := a.client(cmd.Context(), true)
-			if err != nil {
-				return err
-			}
-			if settings.Project == "" {
-				return validationError("missing_project", "no project selected; run `aihki project use <slug>` or pass --project")
-			}
-			project, err := client.GetProjectBySlug(cmd.Context(), settings.Project)
+			client, project, err := a.selectedProject(cmd.Context())
 			if err != nil {
 				return err
 			}
@@ -127,7 +120,7 @@ func (a *App) sprintViewCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use: "view <name|slug>", Short: "View a sprint", Args: exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, settings, project, milestone, err := a.loadSprint(cmd, args[0])
+			client, project, milestone, err := a.loadSprint(cmd, args[0])
 			if err != nil {
 				return err
 			}
@@ -139,7 +132,7 @@ func (a *App) sprintViewCommand() *cobra.Command {
 			if a.global.JSON {
 				return a.renderer().Data(view)
 			}
-			_, _ = fmt.Fprintf(a.Out, "%s\nSlug:    %s\nProject: %s\nStart:   %s\nFinish:  %s\nClosed:  %t\n", view.Name, view.Slug, settings.Project, view.Start, view.Finish, view.Closed)
+			_, _ = fmt.Fprintf(a.Out, "%s\nSlug:    %s\nProject: %s\nStart:   %s\nFinish:  %s\nClosed:  %t\n", view.Name, view.Slug, view.Project, view.Start, view.Finish, view.Closed)
 			return nil
 		},
 	}
@@ -159,14 +152,7 @@ func (a *App) sprintCreateCommand() *cobra.Command {
 			if err := validateSprintDates(start, finish); err != nil {
 				return err
 			}
-			client, settings, err := a.client(cmd.Context(), true)
-			if err != nil {
-				return err
-			}
-			if settings.Project == "" {
-				return validationError("missing_project", "no project selected; run `aihki project use <slug>` or pass --project")
-			}
-			project, err := client.GetProjectBySlug(cmd.Context(), settings.Project)
+			client, project, err := a.selectedProject(cmd.Context())
 			if err != nil {
 				return err
 			}
@@ -197,7 +183,7 @@ func (a *App) sprintEditCommand() *cobra.Command {
 			if !cmd.Flags().Changed("name") && !cmd.Flags().Changed("start") && !cmd.Flags().Changed("finish") {
 				return usageError("at least one edit flag is required")
 			}
-			client, _, project, milestone, err := a.loadSprint(cmd, args[0])
+			client, project, milestone, err := a.loadSprint(cmd, args[0])
 			if err != nil {
 				return err
 			}
@@ -251,7 +237,7 @@ func (a *App) sprintStateCommand(closed bool) *cobra.Command {
 	command := &cobra.Command{
 		Use: name + " <name|slug>", Short: short, Args: exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, _, project, milestone, err := a.loadSprint(cmd, args[0])
+			client, project, milestone, err := a.loadSprint(cmd, args[0])
 			if err != nil {
 				return err
 			}
@@ -270,20 +256,13 @@ func (a *App) sprintStateCommand(closed bool) *cobra.Command {
 	return command
 }
 
-func (a *App) loadSprint(cmd *cobra.Command, value string) (*taiga.Client, Settings, taiga.Project, taiga.Milestone, error) {
-	client, settings, err := a.client(cmd.Context(), true)
+func (a *App) loadSprint(cmd *cobra.Command, value string) (*taiga.Client, taiga.Project, taiga.Milestone, error) {
+	client, project, err := a.selectedProject(cmd.Context())
 	if err != nil {
-		return nil, Settings{}, taiga.Project{}, taiga.Milestone{}, err
-	}
-	if settings.Project == "" {
-		return nil, Settings{}, taiga.Project{}, taiga.Milestone{}, validationError("missing_project", "no project selected; run `aihki project use <slug>` or pass --project")
-	}
-	project, err := client.GetProjectBySlug(cmd.Context(), settings.Project)
-	if err != nil {
-		return nil, Settings{}, taiga.Project{}, taiga.Milestone{}, err
+		return nil, taiga.Project{}, taiga.Milestone{}, err
 	}
 	milestone, err := a.resolveMilestone(cmd.Context(), client, project.ID, value)
-	return client, settings, project, milestone, err
+	return client, project, milestone, err
 }
 
 func makeSprintView(milestone taiga.Milestone, projectSlug string) sprintView {

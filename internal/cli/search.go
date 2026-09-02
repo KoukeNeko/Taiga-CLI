@@ -38,14 +38,7 @@ func (a *App) searchCommand() *cobra.Command {
 			if !validSearchKind(kind) {
 				return usageError("--type must be all, epic, story, task, issue, or wiki")
 			}
-			client, settings, err := a.client(cmd.Context(), true)
-			if err != nil {
-				return err
-			}
-			if settings.Project == "" {
-				return validationError("missing_project", "no project selected; run `aihki project use <slug>` or pass --project")
-			}
-			project, err := client.GetProjectBySlug(cmd.Context(), settings.Project)
+			client, project, err := a.selectedProject(cmd.Context())
 			if err != nil {
 				return err
 			}

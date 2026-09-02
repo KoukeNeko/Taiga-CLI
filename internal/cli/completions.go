@@ -116,21 +116,9 @@ func (a *App) completeProjectTemplates(cmd *cobra.Command, _ []string, toComplet
 	})
 }
 
-func (a *App) completionProject(ctx context.Context) (*taiga.Client, taiga.Project, error) {
-	client, settings, err := a.client(ctx, true)
-	if err != nil {
-		return nil, taiga.Project{}, err
-	}
-	if settings.Project == "" {
-		return nil, taiga.Project{}, validationError("missing_project", "no project selected")
-	}
-	project, err := client.GetProjectBySlug(ctx, settings.Project)
-	return client, project, err
-}
-
 func (a *App) completeIssues(cmd *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	return a.completeCached(cmd, "issues", true, toComplete, func(ctx context.Context) ([]string, error) {
-		client, project, err := a.completionProject(ctx)
+		client, project, err := a.selectedProject(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -148,7 +136,7 @@ func (a *App) completeIssues(cmd *cobra.Command, _ []string, toComplete string) 
 
 func (a *App) completeStories(cmd *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	return a.completeCached(cmd, "stories", true, toComplete, func(ctx context.Context) ([]string, error) {
-		client, project, err := a.completionProject(ctx)
+		client, project, err := a.selectedProject(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -166,7 +154,7 @@ func (a *App) completeStories(cmd *cobra.Command, _ []string, toComplete string)
 
 func (a *App) completeTasks(cmd *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	return a.completeCached(cmd, "tasks", true, toComplete, func(ctx context.Context) ([]string, error) {
-		client, project, err := a.completionProject(ctx)
+		client, project, err := a.selectedProject(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -184,7 +172,7 @@ func (a *App) completeTasks(cmd *cobra.Command, _ []string, toComplete string) (
 
 func (a *App) completeWikiPages(cmd *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	return a.completeCached(cmd, "wiki", true, toComplete, func(ctx context.Context) ([]string, error) {
-		client, project, err := a.completionProject(ctx)
+		client, project, err := a.selectedProject(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -202,7 +190,7 @@ func (a *App) completeWikiPages(cmd *cobra.Command, _ []string, toComplete strin
 
 func (a *App) completeEpics(cmd *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	return a.completeCached(cmd, "epics", true, toComplete, func(ctx context.Context) ([]string, error) {
-		client, project, err := a.completionProject(ctx)
+		client, project, err := a.selectedProject(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -220,7 +208,7 @@ func (a *App) completeEpics(cmd *cobra.Command, _ []string, toComplete string) (
 
 func (a *App) completeEpicStatuses(cmd *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	return a.completeCached(cmd, "epic-statuses", true, toComplete, func(ctx context.Context) ([]string, error) {
-		client, project, err := a.completionProject(ctx)
+		client, project, err := a.selectedProject(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -238,7 +226,7 @@ func (a *App) completeEpicStatuses(cmd *cobra.Command, _ []string, toComplete st
 
 func (a *App) completeMembers(cmd *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	return a.completeCached(cmd, "members", true, toComplete, func(ctx context.Context) ([]string, error) {
-		client, project, err := a.completionProject(ctx)
+		client, project, err := a.selectedProject(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -256,7 +244,7 @@ func (a *App) completeMembers(cmd *cobra.Command, _ []string, toComplete string)
 
 func (a *App) completeRoles(cmd *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	return a.completeCached(cmd, "roles", true, toComplete, func(ctx context.Context) ([]string, error) {
-		client, project, err := a.completionProject(ctx)
+		client, project, err := a.selectedProject(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -286,7 +274,7 @@ func (a *App) completeSprintValues(cmd *cobra.Command, toComplete string, includ
 		kind = "sprints"
 	}
 	return a.completeCached(cmd, kind, true, toComplete, func(ctx context.Context) ([]string, error) {
-		client, project, err := a.completionProject(ctx)
+		client, project, err := a.selectedProject(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -307,7 +295,7 @@ func (a *App) completeSprintValues(cmd *cobra.Command, toComplete string, includ
 
 func (a *App) completeIssueStatuses(cmd *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	return a.completeCached(cmd, "issue-statuses", true, toComplete, func(ctx context.Context) ([]string, error) {
-		client, project, err := a.completionProject(ctx)
+		client, project, err := a.selectedProject(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -325,7 +313,7 @@ func (a *App) completeIssueStatuses(cmd *cobra.Command, _ []string, toComplete s
 
 func (a *App) completeStoryStatuses(cmd *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	return a.completeCached(cmd, "story-statuses", true, toComplete, func(ctx context.Context) ([]string, error) {
-		client, project, err := a.completionProject(ctx)
+		client, project, err := a.selectedProject(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -343,7 +331,7 @@ func (a *App) completeStoryStatuses(cmd *cobra.Command, _ []string, toComplete s
 
 func (a *App) completeTaskStatuses(cmd *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	return a.completeCached(cmd, "task-statuses", true, toComplete, func(ctx context.Context) ([]string, error) {
-		client, project, err := a.completionProject(ctx)
+		client, project, err := a.selectedProject(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -362,7 +350,7 @@ func (a *App) completeTaskStatuses(cmd *cobra.Command, _ []string, toComplete st
 func (a *App) completeNamedMetadata(kind string, loader func(context.Context, *taiga.Client, int64) ([]taiga.NamedMetadata, error)) cobra.CompletionFunc {
 	return func(cmd *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		return a.completeCached(cmd, kind, true, toComplete, func(ctx context.Context) ([]string, error) {
-			client, project, err := a.completionProject(ctx)
+			client, project, err := a.selectedProject(ctx)
 			if err != nil {
 				return nil, err
 			}
