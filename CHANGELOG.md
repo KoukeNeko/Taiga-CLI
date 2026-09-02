@@ -21,6 +21,24 @@ The release workflow publishes the section matching the tag as the GitHub Releas
   exited 9 marked retryable, for a deletion Taiga may well have carried out. All
   four now report `ambiguous_commit` and exit 11 like every other write, and the
   flag is no longer a bool, so making the same mistake again fails to compile.
+- When Taiga rotates the token and the new one cannot be written to the OS
+  keyring, the command now says that the saved credential is stale and asks
+  for `aihki auth login`, rather than repeating the `401` that started the
+  refresh. Taiga retires the old refresh token as it issues the new one, so the
+  login on disk is dead from that moment; the message saying so has existed
+  since 0.3.0, but the request layer discarded it in favour of the rejection,
+  which said "expired" and left no way to tell why the next attempt failed too.
+- A malformed config left at the pre-rename location is reported under its own
+  path. The parse error named the current location, which does not exist until
+  the next save.
+
+### Changed
+
+- Every deletion that reads the record back before reporting success -- work
+  items, sprints, wiki links, workflow metadata, due dates and swimlanes -- runs
+  through one implementation instead of five copies of the same exchange. The
+  one wording that moved: the sprint read-back now says "sprint" in lowercase,
+  as its sibling message already did.
 
 ## [0.3.1] - 2026-09-03
 
