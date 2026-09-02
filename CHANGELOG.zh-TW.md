@@ -6,7 +6,7 @@
 
 Release workflow 會把對應版本的段落與英文版 [CHANGELOG.md](CHANGELOG.md) 的同一段落一起發布為 GitHub Release 說明，因此兩份都必須記錄每個已發布的版本。
 
-## [Unreleased]
+## [未發布]
 
 ### 修正
 
@@ -178,7 +178,7 @@ brew install koukeneko/tap/aihki
 
 已針對 Taiga 6.10.2 以固定 image digest 執行完整 Docker E2E 驗證。支援 macOS、Linux、Windows 的 `amd64` 與 `arm64`。
 
-[Unreleased]: https://github.com/KoukeNeko/aihki/compare/v0.3.1...HEAD
+[未發布]: https://github.com/KoukeNeko/aihki/compare/v0.3.1...HEAD
 [0.3.1]: https://github.com/KoukeNeko/aihki/releases/tag/v0.3.1
 [0.3.0]: https://github.com/KoukeNeko/aihki/releases/tag/v0.3.0
 [0.2.3]: https://github.com/KoukeNeko/aihki/releases/tag/v0.2.3
