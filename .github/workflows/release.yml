@@ -36,6 +36,9 @@ jobs:
       - name: Verify source
         run: |
           test -f LICENSE || (echo "LICENSE is required before the first public release" >&2; exit 1)
+          # Fail before building rather than after signing, notarizing and
+          # uploading, which is where a missing section would otherwise surface.
+          ./scripts/extract-changelog.sh "$GITHUB_REF_NAME" > /dev/null
           make test
       - name: Import the Developer ID certificate
         env:
@@ -122,9 +125,10 @@ jobs:
           case "$GITHUB_REF_NAME" in
             *-*) prerelease="--prerelease" ;;
           esac
+          ./scripts/extract-changelog.sh "$GITHUB_REF_NAME" > "$RUNNER_TEMP/notes.md"
           gh release create "$GITHUB_REF_NAME" "dist/$GITHUB_REF_NAME"/* \
             --verify-tag \
-            --generate-notes \
+            --notes-file "$RUNNER_TEMP/notes.md" \
             --title "$GITHUB_REF_NAME" \
             $prerelease
       - name: Update the Homebrew tap

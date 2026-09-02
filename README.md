@@ -20,6 +20,7 @@
   <a href="INSTALL.md">Install</a>
   · <a href="#getting-started">Getting started</a>
   · <a href="https://github.com/KoukeNeko/Taiga-CLI/wiki">Handbook</a>
+  · <a href="CHANGELOG.md">Changelog</a>
   · <a href="COMPATIBILITY.md">Compatibility</a>
 </p>
 
@@ -266,15 +267,6 @@ Developer ID signature can never reproduce. Their contents are otherwise built i
   <img alt="SPDX 2.3 SBOM" src="https://img.shields.io/badge/SBOM-SPDX_2.3-2196F3?style=for-the-badge">
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/LICENSE-MIT-4CAF50?style=for-the-badge&logo=github"></a>
 </p>
-
-## Documentation
-
-| Document | Contents |
-| --- | --- |
-| [Handbook wiki](https://github.com/KoukeNeko/Taiga-CLI/wiki) | Full reference and behaviour notes for every command group |
-| [INSTALL.md](INSTALL.md) | Downloads, checksums, completion, and upgrades |
-| [COMPATIBILITY.md](COMPATIBILITY.md) | Verified Taiga versions, platforms, and login methods |
-| [RELEASING.md](RELEASING.md) | Maintainer release process |
 
 ## License
 

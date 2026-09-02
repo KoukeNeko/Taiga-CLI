@@ -20,6 +20,7 @@
   <a href="INSTALL.md">安裝</a>
   · <a href="#快速開始">快速開始</a>
   · <a href="https://github.com/KoukeNeko/Taiga-CLI/wiki">使用手冊</a>
+  · <a href="CHANGELOG.md">版本紀錄</a>
   · <a href="COMPATIBILITY.md">相容性</a>
 </p>
 
@@ -252,15 +253,6 @@ macOS 是例外：notarization 要求 Apple 簽發的安全時間戳，因此 De
   <img alt="SPDX 2.3 SBOM" src="https://img.shields.io/badge/SBOM-SPDX_2.3-2196F3?style=for-the-badge">
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/LICENSE-MIT-4CAF50?style=for-the-badge&logo=github"></a>
 </p>
-
-## 文件
-
-| 文件 | 內容 |
-| --- | --- |
-| [使用手冊 Wiki](https://github.com/KoukeNeko/Taiga-CLI/wiki) | 每個指令群組的完整參考與行為說明 |
-| [INSTALL.md](INSTALL.md) | 下載、checksum、completion 與升級 |
-| [COMPATIBILITY.md](COMPATIBILITY.md) | 已驗證的 Taiga 版本、平台與登入方式 |
-| [RELEASING.md](RELEASING.md) | 維護者發布流程 |
 
 ## License
 
