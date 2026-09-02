@@ -50,6 +50,11 @@ The release workflow publishes the section matching the tag as the GitHub Releas
   command after a day away failed with `auth` if it was an import.
 - Interrupting an attachment or CSV download mid-stream exits `130` like an
   interrupt before the first byte, rather than `9` marked retryable.
+- `auth login --host` and `doctor --host` pointed at something that is not a
+  Taiga web app, such as the community forum, said only "Not Found". The error
+  now names the `conf.json` URL that was tried, what came back, and what
+  `--host` should be. A host that answers with a page instead of JSON reports
+  `validation` rather than an internal failure.
 
 ### Changed
 

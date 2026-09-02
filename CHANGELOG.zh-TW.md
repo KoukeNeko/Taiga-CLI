@@ -32,6 +32,9 @@ Release workflow 會把對應版本的段落與英文版 [CHANGELOG.md](CHANGELO
 - `project import` 在串流 dump 之前會先用一次憑證。其他指令都先以 JSON 查詢接觸 Taiga，過期的 token 在那裡
   就會換發；匯入沒有自己的查詢，所以隔了一天後的第一個指令若是匯入，就會以 `auth` 失敗。
 - 在附件或 CSV 下載進行中按下中斷，現在和第一個位元組之前中斷一樣以 `130` 離開，而不是標記為可重試的 `9`。
+- `auth login --host` 與 `doctor --host` 指向不是 Taiga 網頁應用的位址時（例如社群論壇），原本只說「Not Found」。
+  錯誤訊息現在會寫出實際嘗試的 `conf.json` 網址、對方回了什麼，以及 `--host` 應該填什麼。回應是網頁而不是
+  JSON 的主機現在回報 `validation`，而不是內部失敗。
 
 ### 變更
 
