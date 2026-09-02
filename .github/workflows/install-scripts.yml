@@ -38,14 +38,27 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y shellcheck
           shellcheck -s sh scripts/install.sh scripts/uninstall.sh scripts/render-homebrew-formula.sh scripts/extract-changelog.sh
-      - name: Install with the POSIX script
+      - name: Install and uninstall with the POSIX scripts
         if: runner.os != 'Windows'
         run: |
+          # Create a completion directory so the installer's conditional path is
+          # exercised deterministically rather than depending on what the runner
+          # happens to have.
+          completions="$HOME/.local/share/bash-completion/completions"
+          mkdir -p "$completions"
           AIHKI_INSTALL_DIR="$RUNNER_TEMP/bin" sh scripts/install.sh
           "$RUNNER_TEMP/bin/aihki" version --json | grep '"version"'
-      - name: Install with the PowerShell script
+          test -s "$completions/aihki"
+          # The uninstaller has to remove exactly what the installer wrote, so
+          # the pair is exercised as a round trip rather than separately.
+          AIHKI_INSTALL_DIR="$RUNNER_TEMP/bin" sh scripts/uninstall.sh
+          test ! -e "$RUNNER_TEMP/bin/aihki"
+          test ! -e "$completions/aihki"
+      - name: Install and uninstall with the PowerShell scripts
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           ./scripts/install.ps1 -InstallDir "$env:RUNNER_TEMP\bin"
           & "$env:RUNNER_TEMP\bin\aihki.exe" version --json
+          ./scripts/uninstall.ps1 -InstallDir "$env:RUNNER_TEMP\bin"
+          if (Test-Path "$env:RUNNER_TEMP\bin\aihki.exe") { throw 'the uninstaller left the binary behind' }

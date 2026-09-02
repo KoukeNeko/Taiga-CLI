@@ -115,6 +115,56 @@ main() {
         *":$install_dir:"*) ;;
         *) log "Add $install_dir to PATH to run aihki from anywhere." ;;
     esac
+
+    install_completions
+}
+
+# Completions go only into directories that already exist and are writable.
+# Creating them would litter the home directory of someone who does not use
+# that shell, and guessing at a private layout would write files nobody finds.
+completion_directory() {
+    case "$1" in
+        zsh)
+            for candidate in "${HOMEBREW_PREFIX:-/opt/homebrew}/share/zsh/site-functions" \
+                "/usr/local/share/zsh/site-functions" "$HOME/.zsh/completions"; do
+                [ -d "$candidate" ] && [ -w "$candidate" ] && { printf '%s' "$candidate"; return 0; }
+            done
+            ;;
+        bash)
+            for candidate in "${HOMEBREW_PREFIX:-/opt/homebrew}/etc/bash_completion.d" \
+                "$HOME/.local/share/bash-completion/completions" "/usr/local/etc/bash_completion.d"; do
+                [ -d "$candidate" ] && [ -w "$candidate" ] && { printf '%s' "$candidate"; return 0; }
+            done
+            ;;
+        fish)
+            candidate="${XDG_CONFIG_HOME:-$HOME/.config}/fish/completions"
+            [ -d "$candidate" ] && [ -w "$candidate" ] && { printf '%s' "$candidate"; return 0; }
+            ;;
+    esac
+    return 1
+}
+
+completion_filename() {
+    case "$1" in
+        zsh) printf '_aihki' ;;
+        bash) printf 'aihki' ;;
+        fish) printf 'aihki.fish' ;;
+    esac
+}
+
+install_completions() {
+    installed=no
+    for shell in zsh bash fish; do
+        directory=$(completion_directory "$shell") || continue
+        target="$directory/$(completion_filename "$shell")"
+        if "$install_dir/aihki" completion "$shell" > "$target" 2>/dev/null; then
+            log "Installed $shell completion to $target"
+            installed=yes
+        else
+            rm -f "$target"
+        fi
+    done
+    [ "$installed" = yes ] && return 0
     log "Shell completion: aihki completion bash|zsh|fish|powershell"
 }
 

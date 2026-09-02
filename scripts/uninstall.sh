@@ -103,10 +103,32 @@ remove_credentials() {
     esac
 }
 
+# Completions are removed from the same directories the installer writes to,
+# and only when the file is one this tool wrote, so a hand-made completion of
+# the same name is never destroyed.
+remove_completions() {
+    zsh_dirs="${HOMEBREW_PREFIX:-/opt/homebrew}/share/zsh/site-functions /usr/local/share/zsh/site-functions $HOME/.zsh/completions"
+    bash_dirs="${HOMEBREW_PREFIX:-/opt/homebrew}/etc/bash_completion.d $HOME/.local/share/bash-completion/completions /usr/local/etc/bash_completion.d"
+    fish_dirs="${XDG_CONFIG_HOME:-$HOME/.config}/fish/completions"
+    for directory in $zsh_dirs; do remove_completion_file "$directory/_$BINARY"; done
+    for directory in $bash_dirs; do remove_completion_file "$directory/$BINARY"; done
+    for directory in $fish_dirs; do remove_completion_file "$directory/$BINARY.fish"; done
+}
+
+remove_completion_file() {
+    target=$1
+    [ -f "$target" ] || return 0
+    # Generated completions name the command they complete; anything else is
+    # somebody's own file and is left alone.
+    grep -q "$BINARY" "$target" 2>/dev/null || return 0
+    remove "$target"
+}
+
 main() {
     check_homebrew
 
     remove "$install_dir/$BINARY"
+    remove_completions
 
     if [ "$purge" = yes ]; then
         base=$(config_directory)

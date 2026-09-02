@@ -113,7 +113,10 @@ Archive 的 `completions/` 包含：
 - Fish：`aihki.fish`
 - PowerShell：`aihki.ps1`
 
-也可在安裝後動態產生：
+安裝腳本會在**標準 completion 目錄已存在**時自動寫入，並逐一告知寫到哪裡。它不會建立這些目錄 —— 替沒在
+用該 shell 的人建一個空資料夾只是製造垃圾。解除安裝時會精準移除這些檔案。
+
+也可以自行產生：
 
 ```sh
 aihki completion bash
