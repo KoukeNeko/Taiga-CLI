@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -105,5 +106,16 @@ func TestReadBatchSubjectsBoundsInput(t *testing.T) {
 	tooMany := strings.Repeat("item\n", maxBatchItems+1)
 	if _, err := readBatchSubjects(strings.NewReader(tooMany), "-"); err == nil {
 		t.Fatal("expected batch size error")
+	}
+	// Input past the byte limit is refused for its size before its count, and
+	// the message names the limit a person can act on.
+	tooMuch := strings.Repeat(strings.Repeat("x", 50<<10)+"\n", 100)
+	_, err := readBatchSubjects(strings.NewReader(tooMuch), "-")
+	var known *contractError
+	if !errors.As(err, &known) || known.Code != "batch_too_large" {
+		t.Fatalf("got %v, want batch_too_large", err)
+	}
+	if known.Message != "batch input exceeds 4 MiB" {
+		t.Errorf("message = %q", known.Message)
 	}
 }

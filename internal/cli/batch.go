@@ -339,9 +339,11 @@ func readBatchSubjects(input io.Reader, path string) ([]string, error) {
 		file, reader = opened, opened
 		defer func() { _ = file.Close() }()
 	}
-	limited := &io.LimitedReader{R: reader, N: (4 << 20) + 1}
+	// One byte past the limit tells input that reached it apart from input
+	// that filled it exactly.
+	limited := &io.LimitedReader{R: reader, N: maxBodyBytes + 1}
 	scanner := bufio.NewScanner(limited)
-	scanner.Buffer(make([]byte, 64<<10), (4<<20)+1)
+	scanner.Buffer(make([]byte, 64<<10), maxBodyBytes+1)
 	subjects := make([]string, 0)
 	for scanner.Scan() {
 		subject := strings.TrimSpace(scanner.Text())
@@ -357,7 +359,7 @@ func readBatchSubjects(input io.Reader, path string) ([]string, error) {
 		return nil, validationError("invalid_batch_input", fmt.Sprintf("read batch input: %v", err))
 	}
 	if limited.N == 0 {
-		return nil, validationError("batch_too_large", "batch input exceeds 4 MiB")
+		return nil, validationError("batch_too_large", fmt.Sprintf("batch input exceeds %d MiB", maxBodyBytes>>20))
 	}
 	if len(subjects) == 0 {
 		return nil, validationError("empty_batch", "batch input contains no non-empty subjects")

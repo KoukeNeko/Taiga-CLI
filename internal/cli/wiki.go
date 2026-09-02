@@ -277,7 +277,7 @@ func readWikiContent(input io.Reader, body, bodyFile string) (string, error) {
 	var data []byte
 	var err error
 	if bodyFile == "-" {
-		data, err = io.ReadAll(io.LimitReader(input, 4<<20))
+		data, err = io.ReadAll(io.LimitReader(input, maxBodyBytes))
 	} else {
 		data, err = os.ReadFile(bodyFile)
 	}

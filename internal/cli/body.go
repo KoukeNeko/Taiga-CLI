@@ -7,9 +7,9 @@ import (
 	"strings"
 )
 
-// maxBodyBytes bounds what a comment or description read from standard input
-// can be, so a stream that never ends cannot exhaust memory. The same figure is
-// still written out in wiki.go and batch.go.
+// maxBodyBytes bounds what a comment, description, wiki page or batch input
+// read from standard input can be, so a stream that never ends cannot exhaust
+// memory.
 const maxBodyBytes = 4 << 20
 
 // bodyWording is what a command calls the text it is reading, in the errors it
