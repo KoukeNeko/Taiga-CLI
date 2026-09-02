@@ -143,8 +143,8 @@ On macOS and Linux, Homebrew is the easiest path once a stable release is out:
 brew install koukeneko/tap/taiga
 ```
 
-The tap tracks stable releases only. The newest published build today is the `v0.1.0-rc.1`
-pre-release, available from [Releases](https://github.com/KoukeNeko/Taiga-CLI/releases).
+The tap tracks stable releases only. Archives for every platform, with checksums and an SBOM, are on
+the [Releases page](https://github.com/KoukeNeko/Taiga-CLI/releases).
 
 To install from source into `~/.local/bin`:
 

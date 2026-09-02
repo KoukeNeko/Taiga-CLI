@@ -133,8 +133,8 @@ macOS 與 Linux 上最簡單的方式是 Homebrew（正式版釋出後可用）�
 brew install koukeneko/tap/taiga
 ```
 
-Tap 只追蹤正式版。目前最新的發布是 `v0.1.0-rc.1` pre-release，可從
-[Releases](https://github.com/KoukeNeko/Taiga-CLI/releases) 取得。
+Tap 只追蹤正式版。各平台的 archive、checksum 與 SBOM 都在
+[Releases 頁面](https://github.com/KoukeNeko/Taiga-CLI/releases)。
 
 從原始碼安裝到 `~/.local/bin`：
 
