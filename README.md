@@ -104,12 +104,25 @@ or credentials — created locally and never uploaded.
 
 ## Getting started
 
-1. **Build** (Go 1.25 or newer):
+1. **Install.** Homebrew, on macOS and Linux:
 
    ```sh
-   make build
-   ./bin/taiga version
+   brew install koukeneko/tap/taiga
    ```
+
+   Or the install script, which verifies the download against the release checksums before it
+   installs anything:
+
+   ```sh
+   curl -fsSL https://raw.githubusercontent.com/KoukeNeko/Taiga-CLI/main/scripts/install.sh | sh
+   ```
+
+   ```powershell
+   irm https://raw.githubusercontent.com/KoukeNeko/Taiga-CLI/main/scripts/install.ps1 | iex
+   ```
+
+   Release archives, manual checksum verification, and building from source are covered in
+   [INSTALL.md](INSTALL.md). On Windows, open a new terminal afterwards to pick up the PATH change.
 
 2. **Log in.** The token goes to the OS keyring:
 
@@ -149,48 +162,6 @@ The full command reference, flag documentation, and per-subsystem behaviour live
 - Password login, existing bearer tokens, and refresh-token rotation
 
 The detailed matrix and known limits are in [COMPATIBILITY.md](COMPATIBILITY.md).
-
-## Get the tool
-
-On macOS and Linux, Homebrew is the easiest path once a stable release is out:
-
-```sh
-brew install koukeneko/tap/taiga
-```
-
-Or use the install script, which verifies the archive against the release checksums before installing:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/KoukeNeko/Taiga-CLI/main/scripts/install.sh | sh
-```
-
-On Windows:
-
-```powershell
-irm https://raw.githubusercontent.com/KoukeNeko/Taiga-CLI/main/scripts/install.ps1 | iex
-```
-
-That one-liner is unaffected by the PowerShell execution policy because it runs a string rather than a
-file. Saving the script to pass `-Version` or `-InstallDir` does need `-ExecutionPolicy Bypass`, which
-[INSTALL.md](INSTALL.md) covers. Open a new terminal afterwards to pick up the PATH change.
-
-The tap tracks stable releases only. Archives for every platform, with checksums and an SBOM, are on
-the [Releases page](https://github.com/KoukeNeko/Taiga-CLI/releases).
-
-To install from source into `~/.local/bin`:
-
-```sh
-make install
-```
-
-Or choose your own location:
-
-```sh
-make install PREFIX=/usr/local
-```
-
-Release archive downloads, checksum verification, shell completion setup, and upgrades are covered in
-[INSTALL.md](INSTALL.md); the maintainer release process is in [RELEASING.md](RELEASING.md).
 
 ---
 
@@ -288,7 +259,7 @@ make release \
 ```
 
 The same source, Go toolchain, version, commit, and epoch produce byte-identical Linux and Windows
-archives. macOS archives are the exception: notarization requires a secure timestamp from Apple, so a
+archives. The maintainer release process is in [RELEASING.md](RELEASING.md). macOS archives are the exception: notarization requires a secure timestamp from Apple, so a
 Developer ID signature can never reproduce. Their contents are otherwise built identically.
 
 <p>

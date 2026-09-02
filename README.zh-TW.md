@@ -94,12 +94,24 @@ taiga project use example-project --local
 
 ## 快速開始
 
-1. **建置**（需要 Go 1.25 以上）：
+1. **安裝。** macOS 與 Linux 用 Homebrew：
 
    ```sh
-   make build
-   ./bin/taiga version
+   brew install koukeneko/tap/taiga
    ```
+
+   或用安裝腳本，它會先核對 release checksum 才安裝：
+
+   ```sh
+   curl -fsSL https://raw.githubusercontent.com/KoukeNeko/Taiga-CLI/main/scripts/install.sh | sh
+   ```
+
+   ```powershell
+   irm https://raw.githubusercontent.com/KoukeNeko/Taiga-CLI/main/scripts/install.ps1 | iex
+   ```
+
+   Release archive、手動驗證 checksum 與從原始碼建置見 [INSTALL.zh-TW.md](INSTALL.zh-TW.md)。
+   Windows 安裝後請開新的終端機，PATH 變更才會生效。
 
 2. **登入**，token 會存進 OS keyring：
 
@@ -139,48 +151,6 @@ taiga project use example-project --local
 - 帳密登入、既有 bearer token 與 refresh token rotation
 
 詳細矩陣與已知限制見 [COMPATIBILITY.zh-TW.md](COMPATIBILITY.zh-TW.md)。
-
-## 取得工具
-
-macOS 與 Linux 上最簡單的方式是 Homebrew（正式版釋出後可用）：
-
-```sh
-brew install koukeneko/tap/taiga
-```
-
-或使用安裝腳本，它會先核對 release checksum 再安裝：
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/KoukeNeko/Taiga-CLI/main/scripts/install.sh | sh
-```
-
-Windows：
-
-```powershell
-irm https://raw.githubusercontent.com/KoukeNeko/Taiga-CLI/main/scripts/install.ps1 | iex
-```
-
-這行不受 PowerShell 執行原則影響，因為它執行的是字串而非檔案。若要存檔後傳 `-Version` 或
-`-InstallDir`，需要 `-ExecutionPolicy Bypass`，細節見 [INSTALL.zh-TW.md](INSTALL.zh-TW.md)。安裝後請開新的終端機，
-PATH 變更才會生效。
-
-Tap 只追蹤正式版。各平台的 archive、checksum 與 SBOM 都在
-[Releases 頁面](https://github.com/KoukeNeko/Taiga-CLI/releases)。
-
-從原始碼安裝到 `~/.local/bin`：
-
-```sh
-make install
-```
-
-或自訂位置：
-
-```sh
-make install PREFIX=/usr/local
-```
-
-Release archive 的下載、checksum 驗證、shell completion 安裝與升級方式見 [INSTALL.zh-TW.md](INSTALL.zh-TW.md)；
-維護者的發布流程見 [RELEASING.md](RELEASING.md)。
 
 ---
 
@@ -274,6 +244,7 @@ make release \
 ```
 
 相同的 source、Go toolchain、version、commit 與 epoch 會產生位元完全相同的 Linux 與 Windows archive。
+維護者的發布流程見 [RELEASING.md](RELEASING.md)。
 macOS 是例外：notarization 要求 Apple 簽發的安全時間戳，因此 Developer ID 簽章本質上無法重現；除簽章外
 其餘內容的建置方式完全相同。
 
