@@ -2,7 +2,6 @@ package taiga
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/url"
 )
@@ -25,19 +24,7 @@ func (c *Client) DeleteWorkItem(ctx context.Context, resource string, id int64) 
 	if err != nil {
 		return err
 	}
-	operation := fmt.Sprintf("%s/%d", path, id)
-	if err := c.Delete(ctx, operation); err != nil {
-		return err
-	}
-	var result map[string]any
-	if _, err := c.Get(ctx, operation, nil, &result); err != nil {
-		var apiErr *Error
-		if errors.As(err, &apiErr) && apiErr.Kind == KindNotFound {
-			return nil
-		}
-		return &Error{Kind: KindAmbiguousCommit, Operation: "DELETE " + operation, Message: "work item was deleted but could not be verified", Retryable: false, Cause: err}
-	}
-	return &Error{Kind: KindAmbiguousCommit, Operation: "DELETE " + operation, Message: "Taiga still returns the work item after deletion", Retryable: false}
+	return c.deleteAndVerify(ctx, "work item", path, id, nil)
 }
 
 func (c *Client) ListParticipants(ctx context.Context, resource string, id int64, kind string, pageNumber, limit int) ([]Participant, Page, error) {

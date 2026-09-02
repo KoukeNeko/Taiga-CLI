@@ -2,9 +2,7 @@ package taiga
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"net/http"
 	"net/url"
 	"strings"
 )
@@ -118,17 +116,6 @@ func (c *Client) DeleteWorkflowMetadata(ctx context.Context, kind string, id, mo
 	if err != nil {
 		return err
 	}
-	operation := fmt.Sprintf("%s/%d", path, id)
 	query := url.Values{"moveTo": []string{fmt.Sprint(moveTo)}}
-	if _, err := c.doJSON(ctx, http.MethodDelete, operation, query, nil, nil, false, mayCommit); err != nil {
-		return err
-	}
-	if _, err := c.GetWorkflowMetadata(ctx, kind, id); err != nil {
-		var apiErr *Error
-		if errors.As(err, &apiErr) && apiErr.Kind == KindNotFound {
-			return nil
-		}
-		return &Error{Kind: KindAmbiguousCommit, Operation: "DELETE " + operation, Message: "metadata was deleted but could not be verified", Retryable: false, Cause: err}
-	}
-	return &Error{Kind: KindAmbiguousCommit, Operation: "DELETE " + operation, Message: "Taiga still returns the metadata after deletion", Retryable: false}
+	return c.deleteAndVerify(ctx, "metadata", path, id, query)
 }

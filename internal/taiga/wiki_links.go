@@ -2,7 +2,6 @@ package taiga
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/url"
 )
@@ -58,16 +57,5 @@ func (c *Client) UpdateWikiLink(ctx context.Context, id int64, request UpdateWik
 }
 
 func (c *Client) DeleteWikiLink(ctx context.Context, id int64) error {
-	path := fmt.Sprintf("wiki-links/%d", id)
-	if err := c.Delete(ctx, path); err != nil {
-		return err
-	}
-	if _, err := c.GetWikiLink(ctx, id); err != nil {
-		var apiErr *Error
-		if errors.As(err, &apiErr) && apiErr.Kind == KindNotFound {
-			return nil
-		}
-		return &Error{Kind: KindAmbiguousCommit, Operation: "DELETE " + path, Message: "wiki link was deleted but could not be verified", Retryable: false, Cause: err}
-	}
-	return &Error{Kind: KindAmbiguousCommit, Operation: "DELETE " + path, Message: "Taiga still returns the wiki link after deletion", Retryable: false}
+	return c.deleteAndVerify(ctx, "wiki link", "wiki-links", id, nil)
 }

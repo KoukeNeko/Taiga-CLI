@@ -191,6 +191,27 @@ func (c *Client) Delete(ctx context.Context, path string) error {
 	return err
 }
 
+// deleteAndVerify sends the DELETE and then reads the record back, reporting
+// the deletion as unconfirmed unless Taiga answers that the record is gone.
+// noun is what the record is called in that report. query carries what the
+// endpoint needs alongside the deletion, such as where to move the items a
+// status or swimlane still holds.
+func (c *Client) deleteAndVerify(ctx context.Context, noun, path string, id int64, query url.Values) error {
+	operation := fmt.Sprintf("%s/%d", path, id)
+	if _, err := c.doJSON(ctx, http.MethodDelete, operation, query, nil, nil, false, mayCommit); err != nil {
+		return err
+	}
+	var ignored any
+	if _, err := c.Get(ctx, operation, nil, &ignored); err != nil {
+		var apiErr *Error
+		if errors.As(err, &apiErr) && apiErr.Kind == KindNotFound {
+			return nil
+		}
+		return &Error{Kind: KindAmbiguousCommit, Operation: "DELETE " + operation, Message: noun + " was deleted but could not be verified", Retryable: false, Cause: err}
+	}
+	return &Error{Kind: KindAmbiguousCommit, Operation: "DELETE " + operation, Message: "Taiga still returns the " + noun + " after deletion", Retryable: false}
+}
+
 // commitRisk says what an unconfirmed request could have left on the server.
 // It belongs to the call, decided where the endpoint is known, rather than
 // being inferred from the HTTP verb: Taiga has POSTs that settle nothing and a

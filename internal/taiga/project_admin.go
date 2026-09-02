@@ -2,9 +2,7 @@ package taiga
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"net/http"
 	"net/url"
 )
 
@@ -80,7 +78,7 @@ func (c *Client) DeleteDueDate(ctx context.Context, resource string, id int64) e
 	if err != nil {
 		return err
 	}
-	return c.deleteAndVerify(ctx, path, id, nil)
+	return c.deleteAndVerify(ctx, "resource", path, id, nil)
 }
 
 type SwimlaneStatus struct {
@@ -136,7 +134,7 @@ func (c *Client) DeleteSwimlane(ctx context.Context, id int64, moveTo *int64) er
 	if moveTo != nil {
 		query = url.Values{"moveTo": {fmt.Sprint(*moveTo)}}
 	}
-	return c.deleteAndVerify(ctx, "swimlanes", id, query)
+	return c.deleteAndVerify(ctx, "resource", "swimlanes", id, query)
 }
 
 func (c *Client) ListSwimlaneWIP(ctx context.Context, projectID int64) ([]SwimlaneWIP, error) {
@@ -186,20 +184,4 @@ func (c *Client) DeleteProjectTag(ctx context.Context, projectID int64, tag stri
 func (c *Client) MixProjectTags(ctx context.Context, projectID int64, from []string, to string) error {
 	_, err := c.Post(ctx, fmt.Sprintf("projects/%d/mix_tags", projectID), map[string]any{"from_tags": from, "to_tag": to}, nil)
 	return err
-}
-
-func (c *Client) deleteAndVerify(ctx context.Context, path string, id int64, query url.Values) error {
-	operation := fmt.Sprintf("%s/%d", path, id)
-	if _, err := c.doJSON(ctx, http.MethodDelete, operation, query, nil, nil, false, mayCommit); err != nil {
-		return err
-	}
-	var ignored any
-	if _, err := c.Get(ctx, operation, nil, &ignored); err != nil {
-		var apiErr *Error
-		if errors.As(err, &apiErr) && apiErr.Kind == KindNotFound {
-			return nil
-		}
-		return &Error{Kind: KindAmbiguousCommit, Operation: "DELETE " + operation, Message: "resource was deleted but could not be verified", Cause: err}
-	}
-	return &Error{Kind: KindAmbiguousCommit, Operation: "DELETE " + operation, Message: "Taiga still returns the resource after deletion"}
 }

@@ -2,7 +2,6 @@ package taiga
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/url"
 )
@@ -108,16 +107,5 @@ func (c *Client) UpdateMilestone(ctx context.Context, id int64, request UpdateMi
 }
 
 func (c *Client) DeleteMilestone(ctx context.Context, id int64) error {
-	path := fmt.Sprintf("milestones/%d", id)
-	if err := c.Delete(ctx, path); err != nil {
-		return err
-	}
-	if _, err := c.GetMilestone(ctx, id); err != nil {
-		var apiErr *Error
-		if errors.As(err, &apiErr) && apiErr.Kind == KindNotFound {
-			return nil
-		}
-		return &Error{Kind: KindAmbiguousCommit, Operation: "DELETE " + path, Message: "sprint was deleted but could not be verified", Retryable: false, Cause: err}
-	}
-	return &Error{Kind: KindAmbiguousCommit, Operation: "DELETE " + path, Message: "Taiga still returns the Sprint after deletion", Retryable: false}
+	return c.deleteAndVerify(ctx, "sprint", "milestones", id, nil)
 }
