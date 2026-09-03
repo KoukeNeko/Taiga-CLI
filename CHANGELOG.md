@@ -8,6 +8,10 @@ The release workflow publishes the section matching the tag as the GitHub Releas
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-03
+
+The first login is the whole of this release. `aihki auth login` now asks for the URL of any page inside your Taiga, with the hosted Taiga as the default, and then how your account signs in, so that an account backed by GitHub or Google is walked to its token instead of a password it does not have. `--url` replaces `--host`, which still works, and a token pasted at a terminal takes Enter rather than Ctrl-D.
+
 ### Added
 
 - `aihki auth login` with nothing else asks two questions a person can answer: the URL of any page inside their Taiga, with the hosted Taiga offered as the default so that its users only press Enter, and how their account signs in, offering a password, a provider such as GitHub or Google, or an existing token. The site and API the credential will go to are shown before any credential is asked for, and a script that omits the URL is told to pass `--url` rather than being asked.
@@ -184,7 +188,8 @@ Or download the archive for your platform below, verify it against `SHA256SUMS`,
 
 Verified against Taiga 6.10.2 through a full Docker E2E run against a pinned image digest. Supports macOS, Linux, and Windows on `amd64` and `arm64`.
 
-[Unreleased]: https://github.com/KoukeNeko/aihki/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/KoukeNeko/aihki/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/KoukeNeko/aihki/releases/tag/v0.4.0
 [0.3.2]: https://github.com/KoukeNeko/aihki/releases/tag/v0.3.2
 [0.3.1]: https://github.com/KoukeNeko/aihki/releases/tag/v0.3.1
 [0.3.0]: https://github.com/KoukeNeko/aihki/releases/tag/v0.3.0

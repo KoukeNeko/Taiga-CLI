@@ -8,6 +8,10 @@ Release workflow 會把對應版本的段落與英文版 [CHANGELOG.md](CHANGELO
 
 ## [未發布]
 
+## [0.4.0] - 2026-09-03
+
+這一版全部關於第一次登入。`aihki auth login` 現在會問你的 Taiga 裡任何一頁的網址（預設為官方託管的 Taiga），再問帳號怎麼登入；用 GitHub 或 Google 的帳號會被帶去貼 token，而不是被要求一個它沒有的密碼。`--url` 取代 `--host`（舊旗標仍可用），在終端機貼上 token 後按 Enter 即可，不再需要 Ctrl-D。
+
 ### 新增
 
 - 直接執行 `aihki auth login` 會問兩個一般人答得出來的問題：你的 Taiga 裡任何一頁的網址（預設為官方託管的 Taiga，直接按 Enter 即可），以及你的帳號怎麼登入（密碼、GitHub 或 Google 等第三方、既有的 token）。在要求任何憑證之前，會先顯示憑證將送往的站台與 API；script 沒給網址時會被告知要傳 `--url`，而不是被提問。
@@ -184,7 +188,8 @@ brew install koukeneko/tap/aihki
 
 已針對 Taiga 6.10.2 以固定 image digest 執行完整 Docker E2E 驗證。支援 macOS、Linux、Windows 的 `amd64` 與 `arm64`。
 
-[未發布]: https://github.com/KoukeNeko/aihki/compare/v0.3.2...HEAD
+[未發布]: https://github.com/KoukeNeko/aihki/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/KoukeNeko/aihki/releases/tag/v0.4.0
 [0.3.2]: https://github.com/KoukeNeko/aihki/releases/tag/v0.3.2
 [0.3.1]: https://github.com/KoukeNeko/aihki/releases/tag/v0.3.1
 [0.3.0]: https://github.com/KoukeNeko/aihki/releases/tag/v0.3.0
