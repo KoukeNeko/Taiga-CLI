@@ -167,6 +167,13 @@ func (c *Client) APIURL() string { return c.baseURL.String() }
 
 func (c *Client) SetToken(token string) { c.token = strings.TrimSpace(token) }
 
+// SetRefreshToken gives a client built without one the means to refresh, and
+// the callback that records the rotated pair.
+func (c *Client) SetRefreshToken(refreshToken string, onRefresh func(string, string) error) {
+	c.refreshToken = strings.TrimSpace(refreshToken)
+	c.onRefresh = onRefresh
+}
+
 func (c *Client) Get(ctx context.Context, path string, query url.Values, out any) (http.Header, error) {
 	return c.doJSON(ctx, http.MethodGet, path, query, nil, out, true, noCommit)
 }

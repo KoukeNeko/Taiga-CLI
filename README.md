@@ -166,19 +166,23 @@ or credentials — created locally and never uploaded.
    ```
 
    An account that signs in through GitHub or Google has no Taiga password. Choose that option at
-   the second question, or pass `--with-token`, and aihki takes the token the web app holds: sign in
-   on the web, open the browser's JavaScript console on that page, and run this to put the token on
+   the second question, or pass `--with-token`, and aihki takes the tokens the web app holds: sign
+   in on the web, open the browser's JavaScript console on that page, and run this to put them on
    the clipboard:
 
    ```js
-   copy(JSON.parse(localStorage.getItem("token")))
+   copy(JSON.stringify({auth_token: JSON.parse(localStorage.token), refresh: JSON.parse(localStorage.refresh)}))
    ```
 
-   Then paste it at the prompt, or pipe it in:
+   Then paste the result at the prompt, or pipe it in:
 
    ```sh
    pbpaste | aihki auth login --url https://tree.taiga.io/ --with-token
    ```
+
+   The refresh token in that object lets the login renew itself the way a password login does. A
+   bare token works too, but then the login lasts only until that token expires, which is 24 hours
+   on a default Taiga 6.
 
    A token imported this way comes without a refresh token, so it stops working when the server's
    access token expires, which is 24 hours on a default Taiga 6. `AIHKI_TOKEN` is the same thing

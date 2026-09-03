@@ -35,7 +35,7 @@ macOS binary 以 Developer ID 憑證簽署並經 Apple notarization（Team ID `3
 | 既有 bearer token／`AIHKI_TOKEN` | Verified |
 | Refresh token rotation | Verified by automated test |
 | SSO／LDAP 外掛 | 不提供通用互動登入；可在站台允許時匯入既有 token |
-| 以 GitHub、Google 等第三方登入的帳號 | 只能匯入 token：把網頁應用存在瀏覽器 Local Storage 的 `token` 值交給 `auth login --with-token`。不含 refresh token，登入效期為一個 access token 的壽命，預設的 Taiga 6 為 24 小時 |
+| 以 GitHub、Google 等第三方登入的帳號 | 匯入 token：把網頁應用存在瀏覽器 Local Storage 的 `{"auth_token": …, "refresh": …}` 交給 `auth login --with-token`，refresh token 讓登入能自動更新。只貼 token 本身則效期為一個 access token 的壽命，預設的 Taiga 6 為 24 小時 |
 
 ## Machine contract migration
 

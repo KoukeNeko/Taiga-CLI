@@ -148,11 +148,11 @@ aihki project use example-project --local
    ```
 
    用 GitHub 或 Google 登入的帳號沒有 Taiga 密碼。在第二個問題選那個選項，或直接加 `--with-token`，aihki
-   會改用網頁應用持有的 token：先在網頁登入，在那個分頁打開瀏覽器的 JavaScript console，執行這行把 token
-   放進剪貼簿：
+   會改用網頁應用持有的 token：先在網頁登入，在那個分頁打開瀏覽器的 JavaScript console，執行這行把兩個
+   token 一起放進剪貼簿：
 
    ```js
-   copy(JSON.parse(localStorage.getItem("token")))
+   copy(JSON.stringify({auth_token: JSON.parse(localStorage.token), refresh: JSON.parse(localStorage.refresh)}))
    ```
 
    然後在提示處貼上，或用 pipe 傳入：
@@ -160,6 +160,9 @@ aihki project use example-project --local
    ```sh
    pbpaste | aihki auth login --url https://tree.taiga.io/ --with-token
    ```
+
+   物件裡的 refresh token 讓這個登入能像密碼登入一樣自動更新。只貼 token 本身也可以，但登入只會維持到該
+   token 過期，預設的 Taiga 6 是 24 小時。
 
    這樣匯入的 token 沒有附帶 refresh token，會在伺服器的 access token 過期時失效，預設的 Taiga 6 是 24 小時。
    `AIHKI_TOKEN` 是給 script 用的同一件事。

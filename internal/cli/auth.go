@@ -3,6 +3,7 @@ package cli
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -100,12 +101,15 @@ func (a *App) login(ctx context.Context, options loginOptions) error {
 	if err := a.Credentials.Set(credential.Account(settings.Profile, target.apiURL), tokens); err != nil {
 		return err
 	}
-	result := map[string]any{"profile": settings.Profile, "api_url": target.apiURL, "user": user}
+	result := map[string]any{"profile": settings.Profile, "api_url": target.apiURL, "user": user, "refresh_token_stored": tokens.RefreshToken != ""}
 	if a.global.JSON {
 		return a.renderer().Data(result)
 	}
 	if !a.global.Quiet {
 		_, _ = fmt.Fprintf(a.Out, "Logged in to %s as %s (profile %s)\n", target.apiURL, user.Username, settings.Profile)
+		if tokens.RefreshToken == "" {
+			_, _ = fmt.Fprintln(a.Out, "No refresh token was given, so this login lasts until the token expires.")
+		}
 	}
 	return nil
 }
@@ -147,11 +151,11 @@ func (a *App) askSite() (string, error) {
 // a password is, since an account that signs in through a provider has none.
 func (a *App) authenticate(ctx context.Context, client *taiga.Client, target loginTarget, options loginOptions) (credential.Tokens, taiga.User, error) {
 	if options.WithToken && (a.global.NoInput || !a.stdinTTY()) {
-		token, err := a.readTokenFromStdin()
+		text, err := a.readTokenFromStdin()
 		if err != nil {
 			return credential.Tokens{}, taiga.User{}, err
 		}
-		return a.loginWithToken(ctx, client, token)
+		return a.loginWithToken(ctx, client, text)
 	}
 	if a.global.NoInput || !a.stdinTTY() {
 		return credential.Tokens{}, taiga.User{}, validationError("input_required", "interactive login requires a TTY; use --with-token or AIHKI_TOKEN for automation")
@@ -174,11 +178,11 @@ func (a *App) authenticate(ctx context.Context, client *taiga.Client, target log
 	if method == signInWithProvider {
 		a.explainProviderSignIn()
 	}
-	token, err := a.readSecret("Token: ", tokenSecret)
+	text, err := a.readSecret("Token: ", tokenSecret)
 	if err != nil {
 		return credential.Tokens{}, taiga.User{}, err
 	}
-	return a.loginWithToken(ctx, client, token)
+	return a.loginWithToken(ctx, client, text)
 }
 
 // showLoginTarget puts the destination in front of the person before any
@@ -191,10 +195,15 @@ func (a *App) showLoginTarget(target loginTarget) {
 	_, _ = fmt.Fprintf(a.Err, "Taiga API: %s\n", target.apiURL)
 }
 
+// consoleCopySnippet copies both of the web app's tokens as one JSON object,
+// so that the refresh token travels with the access token and the login can
+// renew itself.
+const consoleCopySnippet = `copy(JSON.stringify({auth_token: JSON.parse(localStorage.token), refresh: JSON.parse(localStorage.refresh)}))`
+
 func (a *App) explainProviderSignIn() {
 	_, _ = fmt.Fprint(a.Err, "An account that signs in with GitHub, Google or another provider has no Taiga password.\n"+
 		"Sign in on the web, open the browser's JavaScript console on that page, run\n"+
-		"  copy(JSON.parse(localStorage.getItem(\"token\")))\n"+
+		"  "+consoleCopySnippet+"\n"+
 		"and paste the result here.\n")
 }
 
@@ -225,13 +234,51 @@ func (a *App) loginWithPassword(ctx context.Context, client *taiga.Client, targe
 	return tokens, user, nil
 }
 
-func (a *App) loginWithToken(ctx context.Context, client *taiga.Client, token string) (credential.Tokens, taiga.User, error) {
-	client.SetToken(token)
+func (a *App) loginWithToken(ctx context.Context, client *taiga.Client, text string) (credential.Tokens, taiga.User, error) {
+	tokens, err := parseTokenInput(text)
+	if err != nil {
+		return credential.Tokens{}, taiga.User{}, err
+	}
+	client.SetToken(tokens.AuthToken)
+	// A pasted refresh token is good for the login itself, not only for
+	// later: an access token that expired between the browser and the
+	// terminal is refreshed here, and what gets stored is the rotated pair.
+	if tokens.RefreshToken != "" {
+		client.SetRefreshToken(tokens.RefreshToken, func(authToken, refreshToken string) error {
+			tokens.AuthToken, tokens.RefreshToken = authToken, refreshToken
+			return nil
+		})
+	}
 	user, err := client.Me(ctx)
 	if err != nil {
 		return credential.Tokens{}, taiga.User{}, err
 	}
-	return credential.Tokens{AuthToken: token}, user, nil
+	return tokens, user, nil
+}
+
+// parseTokenInput reads what --with-token was given: a bare access token, or
+// the JSON object the web app holds, {"auth_token": ..., "refresh": ...},
+// which is the shape of Taiga's own login answer and carries the refresh
+// token that lets the login renew itself. "token" is taken for auth_token
+// too, since that is the key the browser shows.
+func parseTokenInput(text string) (credential.Tokens, error) {
+	text = strings.TrimSpace(text)
+	if !strings.HasPrefix(text, "{") {
+		return credential.Tokens{AuthToken: text}, nil
+	}
+	var pasted struct {
+		AuthToken string `json:"auth_token"`
+		Token     string `json:"token"`
+		Refresh   string `json:"refresh"`
+	}
+	if err := json.Unmarshal([]byte(text), &pasted); err != nil {
+		return credential.Tokens{}, validationError("invalid_token", "the token must be a bearer token or a JSON object with auth_token and refresh")
+	}
+	tokens := credential.Tokens{AuthToken: firstNonEmpty(pasted.AuthToken, pasted.Token), RefreshToken: strings.TrimSpace(pasted.Refresh)}
+	if tokens.AuthToken == "" {
+		return credential.Tokens{}, validationError("empty_token", "the JSON object names no auth_token")
+	}
+	return tokens, nil
 }
 
 func (a *App) tokenLoginHint(target loginTarget) string {
