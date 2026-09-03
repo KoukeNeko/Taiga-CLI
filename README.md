@@ -148,8 +148,9 @@ or credentials — created locally and never uploaded.
    Release archives, manual checksum verification, and building from source are covered in
    [INSTALL.md](INSTALL.md). On Windows, open a new terminal afterwards to pick up the PATH change.
 
-2. **Log in.** Run it with nothing else and answer two questions: where you use Taiga, and how
-   your account signs in. The token goes to the OS keyring:
+2. **Log in.** Run it with nothing else and answer two questions: the URL of any page inside your
+   Taiga, with the hosted Taiga offered as the default, and how your account signs in. The token
+   goes to the OS keyring:
 
    ```sh
    aihki auth login

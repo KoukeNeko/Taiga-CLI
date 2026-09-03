@@ -69,6 +69,20 @@ func TestLoginDiscoversTheAPIFromAnyPageUnderEitherFlagName(t *testing.T) {
 	}
 }
 
+func TestReadLineOrFallsBackOnEnter(t *testing.T) {
+	for input, want := range map[string]string{"\n": "https://tree.taiga.io/", "  \n": "https://tree.taiga.io/", "https://taiga.example/\n": "https://taiga.example/", "https://taiga.example/": "https://taiga.example/"} {
+		prompts := &bytes.Buffer{}
+		app := &App{In: strings.NewReader(input), Err: prompts}
+		got, err := app.readLineOr("Taiga URL", "https://tree.taiga.io/")
+		if err != nil || got != want {
+			t.Errorf("input %q: got %q, %v; want %q", input, got, err, want)
+		}
+		if prompts.String() != "Taiga URL [https://tree.taiga.io/]: " {
+			t.Errorf("prompt = %q", prompts.String())
+		}
+	}
+}
+
 func TestReadChoiceTakesANumberOrTheFirstOnEnter(t *testing.T) {
 	for input, want := range map[string]int{"\n": 0, "2\n": 1, "1": 0} {
 		app := &App{In: strings.NewReader(input), Err: &bytes.Buffer{}}

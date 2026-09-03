@@ -134,17 +134,11 @@ func (a *App) loginTarget(ctx context.Context, siteURL string, settings Settings
 	return loginTarget{apiURL: front.API, site: front.Site}, nil
 }
 
-// askSite asks where the person uses Taiga the way a colleague would: by the
-// site they know, not by an API they do not.
+// askSite asks for the Taiga site as one question, the same for every site.
+// The hosted Taiga is the default, so that its users press Enter and never
+// have to know a URL, and the default is also the example of what to paste.
 func (a *App) askSite() (string, error) {
-	choice, err := a.readChoice("Where do you use Taiga?", []string{"Taiga.io (" + taiga.HostedTaigaApp + ")", "Another Taiga site"})
-	if err != nil {
-		return "", err
-	}
-	if choice == 0 {
-		return taiga.HostedTaigaApp, nil
-	}
-	return a.readLine("Taiga URL (paste any page from inside the Taiga web app): ")
+	return a.readLineOr("Taiga URL (paste any page from inside the Taiga web app)", taiga.HostedTaigaApp)
 }
 
 // authenticate obtains a credential for target. Piped token input stays
@@ -311,6 +305,20 @@ func (a *App) readLine(prompt string) (string, error) {
 		return "", validationError("empty_input", "input cannot be empty")
 	}
 	return line, nil
+}
+
+// readLineOr reads one line, showing fallback in the prompt and returning it
+// when the line is empty.
+func (a *App) readLineOr(prompt, fallback string) (string, error) {
+	_, _ = fmt.Fprintf(a.Err, "%s [%s]: ", prompt, fallback)
+	line, err := bufio.NewReader(a.In).ReadString('\n')
+	if err != nil && err != io.EOF {
+		return "", fmt.Errorf("read input: %w", err)
+	}
+	if line = strings.TrimSpace(line); line != "" {
+		return line, nil
+	}
+	return fallback, nil
 }
 
 // readChoice prints numbered options and reads the number of one. Enter alone

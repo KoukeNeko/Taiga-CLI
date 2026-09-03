@@ -132,7 +132,8 @@ aihki project use example-project --local
    Release archive、手動驗證 checksum 與從原始碼建置見 [INSTALL.zh-TW.md](INSTALL.zh-TW.md)。
    Windows 安裝後請開新的終端機，PATH 變更才會生效。
 
-2. **登入**。直接執行，回答兩個問題：你在哪裡使用 Taiga、你的帳號怎麼登入。token 會存進 OS keyring：
+2. **登入**。直接執行，回答兩個問題：你的 Taiga 裡任何一頁的網址（預設為官方託管的 Taiga）、你的帳號怎麼登入。
+   token 會存進 OS keyring：
 
    ```sh
    aihki auth login
