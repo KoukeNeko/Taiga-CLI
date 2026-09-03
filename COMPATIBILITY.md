@@ -2,7 +2,7 @@
 
 ***English** · [繁體中文](COMPATIBILITY.zh-TW.md)*
 
-Updated: 2026-09-01
+Updated: 2026-09-03
 
 ## Taiga server
 
@@ -39,6 +39,7 @@ byte-for-byte reproducible; Linux and Windows archives are.
 | Existing bearer token or `AIHKI_TOKEN` | Verified |
 | Refresh token rotation | Verified by automated test |
 | SSO and LDAP plugins | No generic interactive login. An existing token can be imported where the site allows it. |
+| Accounts that sign in through GitHub, Google or another provider | Token import only: copy the web app's `token` from the browser's Local Storage into `auth login --with-token`. No refresh token comes with it, so the login lasts one access-token lifetime, 24 hours on a default Taiga 6. |
 
 ## Machine contract migration
 

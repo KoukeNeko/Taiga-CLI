@@ -138,6 +138,25 @@ aihki project use example-project --local
    aihki auth login --host https://taiga.example.com/taiga/ --profile company
    ```
 
+   `--host` 填 Taiga 網頁應用的位址；填 API 的位址也可以，而且只會接觸你輸入的那個 origin。官方託管的 Taiga
+   在 `https://tree.taiga.io/`；`community.taiga.io` 是論壇，帳號系統不同。
+
+   用 GitHub 或 Google 登入的帳號沒有 Taiga 密碼，改為匯入它的 token。先在網頁登入，在那個分頁打開瀏覽器的
+   JavaScript console，執行這行把 token 放進剪貼簿：
+
+   ```js
+   copy(JSON.parse(localStorage.getItem("token")))
+   ```
+
+   再從標準輸入交給 CLI：
+
+   ```sh
+   pbpaste | aihki auth login --host https://tree.taiga.io/ --with-token
+   ```
+
+   這樣匯入的 token 沒有附帶 refresh token，會在伺服器的 access token 過期時失效，預設的 Taiga 6 是 24 小時。
+   `AIHKI_TOKEN` 是給 script 用的同一件事。
+
 3. **選定專案**：
 
    ```sh
