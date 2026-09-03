@@ -786,9 +786,10 @@ func TestRefreshFailuresKeepTheirOwnMeaning(t *testing.T) {
 }
 
 // A host that is not a Taiga web app -- a forum, a marketing site -- answers
-// 404 or a page of HTML, and the person who typed it needs to see which URL
-// was tried and what came back, not a bare status.
-func TestDiscoverAPINamesTheHostThatIsNotATaigaFrontend(t *testing.T) {
+// 404 or a page of HTML. The person who typed it needs to see every URL that
+// was tried and what came back, not a bare status, and the kind still follows
+// what conf.json answered.
+func TestDiscoverAPINamesEveryURLTriedWhenAHostIsNotTaiga(t *testing.T) {
 	for _, testCase := range []struct {
 		name   string
 		answer func(http.ResponseWriter)
@@ -798,19 +799,18 @@ func TestDiscoverAPINamesTheHostThatIsNotATaigaFrontend(t *testing.T) {
 		{"forum answering 404", func(w http.ResponseWriter) {
 			w.WriteHeader(http.StatusNotFound)
 			_, _ = io.WriteString(w, `{"errors":["The requested URL or resource could not be found."],"error_type":"not_found"}`)
-		}, KindNotFound, "it answered 404 Not Found"},
+		}, KindNotFound, "conf.json answered 404 Not Found"},
 		{"site answering a page", func(w http.ResponseWriter) {
 			_, _ = io.WriteString(w, `<!doctype html><html><body>welcome</body></html>`)
-		}, KindValidation, "the answer is not JSON"},
+		}, KindValidation, "conf.json answered with something other than JSON"},
 		{"configuration without an API", func(w http.ResponseWriter) {
 			_, _ = io.WriteString(w, `{"baseHref":"/"}`)
-		}, KindValidation, "it declares no API URL"},
+		}, KindValidation, "conf.json answered JSON that declares no API URL"},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
+			var paths []string
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if r.URL.Path != "/conf.json" {
-					t.Errorf("path = %q", r.URL.Path)
-				}
+				paths = append(paths, r.URL.Path)
 				testCase.answer(w)
 			}))
 			defer server.Close()
@@ -823,12 +823,84 @@ func TestDiscoverAPINamesTheHostThatIsNotATaigaFrontend(t *testing.T) {
 			if apiErr.Kind != testCase.kind {
 				t.Errorf("kind = %s, want %s", apiErr.Kind, testCase.kind)
 			}
-			if !strings.Contains(apiErr.Message, server.URL+"/conf.json") {
-				t.Errorf("message = %q, want it to name the URL that was tried", apiErr.Message)
+			if want := []string{"/conf.json", "/locales", "/api/v1/locales"}; strings.Join(paths, " ") != strings.Join(want, " ") {
+				t.Errorf("probed %v, want %v", paths, want)
 			}
-			if !strings.Contains(apiErr.Message, testCase.reason) {
-				t.Errorf("message = %q, want it to say %q", apiErr.Message, testCase.reason)
+			for _, expected := range []string{server.URL + "/" + testCase.reason, server.URL + "/api/v1/locales answered", "such as https://tree.taiga.io/"} {
+				if !strings.Contains(apiErr.Message, expected) {
+					t.Errorf("message = %q, want it to contain %q", apiErr.Message, expected)
+				}
 			}
 		})
+	}
+}
+
+// People pass the API's address to --host as readily as the web app's, and
+// the API answers its locale list to anyone, so the address itself and its
+// api/v1/ path are tried before giving up.
+func TestDiscoverAPIAcceptsTheAPIAddress(t *testing.T) {
+	var paths []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.URL.Path)
+		if r.URL.Path == "/api/v1/locales" {
+			_, _ = io.WriteString(w, `[{"code":"en","name":"English","bidi":false}]`)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	for _, host := range []string{server.URL + "/", server.URL + "/api/v1/"} {
+		paths = nil
+		config, err := DiscoverAPI(context.Background(), server.Client(), host)
+		if err != nil {
+			t.Fatalf("host %s: %v", host, err)
+		}
+		if config.API != server.URL+"/api/v1/" {
+			t.Errorf("host %s: API = %q", host, config.API)
+		}
+		for _, path := range paths {
+			if strings.Contains(path, "/api/v1/api/") {
+				t.Errorf("host %s probed %s, which stacks api/v1 on itself", host, path)
+			}
+		}
+	}
+}
+
+// A web app's server answers any unknown path with its page, so the page at
+// /locales must not be mistaken for the API's locale list.
+func TestDiscoverAPIDoesNotMistakeAPageForTheAPI(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/locales" {
+			_, _ = io.WriteString(w, `<!doctype html><html><body>app</body></html>`)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	_, err := DiscoverAPI(context.Background(), server.Client(), server.URL+"/")
+	var apiErr *Error
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("got %v, want an *Error", err)
+	}
+	if !strings.Contains(apiErr.Message, server.URL+"/locales answered with something other than JSON") {
+		t.Errorf("message = %q, want the page at /locales named", apiErr.Message)
+	}
+}
+
+// Under the hosted Taiga's domain the web app has one address, so a forum or
+// a marketing host there is told where the app is rather than given an example.
+func TestDiscoveryAdviceNamesTheHostedAppForItsDomain(t *testing.T) {
+	for hostname, want := range map[string]string{
+		"community.taiga.io": "The hosted Taiga web app is https://tree.taiga.io/",
+		"taiga.io":           "The hosted Taiga web app is https://tree.taiga.io/",
+		"tree.taiga.io":      "--host is the address of the Taiga web app, such as https://tree.taiga.io/",
+		"taiga.example.com":  "--host is the address of the Taiga web app, such as https://tree.taiga.io/",
+		"nottaiga.io":        "--host is the address of the Taiga web app, such as https://tree.taiga.io/",
+	} {
+		if got := discoveryAdvice(hostname); got != want {
+			t.Errorf("%s: got %q, want %q", hostname, got, want)
+		}
 	}
 }

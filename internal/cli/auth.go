@@ -116,7 +116,7 @@ func (a *App) authLoginCommand() *cobra.Command {
 			return nil
 		},
 	}
-	command.Flags().StringVar(&host, "host", "", "Taiga frontend URL used to discover conf.json")
+	command.Flags().StringVar(&host, "host", "", "address of the Taiga web app or its API")
 	command.Flags().StringVarP(&username, "username", "u", "", "Taiga username or email")
 	command.Flags().BoolVar(&withToken, "with-token", false, "read a bearer token from stdin")
 	return command
