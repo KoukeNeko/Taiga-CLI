@@ -154,6 +154,8 @@ aihki project use example-project --local
    pbpaste | aihki auth login --host https://tree.taiga.io/ --with-token
    ```
 
+   不接 pipe 的話，指令會提示輸入 token：貼上後按 Enter 即可。
+
    這樣匯入的 token 沒有附帶 refresh token，會在伺服器的 access token 過期時失效，預設的 Taiga 6 是 24 小時。
    `AIHKI_TOKEN` 是給 script 用的同一件事。
 

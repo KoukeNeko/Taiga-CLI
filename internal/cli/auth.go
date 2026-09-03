@@ -64,13 +64,9 @@ func (a *App) authLoginCommand() *cobra.Command {
 			var tokens credential.Tokens
 			var user taiga.User
 			if withToken {
-				data, err := io.ReadAll(io.LimitReader(a.In, 64<<10))
+				tokens.AuthToken, err = a.readToken()
 				if err != nil {
-					return fmt.Errorf("read token from stdin: %w", err)
-				}
-				tokens.AuthToken = strings.TrimSpace(string(data))
-				if tokens.AuthToken == "" {
-					return validationError("empty_token", "--with-token requires a token on stdin")
+					return err
 				}
 				client.SetToken(tokens.AuthToken)
 				user, err = client.Me(ctx)
@@ -87,7 +83,7 @@ func (a *App) authLoginCommand() *cobra.Command {
 						return err
 					}
 				}
-				password, err := a.readPassword("Password: ")
+				password, err := a.readSecret("Password: ", passwordSecret)
 				if err != nil {
 					return err
 				}
@@ -118,7 +114,7 @@ func (a *App) authLoginCommand() *cobra.Command {
 	}
 	command.Flags().StringVar(&host, "host", "", "address of the Taiga web app or its API")
 	command.Flags().StringVarP(&username, "username", "u", "", "Taiga username or email")
-	command.Flags().BoolVar(&withToken, "with-token", false, "read a bearer token from stdin")
+	command.Flags().BoolVar(&withToken, "with-token", false, "read a bearer token from standard input, or prompt for it at a terminal")
 	return command
 }
 
@@ -191,22 +187,59 @@ func (a *App) readLine(prompt string) (string, error) {
 	return line, nil
 }
 
-func (a *App) readPassword(prompt string) (string, error) {
+// maxTokenBytes bounds a token read from a pipe, so that a stream that never
+// ends cannot exhaust memory.
+const maxTokenBytes = 64 << 10
+
+// secretWording is what a command calls the secret it is reading, in the
+// errors it returns for it.
+type secretWording struct {
+	name         string
+	emptyCode    string
+	emptyMessage string
+}
+
+var (
+	passwordSecret = secretWording{name: "password", emptyCode: "empty_password", emptyMessage: "password cannot be empty"}
+	tokenSecret    = secretWording{name: "token", emptyCode: "empty_token", emptyMessage: "--with-token requires a token"}
+)
+
+// readToken takes the token --with-token was promised. From a pipe it is
+// whatever arrives before the end of input. At a terminal it is one line,
+// entered without echo like a password, so that pasting it and pressing Enter
+// is enough and nobody has to know about Ctrl-D.
+func (a *App) readToken() (string, error) {
+	if a.stdinTTY() {
+		return a.readSecret("Token: ", tokenSecret)
+	}
+	data, err := io.ReadAll(io.LimitReader(a.In, maxTokenBytes))
+	if err != nil {
+		return "", fmt.Errorf("read token from stdin: %w", err)
+	}
+	token := strings.TrimSpace(string(data))
+	if token == "" {
+		return "", validationError("empty_token", "--with-token requires a token on stdin")
+	}
+	return token, nil
+}
+
+// readSecret reads one line at the terminal without echoing it.
+func (a *App) readSecret(prompt string, wording secretWording) (string, error) {
 	file, ok := a.In.(*os.File)
 	if !ok || !term.IsTerminal(int(file.Fd())) { // #nosec G115 -- see stdinTTY
-		return "", validationError("input_required", "password input requires a TTY")
+		return "", validationError("input_required", wording.name+" input requires a TTY")
 	}
 	_, _ = fmt.Fprint(a.Err, prompt)
 	data, err := term.ReadPassword(int(file.Fd())) // #nosec G115 -- see stdinTTY
 	_, _ = fmt.Fprintln(a.Err)
 	if err != nil {
-		return "", fmt.Errorf("read password: %w", err)
+		return "", fmt.Errorf("read %s: %w", wording.name, err)
 	}
-	password := strings.TrimSpace(string(data))
-	if password == "" {
-		return "", validationError("empty_password", "password cannot be empty")
+	secret := strings.TrimSpace(string(data))
+	if secret == "" {
+		return "", validationError(wording.emptyCode, wording.emptyMessage)
 	}
-	return password, nil
+	return secret, nil
 }
 
 // ensureProfile creates the named profile when it is absent so that selecting a

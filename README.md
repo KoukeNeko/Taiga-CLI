@@ -172,6 +172,8 @@ or credentials — created locally and never uploaded.
    pbpaste | aihki auth login --host https://tree.taiga.io/ --with-token
    ```
 
+   Without the pipe, the command prompts for the token; paste it and press Enter.
+
    A token imported this way comes without a refresh token, so it stops working when the server's
    access token expires, which is 24 hours on a default Taiga 6. `AIHKI_TOKEN` is the same thing
    for a script.
