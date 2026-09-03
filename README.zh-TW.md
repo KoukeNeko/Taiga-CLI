@@ -132,29 +132,33 @@ aihki project use example-project --local
    Release archive、手動驗證 checksum 與從原始碼建置見 [INSTALL.zh-TW.md](INSTALL.zh-TW.md)。
    Windows 安裝後請開新的終端機，PATH 變更才會生效。
 
-2. **登入**，token 會存進 OS keyring：
+2. **登入**。直接執行，回答兩個問題：你在哪裡使用 Taiga、你的帳號怎麼登入。token 會存進 OS keyring：
 
    ```sh
-   aihki auth login --host https://taiga.example.com/taiga/ --profile company
+   aihki auth login
    ```
 
-   `--host` 填 Taiga 網頁應用的位址；填 API 的位址也可以，而且只會接觸你輸入的那個 origin。官方託管的 Taiga
-   在 `https://tree.taiga.io/`；`community.taiga.io` 是論壇，帳號系統不同。
+   要跳過第一個問題，用 `--url` 貼上 Taiga 網頁應用裡任何一頁的網址，例如專案或 backlog 頁面；填 API 的位址
+   也可以，而且只會接觸你輸入的那個站台。官方託管的 Taiga 在 `https://tree.taiga.io/`；`community.taiga.io`
+   是論壇，帳號系統不同。
 
-   用 GitHub 或 Google 登入的帳號沒有 Taiga 密碼，改為匯入它的 token。先在網頁登入，在那個分頁打開瀏覽器的
-   JavaScript console，執行這行把 token 放進剪貼簿：
+   ```sh
+   aihki auth login --url https://taiga.example.com/taiga/ --profile company
+   ```
+
+   用 GitHub 或 Google 登入的帳號沒有 Taiga 密碼。在第二個問題選那個選項，或直接加 `--with-token`，aihki
+   會改用網頁應用持有的 token：先在網頁登入，在那個分頁打開瀏覽器的 JavaScript console，執行這行把 token
+   放進剪貼簿：
 
    ```js
    copy(JSON.parse(localStorage.getItem("token")))
    ```
 
-   再從標準輸入交給 CLI：
+   然後在提示處貼上，或用 pipe 傳入：
 
    ```sh
-   pbpaste | aihki auth login --host https://tree.taiga.io/ --with-token
+   pbpaste | aihki auth login --url https://tree.taiga.io/ --with-token
    ```
-
-   不接 pipe 的話，指令會提示輸入 token：貼上後按 Enter 即可。
 
    這樣匯入的 token 沒有附帶 refresh token，會在伺服器的 access token 過期時失效，預設的 Taiga 6 是 24 小時。
    `AIHKI_TOKEN` 是給 script 用的同一件事。

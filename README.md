@@ -148,31 +148,36 @@ or credentials — created locally and never uploaded.
    Release archives, manual checksum verification, and building from source are covered in
    [INSTALL.md](INSTALL.md). On Windows, open a new terminal afterwards to pick up the PATH change.
 
-2. **Log in.** The token goes to the OS keyring:
+2. **Log in.** Run it with nothing else and answer two questions: where you use Taiga, and how
+   your account signs in. The token goes to the OS keyring:
 
    ```sh
-   aihki auth login --host https://taiga.example.com/taiga/ --profile company
+   aihki auth login
    ```
 
-   `--host` is the address of the Taiga web app. The API's address works too, and nothing beyond
-   the origin you typed is contacted. The hosted Taiga is `https://tree.taiga.io/`; the forum at
-   `community.taiga.io` is a different site with its own accounts.
+   To skip the first question, pass `--url` with the URL of any page inside the Taiga web app, such
+   as a project or backlog page; the API's address works too, and nothing beyond the site you typed
+   is contacted. The hosted Taiga is `https://tree.taiga.io/`; the forum at `community.taiga.io` is
+   a different site with its own accounts.
 
-   An account that signs in through GitHub or Google has no Taiga password, so import its token
-   instead. Log in on the web, open the browser's JavaScript console on that page, and run this to
-   put the token on the clipboard:
+   ```sh
+   aihki auth login --url https://taiga.example.com/taiga/ --profile company
+   ```
+
+   An account that signs in through GitHub or Google has no Taiga password. Choose that option at
+   the second question, or pass `--with-token`, and aihki takes the token the web app holds: sign in
+   on the web, open the browser's JavaScript console on that page, and run this to put the token on
+   the clipboard:
 
    ```js
    copy(JSON.parse(localStorage.getItem("token")))
    ```
 
-   Then hand it to the CLI on standard input:
+   Then paste it at the prompt, or pipe it in:
 
    ```sh
-   pbpaste | aihki auth login --host https://tree.taiga.io/ --with-token
+   pbpaste | aihki auth login --url https://tree.taiga.io/ --with-token
    ```
-
-   Without the pipe, the command prompts for the token; paste it and press Enter.
 
    A token imported this way comes without a refresh token, so it stops working when the server's
    access token expires, which is 24 hours on a default Taiga 6. `AIHKI_TOKEN` is the same thing
