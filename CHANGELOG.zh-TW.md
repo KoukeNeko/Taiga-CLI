@@ -10,7 +10,13 @@ Release workflow 會把對應版本的段落與英文版 [CHANGELOG.md](CHANGELO
 
 ### 新增
 
-- `auth login` 與 `doctor` 的 `--host` 現在也接受 API 的位址。找不到 `conf.json` 時，會把該位址本身及其 `api/v1/` 路徑當作 API 嘗試，不會接觸使用者輸入以外的任何 origin。全部都不是 Taiga 時，錯誤會列出試過的每一個網址與各自的回應；`taiga.io` 底下的主機會被告知託管的網頁應用在 `https://tree.taiga.io/`。旗標的說明文字改為說明它接受什麼。
+- 直接執行 `aihki auth login` 會問兩個一般人答得出來的問題：你在哪裡使用 Taiga（託管的 Taiga.io 或另一個站台），以及你的帳號怎麼登入（密碼、GitHub 或 Google 等第三方、既有的 token）。在要求任何憑證之前，會先顯示憑證將送往的站台與 API；script 沒給網址時會被告知要傳 `--url`，而不是被提問。
+- `--url` 接受 Taiga 網頁應用裡任何一頁的網址，例如專案或 backlog 頁面。程式會在該路徑及其上層逐層尋找網頁應用的 `conf.json`，它指名的 API 必須以 Taiga 的方式回應才算數；API 本身的位址也接受。只會接觸你輸入的那個站台：站台內的 redirect 會跟隨，導向其他站台的 redirect 會被回報，而且不會帶著任何憑證送出。找不到 Taiga 時，錯誤會列出試過的每一個網址與各自的回應、說明沒有送出任何憑證，`taiga.io` 底下的主機則會被指名託管的網頁應用在 `https://tree.taiga.io/`。
+- 密碼被拒絕時，現在會說明用 GitHub、Google 等第三方登入的帳號沒有密碼，並給出改用 `--with-token` 的指令。
+
+### 變更
+
+- `auth login` 與 `doctor` 指定 Taiga 站台的旗標改為 `--url`；`--host` 仍可用，並會提示改用 `--url`。這個旗標接受的是帶 scheme 與路徑的 URL，叫 host 名不符實。
 
 ### 修正
 

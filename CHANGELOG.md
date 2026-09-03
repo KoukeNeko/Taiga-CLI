@@ -10,7 +10,13 @@ The release workflow publishes the section matching the tag as the GitHub Releas
 
 ### Added
 
-- `--host` on `auth login` and `doctor` accepts the API's address as well as the web app's. When `conf.json` is not there, the address itself and its `api/v1/` path are tried as the API, contacting nothing beyond the origin that was typed. When none of them is Taiga, the error lists every URL tried and what each answered, and a host under `taiga.io` is told that the hosted web app is `https://tree.taiga.io/`. The flag's help text now says what it accepts.
+- `aihki auth login` with nothing else asks two questions a person can answer: where they use Taiga, offering the hosted Taiga.io or another site, and how their account signs in, offering a password, a provider such as GitHub or Google, or an existing token. The site and API the credential will go to are shown before any credential is asked for, and a script that omits the URL is told to pass `--url` rather than being asked.
+- `--url` takes the URL of any page inside the Taiga web app, such as a project or backlog page. The web app's `conf.json` is looked for at that path and at each path above it, the API it names has to answer as Taiga before it counts, and the API's own address is accepted as well. Only the site that was typed is contacted: a redirect within it is followed, a redirect to another site is reported, and nothing is sent with a credential. When no Taiga is found, the error lists every URL tried and what each answered, says that no credentials were sent, and for a host under `taiga.io` names `https://tree.taiga.io/` as the hosted web app.
+- A refused password now says that an account which signs in through GitHub, Google or another provider has no password, and gives the `--with-token` command to run instead.
+
+### Changed
+
+- The flag that names the Taiga site is `--url` on `auth login` and `doctor`; `--host` still works and says to use `--url`. What the flag takes is a URL with a scheme and a path, which "host" misnamed.
 
 ### Fixed
 
