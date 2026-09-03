@@ -8,6 +8,10 @@ Release workflow 會把對應版本的段落與英文版 [CHANGELOG.md](CHANGELO
 
 ## [未發布]
 
+### 新增
+
+- `auth login --with-token` 除了單一 token，也接受網頁應用持有的 JSON 物件 `{"auth_token": …, "refresh": …}`。帶著 refresh token 的匯入登入能像密碼登入一樣自動更新，不再於 access token 過期時失效；精靈與 README 提供一次複製兩者的 console 指令。結果會標示是否存入了 refresh token。
+
 ## [0.4.0] - 2026-09-03
 
 這一版全部關於第一次登入。`aihki auth login` 現在會問你的 Taiga 裡任何一頁的網址（預設為官方託管的 Taiga），再問帳號怎麼登入；用 GitHub 或 Google 的帳號會被帶去貼 token，而不是被要求一個它沒有的密碼。`--url` 取代 `--host`（舊旗標仍可用），在終端機貼上 token 後按 Enter 即可，不再需要 Ctrl-D。

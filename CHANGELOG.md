@@ -8,6 +8,10 @@ The release workflow publishes the section matching the tag as the GitHub Releas
 
 ## [Unreleased]
 
+### Added
+
+- `auth login --with-token` accepts the JSON object the web app holds, `{"auth_token": …, "refresh": …}`, as well as a bare token. With the refresh token an imported login renews itself the way a password login does, instead of ending when the access token expires; the wizard and the README give the console one-liner that copies both. The result says whether a refresh token was stored.
+
 ## [0.4.0] - 2026-09-03
 
 The first login is the whole of this release. `aihki auth login` now asks for the URL of any page inside your Taiga, with the hosted Taiga as the default, and then how your account signs in, so that an account backed by GitHub or Google is walked to its token instead of a password it does not have. `--url` replaces `--host`, which still works, and a token pasted at a terminal takes Enter rather than Ctrl-D.
