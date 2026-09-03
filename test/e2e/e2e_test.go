@@ -59,7 +59,7 @@ func TestPhaseOneAgainstDocker(t *testing.T) {
 		"TAIGA_PROJECT=" + projectSlug,
 	}}
 
-	runner.jsonOK("doctor", "--host", host)
+	runner.jsonOK("doctor", "--url", host)
 	diagnosticPath := filepath.Join(runner.dir, "aihki-diagnostics.zip")
 	diagnostic := runner.jsonOK("doctor", "bundle", diagnosticPath)
 	if diagnostic.Data["redacted"] != true || diagnostic.Data["uploaded"] != false {

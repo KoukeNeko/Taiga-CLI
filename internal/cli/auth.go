@@ -2,9 +2,12 @@ package cli
 
 import (
 	"bufio"
+	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/KoukeNeko/aihki/internal/config"
@@ -20,102 +23,225 @@ func (a *App) authCommand() *cobra.Command {
 	return command
 }
 
+// loginOptions is what the login command's flags say.
+type loginOptions struct {
+	SiteURL   string
+	Username  string
+	WithToken bool
+}
+
+// loginTarget is where a login goes: the API that takes the credential and,
+// when the API was found through the web app, the web app's address.
+type loginTarget struct {
+	apiURL string
+	site   string
+}
+
+// signInMethod is how the person's account signs in to Taiga.
+type signInMethod int
+
+const (
+	signInWithPassword signInMethod = iota
+	signInWithProvider
+	signInWithToken
+)
+
 func (a *App) authLoginCommand() *cobra.Command {
-	var host, username string
-	var withToken bool
+	var options loginOptions
 	command := &cobra.Command{
 		Use:   "login",
 		Short: "Authenticate and save a Taiga credential",
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			ctx := cmd.Context()
-			if host != "" && a.global.APIURL != "" {
-				return usageError("--host and --api-url are mutually exclusive")
-			}
-			settings, cfg, err := a.resolveSettings(ctx)
-			if err != nil {
-				return err
-			}
-			apiURL := a.global.APIURL
-			if host != "" {
-				front, err := taiga.DiscoverAPI(ctx, a.HTTPClient, host)
-				if err != nil {
-					return err
-				}
-				apiURL = front.API
-			}
-			if apiURL == "" {
-				apiURL = settings.APIURL
-			}
-			if apiURL == "" {
-				return validationError("missing_api_url", "provide --host or --api-url for the first login")
-			}
-			apiURL, err = taiga.NormalizeAPIURL(apiURL)
-			if err != nil {
-				return validationError("invalid_api_url", err.Error())
-			}
-			clientOptions := []taiga.ClientOption{taiga.WithHTTPClient(a.HTTPClient)}
-			if a.global.Verbose {
-				clientOptions = append(clientOptions, taiga.WithVerbose(a.Err))
-			}
-			client, err := taiga.NewClient(apiURL, clientOptions...)
-			if err != nil {
-				return err
-			}
-			var tokens credential.Tokens
-			var user taiga.User
-			if withToken {
-				tokens.AuthToken, err = a.readToken()
-				if err != nil {
-					return err
-				}
-				client.SetToken(tokens.AuthToken)
-				user, err = client.Me(ctx)
-				if err != nil {
-					return err
-				}
-			} else {
-				if a.global.NoInput || !a.stdinTTY() {
-					return validationError("input_required", "interactive login requires a TTY; use --with-token or AIHKI_TOKEN for automation")
-				}
-				if username == "" {
-					username, err = a.readLine("Username: ")
-					if err != nil {
-						return err
-					}
-				}
-				password, err := a.readSecret("Password: ", passwordSecret)
-				if err != nil {
-					return err
-				}
-				response, err := client.Login(ctx, username, password)
-				if err != nil {
-					return err
-				}
-				tokens = credential.Tokens{AuthToken: response.AuthToken, RefreshToken: response.RefreshToken}
-				user = taiga.User{ID: response.ID, Username: response.Username, FullName: response.FullName}
-			}
-			updateProfile(&cfg, settings.Profile, func(profile *config.Profile) { profile.APIURL = apiURL })
-			cfg.CurrentProfile = settings.Profile
-			if err := a.Config.Save(cfg); err != nil {
-				return err
-			}
-			if err := a.Credentials.Set(credential.Account(settings.Profile, apiURL), tokens); err != nil {
-				return err
-			}
-			result := map[string]any{"profile": settings.Profile, "api_url": apiURL, "user": user}
-			if a.global.JSON {
-				return a.renderer().Data(result)
-			}
-			if !a.global.Quiet {
-				_, _ = fmt.Fprintf(a.Out, "Logged in to %s as %s (profile %s)\n", apiURL, user.Username, settings.Profile)
-			}
-			return nil
-		},
+		RunE:  func(cmd *cobra.Command, _ []string) error { return a.login(cmd.Context(), options) },
 	}
-	command.Flags().StringVar(&host, "host", "", "address of the Taiga web app or its API")
-	command.Flags().StringVarP(&username, "username", "u", "", "Taiga username or email")
-	command.Flags().BoolVar(&withToken, "with-token", false, "read a bearer token from standard input, or prompt for it at a terminal")
+	addSiteURLFlag(command, &options.SiteURL)
+	command.Flags().StringVarP(&options.Username, "username", "u", "", "Taiga username or email")
+	command.Flags().BoolVar(&options.WithToken, "with-token", false, "read a bearer token from standard input, or prompt for it at a terminal")
 	return command
+}
+
+// addSiteURLFlag binds --url, and keeps --host working for scripts written
+// before the rename: what the flag takes is a URL with a scheme and a path,
+// which "host" misnamed.
+func addSiteURLFlag(command *cobra.Command, target *string) {
+	command.Flags().StringVar(target, "url", "", "any page inside the Taiga web app, or the API's address")
+	command.Flags().StringVar(target, "host", "", "")
+	_ = command.Flags().MarkDeprecated("host", "use --url")
+}
+
+func (a *App) login(ctx context.Context, options loginOptions) error {
+	if options.SiteURL != "" && a.global.APIURL != "" {
+		return usageError("--url and --api-url are mutually exclusive")
+	}
+	settings, cfg, err := a.resolveSettings(ctx)
+	if err != nil {
+		return err
+	}
+	target, err := a.loginTarget(ctx, options.SiteURL, settings)
+	if err != nil {
+		return err
+	}
+	clientOptions := []taiga.ClientOption{taiga.WithHTTPClient(a.HTTPClient)}
+	if a.global.Verbose {
+		clientOptions = append(clientOptions, taiga.WithVerbose(a.Err))
+	}
+	client, err := taiga.NewClient(target.apiURL, clientOptions...)
+	if err != nil {
+		return err
+	}
+	tokens, user, err := a.authenticate(ctx, client, target, options)
+	if err != nil {
+		return err
+	}
+	updateProfile(&cfg, settings.Profile, func(profile *config.Profile) { profile.APIURL = target.apiURL })
+	cfg.CurrentProfile = settings.Profile
+	if err := a.Config.Save(cfg); err != nil {
+		return err
+	}
+	if err := a.Credentials.Set(credential.Account(settings.Profile, target.apiURL), tokens); err != nil {
+		return err
+	}
+	result := map[string]any{"profile": settings.Profile, "api_url": target.apiURL, "user": user}
+	if a.global.JSON {
+		return a.renderer().Data(result)
+	}
+	if !a.global.Quiet {
+		_, _ = fmt.Fprintf(a.Out, "Logged in to %s as %s (profile %s)\n", target.apiURL, user.Username, settings.Profile)
+	}
+	return nil
+}
+
+// loginTarget resolves where the login goes. A URL on the command line is
+// discovered from; a configured API URL is reused; otherwise the terminal is
+// asked, and a script is told what to pass.
+func (a *App) loginTarget(ctx context.Context, siteURL string, settings Settings) (loginTarget, error) {
+	if siteURL == "" && settings.APIURL != "" {
+		return loginTarget{apiURL: settings.APIURL}, nil
+	}
+	if siteURL == "" {
+		if a.global.NoInput || !a.stdinTTY() {
+			return loginTarget{}, validationError("missing_api_url", "a Taiga URL is required in non-interactive mode; pass --url with any page inside the Taiga web app, or --api-url")
+		}
+		var err error
+		siteURL, err = a.askSite()
+		if err != nil {
+			return loginTarget{}, err
+		}
+	}
+	front, err := taiga.DiscoverAPI(ctx, a.HTTPClient, siteURL)
+	if err != nil {
+		return loginTarget{}, err
+	}
+	return loginTarget{apiURL: front.API, site: front.Site}, nil
+}
+
+// askSite asks where the person uses Taiga the way a colleague would: by the
+// site they know, not by an API they do not.
+func (a *App) askSite() (string, error) {
+	choice, err := a.readChoice("Where do you use Taiga?", []string{"Taiga.io (" + taiga.HostedTaigaApp + ")", "Another Taiga site"})
+	if err != nil {
+		return "", err
+	}
+	if choice == 0 {
+		return taiga.HostedTaigaApp, nil
+	}
+	return a.readLine("Taiga URL (paste any page from inside the Taiga web app): ")
+}
+
+// authenticate obtains a credential for target. Piped token input stays
+// silent for scripts; at a terminal the destination is shown before any
+// secret is asked for, and the account's way of signing in is asked before
+// a password is, since an account that signs in through a provider has none.
+func (a *App) authenticate(ctx context.Context, client *taiga.Client, target loginTarget, options loginOptions) (credential.Tokens, taiga.User, error) {
+	if options.WithToken && (a.global.NoInput || !a.stdinTTY()) {
+		token, err := a.readTokenFromStdin()
+		if err != nil {
+			return credential.Tokens{}, taiga.User{}, err
+		}
+		return a.loginWithToken(ctx, client, token)
+	}
+	if a.global.NoInput || !a.stdinTTY() {
+		return credential.Tokens{}, taiga.User{}, validationError("input_required", "interactive login requires a TTY; use --with-token or AIHKI_TOKEN for automation")
+	}
+	a.showLoginTarget(target)
+	method := signInWithPassword
+	switch {
+	case options.WithToken:
+		method = signInWithToken
+	case options.Username == "":
+		choice, err := a.readChoice("How do you sign in to Taiga?", []string{"Username and password", "GitHub, Google or another sign-in provider", "An existing Taiga token"})
+		if err != nil {
+			return credential.Tokens{}, taiga.User{}, err
+		}
+		method = signInMethod(choice)
+	}
+	if method == signInWithPassword {
+		return a.loginWithPassword(ctx, client, target, options.Username)
+	}
+	if method == signInWithProvider {
+		a.explainProviderSignIn()
+	}
+	token, err := a.readSecret("Token: ", tokenSecret)
+	if err != nil {
+		return credential.Tokens{}, taiga.User{}, err
+	}
+	return a.loginWithToken(ctx, client, token)
+}
+
+// showLoginTarget puts the destination in front of the person before any
+// credential is asked for.
+func (a *App) showLoginTarget(target loginTarget) {
+	if target.site != "" {
+		_, _ = fmt.Fprintf(a.Err, "Taiga: %s\nAPI:   %s\n", target.site, target.apiURL)
+		return
+	}
+	_, _ = fmt.Fprintf(a.Err, "Taiga API: %s\n", target.apiURL)
+}
+
+func (a *App) explainProviderSignIn() {
+	_, _ = fmt.Fprint(a.Err, "An account that signs in with GitHub, Google or another provider has no Taiga password.\n"+
+		"Sign in on the web, open the browser's JavaScript console on that page, run\n"+
+		"  copy(JSON.parse(localStorage.getItem(\"token\")))\n"+
+		"and paste the result here.\n")
+}
+
+func (a *App) loginWithPassword(ctx context.Context, client *taiga.Client, target loginTarget, username string) (credential.Tokens, taiga.User, error) {
+	var err error
+	if username == "" {
+		username, err = a.readLine("Username or email: ")
+		if err != nil {
+			return credential.Tokens{}, taiga.User{}, err
+		}
+	}
+	password, err := a.readSecret("Password: ", passwordSecret)
+	if err != nil {
+		return credential.Tokens{}, taiga.User{}, err
+	}
+	response, err := client.Login(ctx, username, password)
+	if err != nil {
+		// A refused password is what a provider-backed account gets every
+		// time, so the way in for such an account travels with the refusal.
+		var apiErr *taiga.Error
+		if errors.As(err, &apiErr) && apiErr.Kind == taiga.KindAuth {
+			apiErr.Message += "; an account that signs in to Taiga with GitHub, Google or another provider has no password, so sign in with its token instead: " + a.tokenLoginHint(target)
+		}
+		return credential.Tokens{}, taiga.User{}, err
+	}
+	tokens := credential.Tokens{AuthToken: response.AuthToken, RefreshToken: response.RefreshToken}
+	user := taiga.User{ID: response.ID, Username: response.Username, FullName: response.FullName}
+	return tokens, user, nil
+}
+
+func (a *App) loginWithToken(ctx context.Context, client *taiga.Client, token string) (credential.Tokens, taiga.User, error) {
+	client.SetToken(token)
+	user, err := client.Me(ctx)
+	if err != nil {
+		return credential.Tokens{}, taiga.User{}, err
+	}
+	return credential.Tokens{AuthToken: token}, user, nil
+}
+
+func (a *App) tokenLoginHint(target loginTarget) string {
+	return "aihki auth login --url " + firstNonEmpty(target.site, target.apiURL) + " --with-token"
 }
 
 func (a *App) authLogoutCommand() *cobra.Command {
@@ -187,6 +313,29 @@ func (a *App) readLine(prompt string) (string, error) {
 	return line, nil
 }
 
+// readChoice prints numbered options and reads the number of one. Enter alone
+// takes the first, which is why the first is the likeliest.
+func (a *App) readChoice(question string, options []string) (int, error) {
+	_, _ = fmt.Fprintln(a.Err, question)
+	for index, option := range options {
+		_, _ = fmt.Fprintf(a.Err, "  %d) %s\n", index+1, option)
+	}
+	_, _ = fmt.Fprint(a.Err, "Choice [1]: ")
+	line, err := bufio.NewReader(a.In).ReadString('\n')
+	if err != nil && err != io.EOF {
+		return 0, fmt.Errorf("read input: %w", err)
+	}
+	line = strings.TrimSpace(line)
+	if line == "" {
+		return 0, nil
+	}
+	number, err := strconv.Atoi(line)
+	if err != nil || number < 1 || number > len(options) {
+		return 0, validationError("invalid_choice", fmt.Sprintf("choose a number between 1 and %d", len(options)))
+	}
+	return number - 1, nil
+}
+
 // maxTokenBytes bounds a token read from a pipe, so that a stream that never
 // ends cannot exhaust memory.
 const maxTokenBytes = 64 << 10
@@ -204,14 +353,9 @@ var (
 	tokenSecret    = secretWording{name: "token", emptyCode: "empty_token", emptyMessage: "--with-token requires a token"}
 )
 
-// readToken takes the token --with-token was promised. From a pipe it is
-// whatever arrives before the end of input. At a terminal it is one line,
-// entered without echo like a password, so that pasting it and pressing Enter
-// is enough and nobody has to know about Ctrl-D.
-func (a *App) readToken() (string, error) {
-	if a.stdinTTY() {
-		return a.readSecret("Token: ", tokenSecret)
-	}
+// readTokenFromStdin takes the token --with-token was promised on a pipe:
+// whatever arrives before the end of input.
+func (a *App) readTokenFromStdin() (string, error) {
 	data, err := io.ReadAll(io.LimitReader(a.In, maxTokenBytes))
 	if err != nil {
 		return "", fmt.Errorf("read token from stdin: %w", err)
@@ -223,7 +367,9 @@ func (a *App) readToken() (string, error) {
 	return token, nil
 }
 
-// readSecret reads one line at the terminal without echoing it.
+// readSecret reads one line at the terminal without echoing it, so that
+// pasting a secret and pressing Enter is enough and it stays out of the
+// scrollback.
 func (a *App) readSecret(prompt string, wording secretWording) (string, error) {
 	file, ok := a.In.(*os.File)
 	if !ok || !term.IsTerminal(int(file.Fd())) { // #nosec G115 -- see stdinTTY

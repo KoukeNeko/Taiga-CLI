@@ -16,14 +16,14 @@ type doctorCheck struct {
 }
 
 func (a *App) doctorCommand() *cobra.Command {
-	var host string
+	var siteURL string
 	command := &cobra.Command{
 		Use:   "doctor",
 		Short: "Diagnose a Taiga endpoint and current context",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
-			if host != "" && a.global.APIURL != "" {
-				return usageError("--host and --api-url are mutually exclusive")
+			if siteURL != "" && a.global.APIURL != "" {
+				return usageError("--url and --api-url are mutually exclusive")
 			}
 			settings, _, err := a.resolveSettings(ctx)
 			if err != nil {
@@ -31,19 +31,19 @@ func (a *App) doctorCommand() *cobra.Command {
 			}
 			apiURL := a.global.APIURL
 			checks := []doctorCheck{}
-			if host != "" {
-				front, err := taiga.DiscoverAPI(ctx, a.HTTPClient, host)
+			if siteURL != "" {
+				front, err := taiga.DiscoverAPI(ctx, a.HTTPClient, siteURL)
 				if err != nil {
 					return err
 				}
 				apiURL = front.API
-				checks = append(checks, doctorCheck{Name: "frontend", Status: "ok", Detail: front.BaseHref})
+				checks = append(checks, doctorCheck{Name: "frontend", Status: "ok", Detail: firstNonEmpty(front.Site, "API found directly")})
 			}
 			if apiURL == "" {
 				apiURL = settings.APIURL
 			}
 			if apiURL == "" {
-				return validationError("missing_api_url", "provide --host or --api-url, or configure a profile")
+				return validationError("missing_api_url", "provide --url or --api-url, or configure a profile")
 			}
 			token := ""
 			if settings.APIURL == apiURL {
@@ -97,7 +97,7 @@ func (a *App) doctorCommand() *cobra.Command {
 			return nil
 		},
 	}
-	command.Flags().StringVar(&host, "host", "", "address of the Taiga web app or its API")
+	addSiteURLFlag(command, &siteURL)
 	command.AddCommand(a.doctorBundleCommand())
 	return command
 }
