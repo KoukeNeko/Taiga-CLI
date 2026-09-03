@@ -12,6 +12,10 @@ The release workflow publishes the section matching the tag as the GitHub Releas
 
 - `--host` on `auth login` and `doctor` accepts the API's address as well as the web app's. When `conf.json` is not there, the address itself and its `api/v1/` path are tried as the API, contacting nothing beyond the origin that was typed. When none of them is Taiga, the error lists every URL tried and what each answered, and a host under `taiga.io` is told that the hosted web app is `https://tree.taiga.io/`. The flag's help text now says what it accepts.
 
+### Fixed
+
+- `auth login --with-token` at a terminal prompts for the token and takes one line, entered without echo like a password, so pasting it and pressing Enter is enough. It used to wait for the end of input, which at a terminal means Ctrl-D and looked like a hang. Piped input is unchanged.
+
 ## [0.3.2] - 2026-09-03
 
 Fixes to the request layer, found by reviewing it against a real Taiga. The `aihki` binary changes in what it reports, not in what it sends: a transfer is no longer cut off at thirty seconds, a refresh that failed for any reason other than Taiga refusing it says so, every deletion that reads the record back runs through one implementation, and a `--host` that is not a Taiga web app is named as such.
